@@ -308,8 +308,19 @@ Potential future additions:
 ```text
 LINK
 AAVE
+AVAX
+MATIC
 ONDO
 INJ
+XLM
+TON
+LTC
+SUI
+XAUt
+XRP
+TRON
+HYPE
+XMR
 ```
 
 No asset may be traded unless explicitly whitelisted.
