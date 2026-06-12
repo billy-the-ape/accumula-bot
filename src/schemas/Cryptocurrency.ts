@@ -5,6 +5,7 @@ export const CryptocurrencySchema = z.object({
 	symbol: z.string(),
 	coingeckoId: z.string(),
 	exchangeId: z.string(),
+	isStable: z.boolean().optional(),
 });
 
 export type Cryptocurrency = z.infer<typeof CryptocurrencySchema>;
