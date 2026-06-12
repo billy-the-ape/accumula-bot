@@ -1,4 +1,10 @@
-import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+	integer,
+	real,
+	sqliteTable,
+	text,
+	uniqueIndex,
+} from "drizzle-orm/sqlite-core";
 
 export const decisions = sqliteTable("decisions", {
 	id: integer("id").primaryKey({ autoIncrement: true }),
@@ -13,5 +19,58 @@ export const decisions = sqliteTable("decisions", {
 	llmModel: text("llm_model").notNull(),
 });
 
+export const portfolios = sqliteTable("portfolios", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	assetToAccumulate: text("asset_to_accumulate").notNull(),
+	cashSymbol: text("cash_symbol").notNull(),
+	dailyBaselineBtcValue: real("daily_baseline_btc_value").notNull(),
+	weeklyBaselineBtcValue: real("weekly_baseline_btc_value").notNull(),
+	initialBtcBaseline: real("initial_btc_baseline").notNull(),
+	tradingEnabled: integer("trading_enabled", { mode: "boolean" })
+		.notNull()
+		.default(true),
+});
+
+export const positions = sqliteTable(
+	"positions",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		portfolioId: integer("portfolio_id")
+			.notNull()
+			.references(() => portfolios.id),
+		symbol: text("symbol").notNull(),
+		quantity: real("quantity").notNull(),
+		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
+	},
+	(table) => [
+		uniqueIndex("positions_portfolio_symbol_idx").on(
+			table.portfolioId,
+			table.symbol,
+		),
+	],
+);
+
+export const trades = sqliteTable("trades", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	portfolioId: integer("portfolio_id")
+		.notNull()
+		.references(() => portfolios.id),
+	decisionId: integer("decision_id").references(() => decisions.id),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	side: text("side").notNull(),
+	symbol: text("symbol").notNull(),
+	quantity: real("quantity").notNull(),
+	priceUsd: real("price_usd").notNull(),
+	quoteValueUsd: real("quote_value_usd").notNull(),
+});
+
 export type DecisionRow = typeof decisions.$inferSelect;
 export type NewDecisionRow = typeof decisions.$inferInsert;
+export type PortfolioRow = typeof portfolios.$inferSelect;
+export type NewPortfolioRow = typeof portfolios.$inferInsert;
+export type PositionRow = typeof positions.$inferSelect;
+export type NewPositionRow = typeof positions.$inferInsert;
+export type TradeRow = typeof trades.$inferSelect;
+export type NewTradeRow = typeof trades.$inferInsert;
