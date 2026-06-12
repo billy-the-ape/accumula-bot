@@ -1,5 +1,6 @@
 import {
 	countOpenPositions,
+	getTotalPortfolioQuoteValue,
 	wouldExceedMaxAllocation,
 } from "@/domain/allocation.js";
 import {
@@ -120,6 +121,20 @@ function assessProposedTrade(
 		violations.push({
 			code: "MAX_ALLOCATION",
 			message: `Trade into ${symbol} would exceed ${limits.maxAllocationPerAsset * 100}% max allocation per asset`,
+		});
+	}
+
+	const currentTotal = getTotalPortfolioQuoteValue(
+		input.holdings,
+		input.prices,
+	);
+	if (
+		currentTotal > 0 &&
+		quoteValue / currentTotal > limits.maxAllocationPerPurchase
+	) {
+		violations.push({
+			code: "MAX_ALLOCATION",
+			message: `Single trade into ${symbol} would exceed ${limits.maxAllocationPerPurchase * 100}% per-purchase limit`,
 		});
 	}
 

@@ -74,6 +74,48 @@ describe("parseTradeRecommendationJson", () => {
 		).toThrow(ParseResponseError);
 	});
 
+	it("normalizes object-shaped rankings and missing optional fields", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				rankings: {
+					BTC: 0.82,
+					ETH: -0.1,
+					SOL: -0.2,
+				},
+				recommended_asset: "BTC",
+			}),
+			validation,
+		);
+
+		expect(result.rankings).toEqual([
+			{ asset: "BTC", score: 0.82 },
+			{ asset: "ETH", score: 0 },
+			{ asset: "SOL", score: 0 },
+		]);
+		expect(result.confidence).toBe(0.5);
+		expect(result.reason).toBe("No reason provided by model.");
+	});
+
+	it("clamps out-of-range scores and confidence to 0-1", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				...validPayload,
+				rankings: [
+					{ asset: "BTC", score: 0.9 },
+					{ asset: "ETH", score: -0.2 },
+					{ asset: "SOL", score: -0.5 },
+				],
+				confidence: 1.2,
+			}),
+			validation,
+		);
+
+		expect(result.rankings.map((ranking) => ranking.score)).toEqual([
+			0.9, 0, 0,
+		]);
+		expect(result.confidence).toBe(1);
+	});
+
 	it("rejects invalid JSON", () => {
 		expect(() => parseTradeRecommendationJson("not-json", validation)).toThrow(
 			/not valid JSON/i,

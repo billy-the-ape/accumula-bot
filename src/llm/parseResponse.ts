@@ -21,6 +21,61 @@ export class ParseResponseError extends Error {
 	}
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeRankings(rankings: unknown): unknown {
+	if (Array.isArray(rankings)) {
+		return rankings;
+	}
+
+	if (!isRecord(rankings)) {
+		return rankings;
+	}
+
+	const entries = Object.entries(rankings);
+	if (entries.every(([, score]) => typeof score === "number")) {
+		return entries.map(([asset, score]) => ({ asset, score }));
+	}
+
+	return rankings;
+}
+
+export function normalizeTradeRecommendationPayload(parsed: unknown): unknown {
+	if (!isRecord(parsed)) {
+		return parsed;
+	}
+
+	const normalized: Record<string, unknown> = { ...parsed };
+	normalized.rankings = normalizeRankings(parsed.rankings);
+
+	if (typeof normalized.recommended_asset !== "string") {
+		if (typeof parsed.recommendedAsset === "string") {
+			normalized.recommended_asset = parsed.recommendedAsset;
+		} else if (typeof parsed.recommended === "string") {
+			normalized.recommended_asset = parsed.recommended;
+		}
+	}
+
+	if (typeof normalized.confidence !== "number") {
+		if (typeof parsed.confidence_score === "number") {
+			normalized.confidence = parsed.confidence_score;
+		} else {
+			normalized.confidence = 0.5;
+		}
+	}
+
+	if (
+		typeof normalized.reason !== "string" ||
+		normalized.reason.trim().length === 0
+	) {
+		normalized.reason = "No reason provided by model.";
+	}
+
+	return normalized;
+}
+
 export function parseTradeRecommendationJson(
 	raw: string,
 	validation: TradeRecommendationValidation,
@@ -34,7 +89,7 @@ export function parseTradeRecommendationJson(
 	}
 
 	const schema = createTradeRecommendationSchema(validation);
-	const result = schema.safeParse(parsed);
+	const result = schema.safeParse(normalizeTradeRecommendationPayload(parsed));
 	if (!result.success) {
 		throw new ParseResponseError(formatZodError(result.error));
 	}

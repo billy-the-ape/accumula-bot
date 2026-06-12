@@ -51,6 +51,8 @@ export function buildAnalysisPrompt(
 		'  "reason": "short explanation"',
 		"}",
 		"",
+		"All score and confidence values must be numbers between 0 and 1.",
+		"",
 		`Rankings must use these volatile assets only: ${rankingAssets}`,
 		`Set recommended_asset to a ranked volatile, to ${accumulateSymbol} when it is the strongest relative hold, or to ${cashSymbol} for defensive cash when preserving capital outweighs rotation.`,
 		"",
