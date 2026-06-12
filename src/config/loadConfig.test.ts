@@ -24,6 +24,7 @@ describe("loadConfig", () => {
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
 		});
+		expect(config.databasePath).toBe("data/accumula.db");
 		expect(config.exchange).toBeUndefined();
 	});
 
