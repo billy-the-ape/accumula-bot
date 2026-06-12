@@ -13,7 +13,9 @@
 		"format": "biome check --write --unsafe .",
 		"check": "pnpm run lint && pnpm run type-check && pnpm run test",
 		"db:generate": "drizzle-kit generate",
-		"db:migrate": "drizzle-kit migrate"
+		"db:migrate": "drizzle-kit migrate",
+		"db:push": "drizzle-kit push",
+		"db:studio": "drizzle-kit studio"
 	},
 	"keywords": [],
 	"author": "",
