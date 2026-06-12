@@ -166,13 +166,13 @@ Use CCXT where possible.
 
 ## Scheduling
 
-Initially:
+Three trading cycles per day (08:00, 14:00, 20:00 server local time). Each run executes one full cycle via `pnpm start` and exits; portfolio state persists in SQLite.
 
-* Cron
+See [Scheduling (3× daily)](#scheduling-3-daily) under Development for cron, Windows Task Scheduler, and PM2 setup.
 
 Potential future:
 
-* Dedicated scheduler service
+* In-process scheduler (`src/scheduler/`) with overlap locks
 
 ---
 
@@ -205,6 +205,106 @@ Edit `.env` as needed. Secrets stay local; never commit `.env`.
 | `pnpm lint` | Biome lint + format check |
 | `pnpm format` | Auto-fix lint and format |
 | `pnpm check` | Lint, type-check, and test (local CI) |
+
+## Scheduling (3× daily)
+
+The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → LLM → paper execution → exit). Schedule it **three times per day** so decisions can accumulate without keeping a Node process running 24/7.
+
+Default schedule (server **local timezone**):
+
+| Run | Time |
+|-----|------|
+| 1 | 08:00 |
+| 2 | 14:00 |
+| 3 | 20:00 |
+
+Adjust times to match your VPS timezone and how often you want fresh rankings. Three runs per day is a reasonable default for a ~30-day LLM horizon without hammering CoinGecko or Ollama.
+
+### Prerequisites
+
+1. **Ollama must be running** before each cycle (`LLM_BASE_URL` in `.env`, default `http://127.0.0.1:11434`). The bot does not start Ollama for you.
+2. **`.env` configured** in the project root (`cp .env.example .env`).
+3. **Dependencies installed** (`pnpm install`).
+4. **Log directory** (optional but recommended):
+
+```bash
+mkdir logs
+```
+
+### Linux / Ubuntu (cron)
+
+Edit the crontab for the user that owns the repo:
+
+```bash
+crontab -e
+```
+
+Add (replace `/path/to/accumula-bot` with the absolute path to this repo):
+
+```cron
+0 8,14,20 * * * cd /path/to/accumula-bot && pnpm start >> logs/cron.log 2>&1
+```
+
+If `pnpm` is not on cron's PATH, use the full path from `which pnpm`.
+
+Verify after the next scheduled time:
+
+```bash
+tail -f logs/cron.log
+```
+
+### Windows (Task Scheduler)
+
+Create **one task** with **three daily triggers** (or three separate tasks — either works).
+
+1. Open **Task Scheduler** → **Create Task**.
+2. **General:** name `Accumula Bot`, run whether user is logged on or not, run with highest privileges if needed so `.env` and `data/` are reachable.
+3. **Triggers:** New trigger → Daily → repeat or add three triggers at **8:00 AM**, **2:00 PM**, **8:00 PM**.
+4. **Actions:** Start a program
+   - **Program:** `pnpm` (or full path, e.g. `C:\Users\you\AppData\Roaming\npm\pnpm.cmd`)
+   - **Arguments:** `start`
+   - **Start in:** `C:\source\accumula-bot` (your repo path)
+5. **Settings:** allow task to run on demand; stop if runs longer than 1 hour (runs usually finish in a few minutes).
+
+Test manually: **Run** the task, then check console output or redirect to a log file in the action if desired.
+
+### PM2 (cron restart)
+
+[PM2](https://pm2.keymetrics.io/) can trigger `pnpm start` on the same 3× daily schedule using the repo's `ecosystem.config.cjs`.
+
+Install PM2 globally if needed:
+
+```bash
+npm install -g pm2
+```
+
+From the repo root:
+
+```bash
+mkdir logs
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Useful commands:
+
+```bash
+pm2 status              # next cron run shown when time: true
+pm2 logs accumula-bot   # stdout/stderr from scheduled runs
+pm2 stop accumula-bot   # disable scheduled runs
+pm2 delete accumula-bot
+pm2 startup             # generate OS startup hook (Linux)
+```
+
+The PM2 app uses `autorestart: false` so each cron tick starts a **fresh one-shot cycle** (same as manual `pnpm start`). Cron times use the **server local timezone**.
+
+Keep **Ollama** running separately (e.g. `pm2 start ollama` or systemd) — only the bot cycle is defined in `ecosystem.config.cjs`.
+
+### Overlap and failures
+
+If a run takes longer than the interval between schedules, a second run could start concurrently. For paper v1 this is unlikely (~1–2 minutes per run). If it becomes an issue, add a lock file or move to an in-process scheduler with a mutex.
+
+If a run fails (LLM down, CoinGecko error), the next scheduled run will try again; state is preserved in `data/accumula.db`.
 
 ## Tooling
 

@@ -28,6 +28,20 @@ describe("extractJsonText", () => {
 	it("strips markdown fences", () => {
 		expect(extractJsonText('```json\n{"a":1}\n```')).toBe('{"a":1}');
 	});
+
+	it("extracts JSON after a qwen-style thinking block", () => {
+		expect(
+			extractJsonText(
+				'Let me analyze...\n\n{"recommended_asset":"BTC","confidence":0.7}',
+			),
+		).toBe('{"recommended_asset":"BTC","confidence":0.7}');
+	});
+
+	it("extracts the first balanced JSON object from mixed text", () => {
+		expect(extractJsonText('Here is the result:\n{"a":1}\nThanks.')).toBe(
+			'{"a":1}',
+		);
+	});
 });
 
 describe("parseTradeRecommendationJson", () => {
@@ -114,6 +128,45 @@ describe("parseTradeRecommendationJson", () => {
 			0.9, 0, 0,
 		]);
 		expect(result.confidence).toBe(1);
+	});
+
+	it("accepts ranking alias and symbol-shaped ranking entries", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				ranking: [
+					{ symbol: "BTC", score: 0.9 },
+					{ symbol: "ETH", score: 0.4 },
+					{ symbol: "SOL", score: 0.2 },
+				],
+				recommended_asset: "BTC",
+				confidence: 0.8,
+				reason: "BTC leads on momentum.",
+			}),
+			validation,
+		);
+
+		expect(result.rankings).toEqual([
+			{ asset: "BTC", score: 0.9 },
+			{ asset: "ETH", score: 0.4 },
+			{ asset: "SOL", score: 0.2 },
+		]);
+	});
+
+	it("synthesizes rankings when the model omits them entirely", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				recommended_asset: "ETH",
+				confidence: 0.72,
+				reason: "ETH momentum is strongest.",
+			}),
+			validation,
+		);
+
+		expect(result.rankings).toEqual([
+			{ asset: "BTC", score: 0.62 },
+			{ asset: "ETH", score: 0.72 },
+			{ asset: "SOL", score: 0.62 },
+		]);
 	});
 
 	it("rejects invalid JSON", () => {
