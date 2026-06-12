@@ -1,18 +1,10 @@
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
+import type { MarketSnapshot, VolumeTrend } from "@/schemas/MarketSnapshot.js";
 
-export type VolumeTrend = "rising" | "falling" | "flat";
+export type { MarketSnapshot, VolumeTrend };
+export type AssetMarketSnapshot = MarketSnapshot;
 
-export type AssetMarketSnapshot = {
-	asset: string;
-	priceUsd: number;
-	change24hPct: number;
-	change7dPct: number;
-	change30dPct: number;
-	volumeTrend: VolumeTrend;
-	marketCapUsd: number;
-};
-
-const SAMPLE_MARKET_DATA: Record<string, Omit<AssetMarketSnapshot, "asset">> = {
+const SAMPLE_MARKET_DATA: Record<string, Omit<MarketSnapshot, "asset">> = {
 	BTC: {
 		priceUsd: 98500,
 		change24hPct: 1.2,
@@ -41,12 +33,12 @@ const SAMPLE_MARKET_DATA: Record<string, Omit<AssetMarketSnapshot, "asset">> = {
 
 export function createSampleMarketSnapshots(
 	assets: Cryptocurrency[],
-): AssetMarketSnapshot[] {
+): MarketSnapshot[] {
 	return assets.map((asset) => {
 		const sample = SAMPLE_MARKET_DATA[asset.symbol];
 		if (!sample) {
 			throw new Error(
-				`No sample market data for ${asset.symbol}; add Phase 1 placeholder data or market ingestion`,
+				`No sample market data for ${asset.symbol}; add test fixture data or use fetchMarketSnapshots`,
 			);
 		}
 

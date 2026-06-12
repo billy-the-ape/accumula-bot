@@ -1,9 +1,6 @@
 import { loadConfig } from "@/config/index.js";
-import {
-	createSampleMarketSnapshots,
-	getAnalyzableAssets,
-	runAnalysis,
-} from "@/llm/index.js";
+import { getAnalyzableAssets, runAnalysis } from "@/llm/index.js";
+import { fetchMarketSnapshots } from "@/market/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 import { recordDecision } from "@/storage/recordDecision.js";
 
@@ -20,11 +17,17 @@ async function main() {
 		`LLM: ${config.llm.provider} / ${config.llm.model} @ ${config.llm.baseUrl}`,
 	);
 	console.info(`Database: ${config.databasePath}`);
+	console.info(`Market data: CoinGecko @ ${config.coingecko.baseUrl}`);
 
 	const analyzableAssets = getAnalyzableAssets(config);
-	const marketData = createSampleMarketSnapshots(analyzableAssets);
 
-	console.info("Running LLM analysis with sample market data...");
+	console.info("Fetching live market data...");
+	const marketData = await fetchMarketSnapshots(analyzableAssets, {
+		baseUrl: config.coingecko.baseUrl,
+		...(config.coingecko.apiKey ? { apiKey: config.coingecko.apiKey } : {}),
+	});
+
+	console.info("Running LLM analysis...");
 	const recommendation = await runAnalysis(config, marketData);
 
 	console.info("Trade recommendation:");

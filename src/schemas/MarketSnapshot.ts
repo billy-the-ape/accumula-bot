@@ -14,4 +14,5 @@ export const MarketSnapshotSchema = z.object({
 
 export const MarketSnapshotListSchema = z.array(MarketSnapshotSchema);
 
+export type VolumeTrend = z.infer<typeof VolumeTrendSchema>;
 export type MarketSnapshot = z.infer<typeof MarketSnapshotSchema>;

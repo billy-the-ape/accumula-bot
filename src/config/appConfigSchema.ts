@@ -31,11 +31,17 @@ export type LlmConfig = {
 	apiKey?: string;
 };
 
+export type CoinGeckoConfig = {
+	baseUrl: string;
+	apiKey?: string;
+};
+
 export type AppConfig = {
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
 	assetStarting: Cryptocurrency;
 	databasePath: string;
+	coingecko: CoinGeckoConfig;
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 };
@@ -147,6 +153,10 @@ export const AppConfigSchema = z
 			model: llmPayload.model,
 			...(llmPayload.apiKey ? { apiKey: llmPayload.apiKey } : {}),
 		};
+		const coingecko: CoinGeckoConfig = {
+			baseUrl: env.coingecko.baseUrl,
+			...(env.coingecko.apiKey ? { apiKey: env.coingecko.apiKey } : {}),
+		};
 
 		const hasApiKey = env.exchange.apiKey !== undefined;
 		const hasApiSecret = env.exchange.apiSecret !== undefined;
@@ -156,6 +166,7 @@ export const AppConfigSchema = z
 				assetTradeable,
 				assetStarting,
 				databasePath: env.databasePath,
+				coingecko,
 				llm,
 				exchange: ExchangeConfigSchema.parse({
 					apiKey: env.exchange.apiKey,
@@ -169,6 +180,7 @@ export const AppConfigSchema = z
 			assetTradeable,
 			assetStarting,
 			databasePath: env.databasePath,
+			coingecko,
 			llm,
 		};
 	});
