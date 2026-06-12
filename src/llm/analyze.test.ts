@@ -63,4 +63,47 @@ describe("runAnalysis", () => {
 		expect(body.response_format).toEqual({ type: "json_object" });
 		expect(body.stream).toBe(false);
 	});
+
+	it("accepts defensive cash recommendations from the LLM", async () => {
+		const config = loadConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const marketData = createSampleMarketSnapshots(getAnalyzableAssets(config));
+		const defensiveRecommendation = JSON.stringify({
+			rankings: [
+				{ asset: "BTC", score: 0.45 },
+				{ asset: "ETH", score: 0.38 },
+				{ asset: "SOL", score: 0.32 },
+			],
+			recommended_asset: "USDC",
+			confidence: 0.68,
+			reason: "Broad weakness; preserve capital in cash.",
+		});
+
+		const fetchImpl = vi.fn().mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					choices: [
+						{
+							message: {
+								role: "assistant",
+								content: defensiveRecommendation,
+							},
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				},
+			),
+		);
+
+		const recommendation = await runAnalysis(config, marketData, {
+			fetchImpl,
+		});
+
+		expect(recommendation.recommended_asset).toBe("USDC");
+	});
 });

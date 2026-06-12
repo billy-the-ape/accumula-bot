@@ -393,7 +393,7 @@ Human operator can disable trading immediately.
 
 All model responses should be valid JSON.
 
-Example:
+Example (rotate into best volatile):
 
 ```json
 {
@@ -413,6 +413,26 @@ Example:
 }
 ```
 
+Example (defensive cash — sell volatiles into `ASSET_STARTING`):
+
+```json
+{
+  "rankings": [
+    { "asset": "BTC", "score": 0.45 },
+    { "asset": "ETH", "score": 0.38 },
+    { "asset": "SOL", "score": 0.32 }
+  ],
+  "recommended_asset": "USDC",
+  "confidence": 0.68,
+  "reason": "Broad weakness and negative momentum; preserve capital in cash until conditions improve."
+}
+```
+
+Rules:
+
+* `rankings` — volatile assets only (e.g. BTC, ETH, SOL); comparative scores vs the accumulation benchmark.
+* `recommended_asset` — any whitelisted tradeable asset, including the configured cash/stable asset (`ASSET_STARTING`, e.g. USDC) for risk-off, or a volatile for rotation.
+
 No markdown.
 
 No prose outside JSON.
@@ -423,17 +443,23 @@ No prose outside JSON.
 
 Version 1:
 
-BTC-relative rotation.
+BTC-relative rotation with optional defensive cash.
 
-The system evaluates:
+The system evaluates volatile assets:
 
 * BTC
 * ETH
 * SOL
 
-The model determines which asset has the highest probability of outperforming BTC over the next 30 days.
+The model ranks volatiles by their probability of outperforming the accumulation asset (`ASSET_TO_ACCUMULATE`, default BTC) over the next 30 days.
 
-Portfolio capital is allocated according to predefined rules.
+**Rotation (risk-on):** `recommended_asset` is the best volatile (or BTC when it is the strongest relative hold).
+
+**Defensive cash (risk-off):** `recommended_asset` may be the configured starting/cash asset (`ASSET_STARTING`, e.g. USDC) when the model expects a downturn or continuing weakness. Execution sells volatile holdings into cash; the model does not rank stables in `rankings`.
+
+Success is still measured in BTC terms after liquidation — USDC preserves USD value and may underperform BTC if BTC rallies. The prompt should prefer BTC over cash when BTC is the strongest relative hold.
+
+Portfolio capital is allocated according to predefined rules and risk guardrails.
 
 Success metric:
 
@@ -513,7 +539,10 @@ You are a crypto portfolio analyst.
 Objective:
 Maximize BTC-denominated returns.
 
-Rank the following assets.
+Rank volatile assets by likelihood of outperforming BTC over 30 days.
+
+You may set recommended_asset to a volatile (rotate) or to USDC (defensive cash)
+when preserving capital outweighs rotation.
 
 Return valid JSON only.
 

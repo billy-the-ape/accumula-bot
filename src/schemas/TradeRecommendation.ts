@@ -15,25 +15,33 @@ export const TradeRecommendationSchema = z.object({
 export type AssetRanking = z.infer<typeof AssetRankingSchema>;
 export type TradeRecommendation = z.infer<typeof TradeRecommendationSchema>;
 
-export function createTradeRecommendationSchema(allowedAssets: string[]) {
-	const allowed = new Set(allowedAssets);
+export type TradeRecommendationValidation = {
+	rankingAssets: string[];
+	recommendedAssets: string[];
+};
+
+export function createTradeRecommendationSchema(
+	validation: TradeRecommendationValidation,
+) {
+	const rankingAllowed = new Set(validation.rankingAssets);
+	const recommendedAllowed = new Set(validation.recommendedAssets);
 
 	return TradeRecommendationSchema.superRefine((data, ctx) => {
 		for (const [index, ranking] of data.rankings.entries()) {
-			if (!allowed.has(ranking.asset)) {
+			if (!rankingAllowed.has(ranking.asset)) {
 				ctx.addIssue({
 					code: "custom",
 					path: ["rankings", index, "asset"],
-					message: `Unknown asset in rankings: ${ranking.asset}`,
+					message: `Unknown asset in rankings: ${ranking.asset}. Rankings must use volatile assets only: ${validation.rankingAssets.join(", ")}`,
 				});
 			}
 		}
 
-		if (!allowed.has(data.recommended_asset)) {
+		if (!recommendedAllowed.has(data.recommended_asset)) {
 			ctx.addIssue({
 				code: "custom",
 				path: ["recommended_asset"],
-				message: `recommended_asset must be one of: ${allowedAssets.join(", ")}`,
+				message: `recommended_asset must be one of: ${validation.recommendedAssets.join(", ")}`,
 			});
 		}
 	});
