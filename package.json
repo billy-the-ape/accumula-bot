@@ -1,0 +1,30 @@
+{
+	"name": "accumula-bot",
+	"version": "1.0.0",
+	"description": "Autonomous BTC-accumulation trading agent",
+	"type": "module",
+	"scripts": {
+		"dev": "tsx --env-file=.env watch src/index.ts",
+		"start": "tsx --env-file=.env src/index.ts",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"type-check": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write --unsafe .",
+		"check": "pnpm run lint && pnpm run type-check && pnpm run test"
+	},
+	"keywords": [],
+	"author": "",
+	"license": "ISC",
+	"packageManager": "pnpm@10.15.0",
+	"engines": {
+		"node": ">=22"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^2.5.0",
+		"@types/node": "^25.9.3",
+		"tsx": "^4.22.4",
+		"typescript": "^6.0.3",
+		"vitest": "^4.1.8"
+	}
+}
