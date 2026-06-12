@@ -1,8 +1,19 @@
 import { loadConfig } from "@/config/index.js";
+import {
+	computePortfolioBtcValue,
+	computeReturnFraction,
+} from "@/domain/index.js";
+import {
+	createPaperExecutionConfig,
+	PaperExecution,
+} from "@/execution/index.js";
+import { buildPriceMap } from "@/execution/priceMap.js";
 import { getAnalyzableAssets, runAnalysis } from "@/llm/index.js";
 import { fetchMarketSnapshots } from "@/market/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
-import { recordDecision } from "@/storage/recordDecision.js";
+import { createDatabase } from "@/storage/db.js";
+import { saveDecision } from "@/storage/repositories/decisionRepository.js";
+import { getLatestPortfolio } from "@/storage/repositories/portfolioRepository.js";
 
 async function main() {
 	const config = loadConfig();
@@ -33,17 +44,61 @@ async function main() {
 	console.info("Trade recommendation:");
 	console.info(JSON.stringify(recommendation, null, 2));
 
-	const saved = await recordDecision(config.databasePath, {
-		assetToAccumulate: config.assetToAccumulate.symbol,
-		recommendation,
-		marketSnapshots: marketData,
-		llm: {
-			provider: config.llm.provider,
-			model: config.llm.model,
-		},
-	});
+	const connection = await createDatabase(config.databasePath);
 
-	console.info(`Decision saved (id=${saved.id})`);
+	try {
+		const saved = await saveDecision(connection.db, {
+			assetToAccumulate: config.assetToAccumulate.symbol,
+			recommendation,
+			marketSnapshots: marketData,
+			llm: {
+				provider: config.llm.provider,
+				model: config.llm.model,
+			},
+		});
+
+		console.info(`Decision saved (id=${saved.id})`);
+
+		console.info("Running paper execution...");
+		const paperExecution = new PaperExecution(
+			connection.db,
+			createPaperExecutionConfig(config),
+		);
+		const execution = await paperExecution.executeRecommendation({
+			recommendation,
+			marketSnapshots: marketData,
+			decisionId: saved.id,
+		});
+
+		if (execution.executed) {
+			console.info(`Paper execution: ${execution.reason}`);
+			console.info(`Trades recorded: ${execution.trades.length}`);
+		} else if (execution.riskBlocked) {
+			console.info(`Paper execution blocked by risk: ${execution.reason}`);
+		} else {
+			console.info(`Paper execution skipped: ${execution.reason}`);
+		}
+
+		const portfolio = await getLatestPortfolio(connection.db);
+		if (portfolio) {
+			const prices = buildPriceMap(marketData, config.assetStarting.symbol);
+			const btcValue = computePortfolioBtcValue(
+				portfolio.holdings,
+				prices,
+				config.assetToAccumulate.symbol,
+			);
+			const returnPct =
+				computeReturnFraction(btcValue, portfolio.initialBtcBaseline) * 100;
+
+			console.info("Portfolio holdings:", portfolio.holdings);
+			console.info(
+				`Portfolio ${config.assetToAccumulate.symbol} value: ${btcValue.toFixed(8)} ${config.assetToAccumulate.symbol}`,
+			);
+			console.info(`Return vs initial baseline: ${returnPct.toFixed(2)}%`);
+		}
+	} finally {
+		connection.client.close();
+	}
 }
 
 main().catch((error: unknown) => {

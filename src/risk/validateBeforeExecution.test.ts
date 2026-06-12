@@ -124,10 +124,24 @@ describe("validateBeforeExecution", () => {
 		);
 	});
 
-	it("blocks proposed trades that would exceed max allocation", () => {
+	it("blocks proposed trades that exceed the per-purchase limit", () => {
 		const result = validateBeforeExecution(
 			baseInput({
-				proposedTrade: { symbol: "SOL", quoteValue: 3_334 },
+				proposedTrade: { symbol: "SOL", quoteValue: 2_501 },
+			}),
+		);
+
+		expect(result.allowed).toBe(false);
+		expect(result.violations.map((violation) => violation.code)).toContain(
+			"MAX_ALLOCATION",
+		);
+	});
+
+	it("blocks proposed trades that would exceed the 50% position cap", () => {
+		const result = validateBeforeExecution(
+			baseInput({
+				holdings: { USDC: 5_000, SOL: 33.34 },
+				proposedTrade: { symbol: "SOL", quoteValue: 2_500 },
 			}),
 		);
 

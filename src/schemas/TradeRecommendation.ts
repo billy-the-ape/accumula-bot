@@ -1,14 +1,18 @@
 import z from "zod";
 
+function clampUnitInterval(value: number): number {
+	return Math.min(1, Math.max(0, value));
+}
+
 export const AssetRankingSchema = z.object({
 	asset: z.string(),
-	score: z.number().min(0).max(1),
+	score: z.number().transform(clampUnitInterval),
 });
 
 export const TradeRecommendationSchema = z.object({
 	rankings: z.array(AssetRankingSchema).min(1),
 	recommended_asset: z.string(),
-	confidence: z.number().min(0).max(1),
+	confidence: z.number().transform(clampUnitInterval),
 	reason: z.string().min(1),
 });
 
