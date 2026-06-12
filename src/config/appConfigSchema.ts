@@ -35,6 +35,7 @@ export type AppConfig = {
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
 	assetStarting: Cryptocurrency;
+	databasePath: string;
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 };
@@ -154,6 +155,7 @@ export const AppConfigSchema = z
 				assetToAccumulate,
 				assetTradeable,
 				assetStarting,
+				databasePath: env.databasePath,
 				llm,
 				exchange: ExchangeConfigSchema.parse({
 					apiKey: env.exchange.apiKey,
@@ -166,6 +168,7 @@ export const AppConfigSchema = z
 			assetToAccumulate,
 			assetTradeable,
 			assetStarting,
+			databasePath: env.databasePath,
 			llm,
 		};
 	});

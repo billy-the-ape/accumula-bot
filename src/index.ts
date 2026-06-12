@@ -5,6 +5,7 @@ import {
 	runAnalysis,
 } from "@/llm/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
+import { recordDecision } from "@/storage/recordDecision.js";
 
 async function main() {
 	const config = loadConfig();
@@ -18,6 +19,7 @@ async function main() {
 	console.info(
 		`LLM: ${config.llm.provider} / ${config.llm.model} @ ${config.llm.baseUrl}`,
 	);
+	console.info(`Database: ${config.databasePath}`);
 
 	const analyzableAssets = getAnalyzableAssets(config);
 	const marketData = createSampleMarketSnapshots(analyzableAssets);
@@ -27,6 +29,18 @@ async function main() {
 
 	console.info("Trade recommendation:");
 	console.info(JSON.stringify(recommendation, null, 2));
+
+	const saved = await recordDecision(config.databasePath, {
+		assetToAccumulate: config.assetToAccumulate.symbol,
+		recommendation,
+		marketSnapshots: marketData,
+		llm: {
+			provider: config.llm.provider,
+			model: config.llm.model,
+		},
+	});
+
+	console.info(`Decision saved (id=${saved.id})`);
 }
 
 main().catch((error: unknown) => {

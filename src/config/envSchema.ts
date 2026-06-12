@@ -7,6 +7,7 @@ import {
 const DEFAULT_ASSET_TO_ACCUMULATE = "BTC";
 const DEFAULT_ASSET_STARTING = "USDC";
 const DEFAULT_LLM_MODEL = "qwen3:8b";
+const DEFAULT_DATABASE_PATH = "data/accumula.db";
 
 function parseCommaSeparatedSymbols(value: string): string[] {
 	return value
@@ -39,6 +40,7 @@ export const RawEnvSchema = z
 		LLM_BASE_URL: z.url({ message: "LLM_BASE_URL must be a valid URL" }),
 		LLM_MODEL: z.string().trim().min(1).default(DEFAULT_LLM_MODEL),
 		LLM_API_KEY: z.string().trim().min(1).optional(),
+		DATABASE_PATH: z.string().trim().min(1).default(DEFAULT_DATABASE_PATH),
 		EXCHANGE_API_KEY: z.string().trim().optional(),
 		EXCHANGE_API_SECRET: z.string().trim().optional(),
 	})
@@ -56,6 +58,7 @@ export const RawEnvSchema = z
 			apiKey: env.EXCHANGE_API_KEY,
 			apiSecret: env.EXCHANGE_API_SECRET,
 		},
+		databasePath: env.DATABASE_PATH,
 	}));
 
 export type ParsedEnv = z.infer<typeof RawEnvSchema>;
