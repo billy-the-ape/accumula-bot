@@ -3,7 +3,10 @@ import { completeJsonChat } from "@/llm/llmClient.js";
 import type { AssetMarketSnapshot } from "@/llm/marketSnapshot.js";
 import { parseTradeRecommendationJson } from "@/llm/parseResponse.js";
 import { buildAnalysisPrompt } from "@/llm/prompt.js";
-import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
+import type {
+	TradeRecommendation,
+	TradeRecommendationValidation,
+} from "@/schemas/TradeRecommendation.js";
 
 export type RunAnalysisOptions = {
 	fetchImpl?: typeof fetch;
@@ -14,11 +17,14 @@ export async function runAnalysis(
 	marketData: AssetMarketSnapshot[],
 	options: RunAnalysisOptions = {},
 ): Promise<TradeRecommendation> {
-	const allowedAssets = marketData.map((snapshot) => snapshot.asset);
+	const validation: TradeRecommendationValidation = {
+		rankingAssets: marketData.map((snapshot) => snapshot.asset),
+		recommendedAssets: config.assetTradeable.map((asset) => asset.symbol),
+	};
 	const prompt = buildAnalysisPrompt(config, marketData);
 
 	const rawResponse = await completeJsonChat(config.llm, prompt, {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	});
-	return parseTradeRecommendationJson(rawResponse, allowedAssets);
+	return parseTradeRecommendationJson(rawResponse, validation);
 }

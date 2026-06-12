@@ -31,15 +31,17 @@ export function buildAnalysisPrompt(
 	config: AppConfig,
 	marketData: AssetMarketSnapshot[],
 ): string {
-	const assets = marketData.map((snapshot) => snapshot.asset).join(", ");
+	const rankingAssets = marketData.map((snapshot) => snapshot.asset).join(", ");
+	const cashSymbol = config.assetStarting.symbol;
+	const accumulateSymbol = config.assetToAccumulate.symbol;
 
 	return [
 		"You are a crypto portfolio analyst.",
 		"",
 		"Objective:",
-		`Maximize ${config.assetToAccumulate.symbol}-denominated returns.`,
+		`Maximize ${accumulateSymbol}-denominated returns.`,
 		"",
-		`Rank the following assets by their probability of outperforming ${config.assetToAccumulate.symbol} over the next 30 days.`,
+		`Rank the following volatile assets by their probability of outperforming ${accumulateSymbol} over the next 30 days.`,
 		"",
 		"Return valid JSON only with this shape:",
 		"{",
@@ -49,7 +51,8 @@ export function buildAnalysisPrompt(
 		'  "reason": "short explanation"',
 		"}",
 		"",
-		`Allowed assets: ${assets}`,
+		`Rankings must use these volatile assets only: ${rankingAssets}`,
+		`Set recommended_asset to a ranked volatile, to ${accumulateSymbol} when it is the strongest relative hold, or to ${cashSymbol} for defensive cash when preserving capital outweighs rotation.`,
 		"",
 		"Market data:",
 		formatMarketData(marketData),

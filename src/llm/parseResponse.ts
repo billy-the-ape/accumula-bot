@@ -1,6 +1,7 @@
 import {
 	createTradeRecommendationSchema,
 	type TradeRecommendation,
+	type TradeRecommendationValidation,
 } from "@/schemas/TradeRecommendation.js";
 
 export function extractJsonText(raw: string): string {
@@ -22,7 +23,7 @@ export class ParseResponseError extends Error {
 
 export function parseTradeRecommendationJson(
 	raw: string,
-	allowedAssets: string[],
+	validation: TradeRecommendationValidation,
 ): TradeRecommendation {
 	let parsed: unknown;
 	try {
@@ -32,7 +33,7 @@ export function parseTradeRecommendationJson(
 		throw new ParseResponseError(`LLM response is not valid JSON: ${message}`);
 	}
 
-	const schema = createTradeRecommendationSchema(allowedAssets);
+	const schema = createTradeRecommendationSchema(validation);
 	const result = schema.safeParse(parsed);
 	if (!result.success) {
 		throw new ParseResponseError(formatZodError(result.error));
