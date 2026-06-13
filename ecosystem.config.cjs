@@ -14,5 +14,17 @@ module.exports = {
 			error_file: "logs/accumula-error.log",
 			merge_logs: true,
 		},
+		{
+			name: "accumula-bot-telegram",
+			cwd: __dirname,
+			script: "pnpm",
+			args: "telegram:daily-summary",
+			autorestart: false,
+			cron_restart: "0 15 * * *",
+			time: true,
+			out_file: "logs/accumula-telegram-out.log",
+			error_file: "logs/accumula-telegram-error.log",
+			merge_logs: true,
+		},
 	],
 };
