@@ -13,6 +13,7 @@ export type CreatePortfolioInput = {
 	cashSymbol: string;
 	initialHoldings: PortfolioHoldings;
 	initialBtcBaseline: number;
+	initialQuoteBaseline: number;
 	tradingEnabled?: boolean;
 };
 
@@ -26,6 +27,7 @@ export type StoredPortfolio = {
 	dailyBaselineBtcValue: number;
 	weeklyBaselineBtcValue: number;
 	initialBtcBaseline: number;
+	initialQuoteBaseline: number;
 	tradingEnabled: boolean;
 };
 
@@ -60,6 +62,7 @@ function mapPortfolioRow(
 		dailyBaselineBtcValue: row.dailyBaselineBtcValue,
 		weeklyBaselineBtcValue: row.weeklyBaselineBtcValue,
 		initialBtcBaseline: row.initialBtcBaseline,
+		initialQuoteBaseline: row.initialQuoteBaseline,
 		tradingEnabled: row.tradingEnabled,
 	};
 }
@@ -118,6 +121,7 @@ export async function createPortfolio(
 			dailyBaselineBtcValue: baseline,
 			weeklyBaselineBtcValue: baseline,
 			initialBtcBaseline: baseline,
+			initialQuoteBaseline: input.initialQuoteBaseline,
 			tradingEnabled: input.tradingEnabled ?? true,
 		})
 		.returning();

@@ -1,0 +1,40 @@
+import { describe, expect, it } from "vitest";
+import { formatDailySummary } from "@/notifications/telegram/formatDailySummary.js";
+
+describe("formatDailySummary", () => {
+	it("includes period returns, trade count, holdings, and current value", () => {
+		const message = formatDailySummary({
+			tradesLast24h: [
+				{
+					id: 1,
+					portfolioId: 1,
+					createdAt: new Date(),
+					side: "buy",
+					symbol: "BTC",
+					quantity: 0.01,
+					priceUsd: 95_000,
+					quoteValueUsd: 950,
+				},
+			],
+			btcValue: 0.105,
+			usdValue: 9_975,
+			startingBtcValue: 0.1,
+			startingUsdValue: 10_000,
+			accumulateSymbol: "BTC",
+			dailyReturnPct: 1.2,
+			weeklyReturnPct: -0.5,
+			allTimeReturnPct: 4.8,
+			holdings: { BTC: 0.1, USDC: 5000 },
+		});
+
+		expect(message).toContain("AccumulaBot — Daily Summary");
+		expect(message).toContain("24h: <b>+1.20%</b> · 1 trade(s)");
+		expect(message).toContain("7d: <b>-0.50%</b>");
+		expect(message).toContain("All-time: <b>+4.80%</b>");
+		expect(message).toContain("BTC 0.1\nUSDC 5,000");
+		expect(message).toContain("<b>0.10500000 BTC</b>");
+		expect(message).toContain("<b>$9,975.00</b>");
+		expect(message).toContain("<b>0.10000000 BTC</b>");
+		expect(message).toContain("<b>$10,000.00</b>");
+	});
+});

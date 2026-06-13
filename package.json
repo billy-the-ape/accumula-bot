@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "tsx --env-file=.env watch src/index.ts",
 		"start": "tsx --env-file=.env src/index.ts",
+		"telegram:daily-summary": "tsx --env-file=.env src/notifications/telegram/dailySummaryCli.ts",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"type-check": "tsc --noEmit",

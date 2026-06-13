@@ -28,6 +28,7 @@ describe("tradeRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 10_000 },
 			initialBtcBaseline: 0.1,
+			initialQuoteBaseline: 10_000,
 		});
 	}
 
@@ -67,6 +68,7 @@ describe("tradeRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 10_000, SOL: 10 },
 			initialBtcBaseline: 0.1,
+			initialQuoteBaseline: 10_000,
 		});
 
 		const trade = await recordTrade(db, {

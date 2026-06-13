@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/config/index.js";
+import { getTotalPortfolioQuoteValue } from "@/domain/allocation.js";
 import { computePortfolioBtcValue } from "@/domain/btcBenchmark.js";
 import type { PriceMap } from "@/domain/types.js";
 import { planPaperTrades } from "@/execution/planPaperTrades.js";
@@ -138,6 +139,10 @@ export class PaperExecution implements ExecutionEngine {
 			cashSymbol: this.config.cashSymbol,
 			initialHoldings,
 			initialBtcBaseline: computePortfolioBtcValue(initialHoldings, prices),
+			initialQuoteBaseline: getTotalPortfolioQuoteValue(
+				initialHoldings,
+				prices,
+			),
 		});
 	}
 }

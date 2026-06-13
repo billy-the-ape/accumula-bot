@@ -620,10 +620,12 @@ Possible additions:
 * Whale activity
 * Stablecoin inflows
 
-## Notifications
+---
 
-* Send email or Telegram message when trades occur
-* Send weekly summary of PNL, trades, etc
+# Notifications
+
+* Send Telegram message when trades occur
+* Send Daily summary of profit/loss, trades, etc for the last 24h, profit/loss for the last week, and all time.
 
 ---
 

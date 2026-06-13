@@ -24,6 +24,11 @@ const ExchangeConfigSchema = z.object({
 	apiSecret: z.string().min(1),
 });
 
+const TelegramConfigSchema = z.object({
+	botToken: z.string().min(1),
+	chatId: z.string().min(1),
+});
+
 export type LlmConfig = {
 	provider: LlmProviderId;
 	baseUrl: string;
@@ -36,6 +41,11 @@ export type CoinGeckoConfig = {
 	apiKey?: string;
 };
 
+export type TelegramConfig = {
+	botToken: string;
+	chatId: string;
+};
+
 export type AppConfig = {
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
@@ -44,6 +54,7 @@ export type AppConfig = {
 	coingecko: CoinGeckoConfig;
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
+	telegram?: TelegramConfig;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -127,6 +138,16 @@ export const AppConfigSchema = z
 			});
 		}
 
+		const hasTelegramToken = env.telegram.botToken !== undefined;
+		const hasTelegramChatId = env.telegram.chatId !== undefined;
+		if (hasTelegramToken !== hasTelegramChatId) {
+			ctx.addIssue({
+				code: "custom",
+				message:
+					"TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must both be set or both be omitted",
+			});
+		}
+
 		if (env.llm.provider === "anthropic" && !env.llm.apiKey) {
 			ctx.addIssue({
 				code: "custom",
@@ -160,6 +181,17 @@ export const AppConfigSchema = z
 
 		const hasApiKey = env.exchange.apiKey !== undefined;
 		const hasApiSecret = env.exchange.apiSecret !== undefined;
+		const hasTelegramToken = env.telegram.botToken !== undefined;
+		const hasTelegramChatId = env.telegram.chatId !== undefined;
+
+		const telegram =
+			hasTelegramToken && hasTelegramChatId
+				? TelegramConfigSchema.parse({
+						botToken: env.telegram.botToken,
+						chatId: env.telegram.chatId,
+					})
+				: undefined;
+
 		if (hasApiKey && hasApiSecret) {
 			return {
 				assetToAccumulate,
@@ -172,6 +204,7 @@ export const AppConfigSchema = z
 					apiKey: env.exchange.apiKey,
 					apiSecret: env.exchange.apiSecret,
 				}),
+				...(telegram ? { telegram } : {}),
 			};
 		}
 
@@ -182,5 +215,6 @@ export const AppConfigSchema = z
 			databasePath: env.databasePath,
 			coingecko,
 			llm,
+			...(telegram ? { telegram } : {}),
 		};
 	});

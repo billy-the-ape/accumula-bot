@@ -10,6 +10,7 @@ import {
 import { buildPriceMap } from "@/execution/priceMap.js";
 import { getAnalyzableAssets, runAnalysis } from "@/llm/index.js";
 import { fetchMarketSnapshots } from "@/market/index.js";
+import { notifyTrades } from "@/notifications/telegram/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 import { createDatabase } from "@/storage/db.js";
 import { saveDecision } from "@/storage/repositories/decisionRepository.js";
@@ -29,6 +30,9 @@ async function main() {
 	);
 	console.info(`Database: ${config.databasePath}`);
 	console.info(`Market data: CoinGecko @ ${config.coingecko.baseUrl}`);
+	if (config.telegram) {
+		console.info("Telegram notifications: enabled");
+	}
 
 	const analyzableAssets = getAnalyzableAssets(config);
 
@@ -95,6 +99,28 @@ async function main() {
 				`Portfolio ${config.assetToAccumulate.symbol} value: ${btcValue.toFixed(8)} ${config.assetToAccumulate.symbol}`,
 			);
 			console.info(`Return vs initial baseline: ${returnPct.toFixed(2)}%`);
+
+			if (
+				config.telegram &&
+				execution.executed &&
+				execution.trades.length > 0
+			) {
+				try {
+					await notifyTrades(config.telegram, {
+						trades: execution.trades,
+						recommendedAsset: recommendation.recommended_asset,
+						reason: recommendation.reason,
+						btcValue,
+						returnPct,
+						accumulateSymbol: config.assetToAccumulate.symbol,
+					});
+					console.info("Telegram trade notification sent");
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : "unknown error";
+					console.error(`Failed to send Telegram notification: ${message}`);
+				}
+			}
 		}
 	} finally {
 		connection.client.close();

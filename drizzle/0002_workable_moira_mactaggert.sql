@@ -1,0 +1,1 @@
+ALTER TABLE `portfolios` ADD `initial_quote_baseline` real DEFAULT 10000 NOT NULL;
