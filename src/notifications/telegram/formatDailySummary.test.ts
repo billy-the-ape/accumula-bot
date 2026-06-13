@@ -27,14 +27,21 @@ describe("formatDailySummary", () => {
 			holdings: { BTC: 0.1, USDC: 5000 },
 		});
 
-		expect(message).toContain("AccumulaBot — Daily Summary");
+		expect(message).toContain("<b>AccumulaBot — Daily Summary</b>");
+		expect(message).toContain(
+			"<u>Current BTC Amount vs Starting BTC Value:</u>",
+		);
 		expect(message).toContain("24h: <b>+1.20%</b> · 1 trade(s)");
 		expect(message).toContain("7d: <b>-0.50%</b>");
 		expect(message).toContain("All-time: <b>+4.80%</b>");
-		expect(message).toContain("BTC 0.1\nUSDC 5,000");
-		expect(message).toContain("<b>0.10500000 BTC</b>");
-		expect(message).toContain("<b>$9,975.00</b>");
-		expect(message).toContain("<b>0.10000000 BTC</b>");
-		expect(message).toContain("<b>$10,000.00</b>");
+		expect(message).toContain("<u>Holdings:</u>");
+		expect(message).toContain("BTC: <b>0.1</b>");
+		expect(message).toContain("USDC: <b>5,000</b>");
+		expect(message).toContain("<u>Starting value:</u>");
+		expect(message).toContain("BTC: <b>0.10000000</b>");
+		expect(message).toContain("USD: <b>10,000.00</b>");
+		expect(message).toContain("<u>Current value:</u>");
+		expect(message).toContain("BTC: <b>0.10500000</b>");
+		expect(message).toContain("USD: <b> 9,975.00</b>");
 	});
 });
