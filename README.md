@@ -193,12 +193,15 @@ cp .env.example .env   # Windows: copy .env.example .env
 
 Edit `.env` as needed. Secrets stay local; never commit `.env`.
 
+Optional Telegram DM notifications: see [Notifications](#notifications) for `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` setup.
+
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `pnpm dev` | Run with file watch |
 | `pnpm start` | Run once |
+| `pnpm telegram:daily-summary` | Send Telegram daily summary (requires Telegram env vars) |
 | `pnpm test` | Run tests |
 | `pnpm test:watch` | Run tests in watch mode |
 | `pnpm type-check` | TypeScript check |
@@ -270,7 +273,7 @@ Test manually: **Run** the task, then check console output or redirect to a log 
 
 ### PM2 (cron restart)
 
-[PM2](https://pm2.keymetrics.io/) can trigger `pnpm start` on the same 3× daily schedule using the repo's `ecosystem.config.cjs`.
+[PM2](https://pm2.keymetrics.io/) can trigger the bot and Telegram daily summary on a cron schedule using the repo's `ecosystem.config.cjs`.
 
 Install PM2 globally if needed:
 
@@ -282,23 +285,34 @@ From the repo root:
 
 ```bash
 mkdir logs
+pnpm install   # node_modules/.bin/tsx must exist
 pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
+`ecosystem.config.cjs` defines two apps:
+
+| PM2 name | Schedule (local time) | What it runs |
+|----------|----------------------|--------------|
+| `accumula-bot` | 06:00, 14:00, 22:00 | Main trading cycle (`src/index.ts`) |
+| `accumula-bot-telegram` | 15:00 daily | Telegram daily summary |
+
+PM2 invokes `node_modules/.bin/tsx` with `interpreter: "bash"` (do not set `script: "pnpm"` — PM2 runs scripts with Node by default and will fail on the pnpm shell wrapper).
+
 Useful commands:
 
 ```bash
-pm2 status              # next cron run shown when time: true
-pm2 logs accumula-bot   # stdout/stderr from scheduled runs
-pm2 stop accumula-bot   # disable scheduled runs
-pm2 delete accumula-bot
-pm2 startup             # generate OS startup hook (Linux)
+pm2 status                        # next cron run shown when time: true
+pm2 logs accumula-bot             # main bot stdout/stderr
+pm2 logs accumula-bot-telegram    # daily summary stdout/stderr
+pm2 stop accumula-bot             # disable scheduled trading runs
+pm2 delete accumula-bot accumula-bot-telegram
+pm2 startup                       # generate OS startup hook (Linux)
 ```
 
-The PM2 app uses `autorestart: false` so each cron tick starts a **fresh one-shot cycle** (same as manual `pnpm start`). Cron times use the **server local timezone**.
+Each app uses `autorestart: false` so each cron tick starts a **fresh one-shot run** (same as manual `pnpm start`). Cron times use the **server local timezone**.
 
-Keep **Ollama** running separately (e.g. `pm2 start ollama` or systemd) — only the bot cycle is defined in `ecosystem.config.cjs`.
+Keep **Ollama** running separately (e.g. `pm2 start ollama` or systemd). Telegram notifications require `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` — see [Notifications](#notifications).
 
 ### Overlap and failures
 
@@ -329,6 +343,7 @@ accumula-bot/
 │   ├── llm/               # Phase 1+: Ollama client, prompts, JSON parse
 │   ├── risk/              # Guardrails — always runs before execution
 │   ├── execution/         # Phase 3+: paper trader; Phase 4+: live trader
+│   ├── notifications/     # Telegram DMs (trades + daily summary)
 │   ├── exchange/          # Phase 4+: CCXT adapter behind an interface
 │   ├── storage/           # Phase 2+: SQLite repos, migrations
 │   └── scheduler/         # Cron job definitions
@@ -624,8 +639,89 @@ Possible additions:
 
 # Notifications
 
-* Send Telegram message when trades occur
-* Send Daily summary of profit/loss, trades, etc for the last 24h, profit/loss for the last week, and all time.
+Optional [Telegram](https://telegram.org/) DM notifications live in `src/notifications/telegram/`.
+
+Notifications are **off by default**. Set both env vars below to enable them.
+
+## Environment variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | Yes (with chat ID) | Bot token from [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | Yes (with token) | Your user chat ID for DMs |
+
+Both must be set together. If either is omitted, the bot runs normally without sending Telegram messages.
+
+Add to `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=123456789:AA...
+TELEGRAM_CHAT_ID=987654321
+```
+
+## Quick setup (5 minutes)
+
+### 1. Create a bot and get the token
+
+1. Open Telegram and message [@BotFather](https://t.me/BotFather).
+2. Send `/newbot` and follow the prompts (name + username ending in `bot`).
+3. BotFather replies with a token like `123456789:AAH...` — that is `TELEGRAM_BOT_TOKEN`.
+
+### 2. Start a chat with your bot
+
+1. Open the link BotFather gives you (or search for your bot's username).
+2. Press **Start** or send any message (e.g. `hello`).
+
+The bot cannot message you until you have started the conversation.
+
+### 3. Get your chat ID
+
+Replace `<TOKEN>` with your bot token:
+
+```bash
+curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"
+```
+
+In the JSON, find `"chat":{"id":987654321` — that number is `TELEGRAM_CHAT_ID`.
+
+For a personal DM, the ID is a positive integer. If you see no results, send another message to the bot and run `getUpdates` again.
+
+### 4. Test
+
+```bash
+pnpm telegram:daily-summary
+```
+
+You should receive a **Daily Summary** message. Trade notifications are sent automatically after paper trades execute during `pnpm start` (or the PM2 `accumula-bot` schedule).
+
+## What gets sent
+
+### Trade notifications
+
+Sent when a paper trade executes during a bot run. Includes:
+
+* Each fill (buy/sell, quantity, price)
+* LLM `recommended_asset` and `reason`
+* Portfolio value in BTC and all-time BTC return
+
+### Daily summary
+
+Sent manually via `pnpm telegram:daily-summary` or on the PM2 `accumula-bot-telegram` schedule (default 15:00 local). Includes:
+
+* **BTC-denominated** returns for 24h, 7d, and all-time (the bot's primary benchmark — not USD PnL)
+* Trade count in the last 24h
+* Current holdings
+* Starting and current portfolio value in BTC and USD
+
+**Note:** USD value can rise while BTC return is negative if BTC price moved up but the strategy holds less BTC than the starting baseline. The percentage lines at the top measure performance in **BTC terms**, matching the project's success criteria.
+
+## Scheduling the daily summary
+
+| Method | Command / config |
+|--------|------------------|
+| Manual | `pnpm telegram:daily-summary` |
+| PM2 | `accumula-bot-telegram` in `ecosystem.config.cjs` (default `0 15 * * *`) |
+| Cron | `0 15 * * * cd /path/to/accumula-bot && pnpm telegram:daily-summary >> logs/telegram.log 2>&1` |
 
 ---
 
