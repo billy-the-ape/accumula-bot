@@ -20,6 +20,9 @@ describe("buildAnalysisPrompt", () => {
 		expect(prompt).toContain(
 			"or to USDC for defensive cash when preserving capital outweighs rotation",
 		);
+		expect(prompt).toContain(
+			'Use the field name "score" only — never probability_of_outperforming_btc or similar.',
+		);
 		expect(prompt).toContain("change_30d_pct: 12");
 		expect(prompt).not.toContain(
 			"Rankings must use these volatile assets only: USDC",

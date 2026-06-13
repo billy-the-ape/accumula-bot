@@ -78,31 +78,102 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 	return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function normalizeRankingItem(item: unknown): unknown {
+function coerceUnitScore(value: unknown, fallback = 0.5): number {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
+
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		const numericMatch = trimmed.match(/^-?\d+(?:\.\d+)?/);
+		if (numericMatch) {
+			return Number(numericMatch[0]);
+		}
+
+		const lower = trimmed.toLowerCase();
+		if (lower.startsWith("high") || lower.includes("strong")) {
+			return 0.75;
+		}
+		if (lower.startsWith("medium") || lower.startsWith("moderate")) {
+			return 0.5;
+		}
+		if (lower.startsWith("low") || lower.startsWith("weak")) {
+			return 0.25;
+		}
+		if (lower.includes("none") || lower === "n/a") {
+			return 0;
+		}
+	}
+
+	return fallback;
+}
+
+const SCORE_FIELD_PATTERN = /score|probability|rank|weight|outperform/i;
+
+function extractScoreFromRankingItem(
+	item: Record<string, unknown>,
+	position: number,
+	total: number,
+): number {
+	const explicitKeys = [
+		"score",
+		"ranking",
+		"probability",
+		"probability_of_outperforming_btc",
+		"probability_of_outperforming",
+		"outperformance_probability",
+		"weight",
+	] as const;
+
+	for (const key of explicitKeys) {
+		if (item[key] !== undefined) {
+			return coerceUnitScore(item[key]);
+		}
+	}
+
+	for (const [key, value] of Object.entries(item)) {
+		if (key === "asset" || key === "symbol") {
+			continue;
+		}
+		if (SCORE_FIELD_PATTERN.test(key)) {
+			return coerceUnitScore(value);
+		}
+	}
+
+	return (total - position) / total;
+}
+
+function normalizeRankingItem(
+	item: unknown,
+	position: number,
+	total: number,
+): unknown {
 	if (!isRecord(item)) {
 		return item;
 	}
 
-	if (typeof item.asset === "string") {
+	const asset =
+		typeof item.asset === "string"
+			? item.asset
+			: typeof item.symbol === "string"
+				? item.symbol
+				: undefined;
+
+	if (!asset) {
 		return item;
 	}
 
-	if (typeof item.symbol === "string") {
-		const score =
-			typeof item.score === "number"
-				? item.score
-				: typeof item.ranking === "number"
-					? item.ranking
-					: 0.5;
-		return { asset: item.symbol, score };
-	}
-
-	return item;
+	return {
+		asset,
+		score: extractScoreFromRankingItem(item, position, total),
+	};
 }
 
 function normalizeRankings(rankings: unknown): unknown {
 	if (Array.isArray(rankings)) {
-		return rankings.map(normalizeRankingItem);
+		return rankings.map((item, index) =>
+			normalizeRankingItem(item, index, rankings.length),
+		);
 	}
 
 	if (!isRecord(rankings)) {
@@ -202,7 +273,14 @@ export function normalizeTradeRecommendationPayload(
 		typeof normalized.reason !== "string" ||
 		normalized.reason.trim().length === 0
 	) {
-		normalized.reason = "No reason provided by model.";
+		if (
+			typeof parsed.reasoning === "string" &&
+			parsed.reasoning.trim().length > 0
+		) {
+			normalized.reason = parsed.reasoning;
+		} else {
+			normalized.reason = "No reason provided by model.";
+		}
 	}
 
 	const rankings = normalized.rankings;
