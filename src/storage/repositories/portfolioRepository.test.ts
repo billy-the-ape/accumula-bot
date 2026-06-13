@@ -31,6 +31,7 @@ describe("portfolioRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 10_000 },
 			initialBtcBaseline: 0.1,
+			initialQuoteBaseline: 10_000,
 		});
 
 		expect(portfolio.id).toBeGreaterThan(0);
@@ -52,6 +53,7 @@ describe("portfolioRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 5_000 },
 			initialBtcBaseline: 0.05,
+			initialQuoteBaseline: 5_000,
 		});
 
 		const reused = await getOrCreatePortfolio(db, {
@@ -59,6 +61,7 @@ describe("portfolioRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 99_999 },
 			initialBtcBaseline: 1,
+			initialQuoteBaseline: 99_999,
 		});
 
 		expect(reused.id).toBe(created.id);
@@ -76,6 +79,7 @@ describe("portfolioRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 10_000 },
 			initialBtcBaseline: 0.1,
+			initialQuoteBaseline: 10_000,
 		});
 
 		const updatedBaselines = await updatePortfolioBaselines(db, portfolio.id, {
@@ -99,6 +103,7 @@ describe("portfolioRepository", () => {
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 1_000, BTC: 0.01 },
 			initialBtcBaseline: 0.02,
+			initialQuoteBaseline: 1_000,
 		});
 
 		expect(await getPortfolioHoldings(db, portfolio.id)).toEqual({

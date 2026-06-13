@@ -46,6 +46,8 @@ export const RawEnvSchema = z
 		COINGECKO_API_KEY: z.string().trim().min(1).optional(),
 		EXCHANGE_API_KEY: z.string().trim().optional(),
 		EXCHANGE_API_SECRET: z.string().trim().optional(),
+		TELEGRAM_BOT_TOKEN: z.string().trim().min(1).optional(),
+		TELEGRAM_CHAT_ID: z.string().trim().min(1).optional(),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -60,6 +62,10 @@ export const RawEnvSchema = z
 		exchange: {
 			apiKey: env.EXCHANGE_API_KEY,
 			apiSecret: env.EXCHANGE_API_SECRET,
+		},
+		telegram: {
+			botToken: env.TELEGRAM_BOT_TOKEN,
+			chatId: env.TELEGRAM_CHAT_ID,
 		},
 		databasePath: env.DATABASE_PATH,
 		coingecko: {

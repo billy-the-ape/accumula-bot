@@ -28,6 +28,9 @@ export const portfolios = sqliteTable("portfolios", {
 	dailyBaselineBtcValue: real("daily_baseline_btc_value").notNull(),
 	weeklyBaselineBtcValue: real("weekly_baseline_btc_value").notNull(),
 	initialBtcBaseline: real("initial_btc_baseline").notNull(),
+	initialQuoteBaseline: real("initial_quote_baseline")
+		.notNull()
+		.default(10_000),
 	tradingEnabled: integer("trading_enabled", { mode: "boolean" })
 		.notNull()
 		.default(true),

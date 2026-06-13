@@ -94,6 +94,19 @@ describe("loadConfig", () => {
 		});
 	});
 
+	it("includes Telegram credentials when both are provided", () => {
+		const config = loadConfig({
+			...validEnv,
+			TELEGRAM_BOT_TOKEN: "bot-token",
+			TELEGRAM_CHAT_ID: "12345",
+		});
+
+		expect(config.telegram).toEqual({
+			botToken: "bot-token",
+			chatId: "12345",
+		});
+	});
+
 	it("rejects unknown assets", () => {
 		expect(() =>
 			loadConfig({
@@ -138,6 +151,15 @@ describe("loadConfig", () => {
 			loadConfig({
 				...validEnv,
 				EXCHANGE_API_KEY: "key",
+			}),
+		).toThrow(/both be set or both be omitted/i);
+	});
+
+	it("rejects partial Telegram credentials", () => {
+		expect(() =>
+			loadConfig({
+				...validEnv,
+				TELEGRAM_BOT_TOKEN: "bot-token",
 			}),
 		).toThrow(/both be set or both be omitted/i);
 	});
