@@ -169,6 +169,40 @@ describe("parseTradeRecommendationJson", () => {
 		]);
 	});
 
+	it("normalizes qwen-style probability fields and reasoning alias", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				rankings: [
+					{
+						asset: "BTC",
+						probability_of_outperforming_btc: "0",
+					},
+					{
+						asset: "ETH",
+						probability_of_outperforming_btc:
+							"Low (based on worse 30-day performance but positive 7-day trends)",
+					},
+					{
+						asset: "SOL",
+						probability_of_outperforming_btc:
+							"Low (based on worse 30-day performance and slightly less positive 7-day trends than ETH)",
+					},
+				],
+				recommended_asset: "BTC",
+				reasoning:
+					"Over the past 30 days, BTC outperformed on relative strength.",
+			}),
+			validation,
+		);
+
+		expect(result.rankings).toEqual([
+			{ asset: "BTC", score: 0 },
+			{ asset: "ETH", score: 0.25 },
+			{ asset: "SOL", score: 0.25 },
+		]);
+		expect(result.reason).toContain("Over the past 30 days");
+	});
+
 	it("rejects invalid JSON", () => {
 		expect(() => parseTradeRecommendationJson("not-json", validation)).toThrow(
 			/not valid JSON/i,
