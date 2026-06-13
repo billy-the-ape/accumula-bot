@@ -28,14 +28,13 @@ function formatTradeLine(trade: StoredTrade): string {
 
 export function formatTradeNotification(input: TradeNotificationInput): string {
 	const lines = [
-		"Accumula Bot — Trade Executed",
+		"<u><b>AccumulaBot — Trade Executed</b></u>",
 		"",
 		...input.trades.map(formatTradeLine),
 		"",
-		`Recommended: ${input.recommendedAsset}`,
-		`Reason: ${input.reason}`,
+		`<u>Reason:</u> ${input.reason}`,
 		"",
-		`Portfolio: ${input.btcValue.toFixed(8)} ${input.accumulateSymbol} (${input.returnPct >= 0 ? "+" : ""}${input.returnPct.toFixed(2)}% all-time)`,
+		`<u>Accumulated Value:</u> ${input.btcValue.toFixed(8)} ${input.accumulateSymbol} (${input.returnPct >= 0 ? "+" : ""}${input.returnPct.toFixed(2)}% all-time vs initial baseline)`,
 	];
 
 	return lines.join("\n");
