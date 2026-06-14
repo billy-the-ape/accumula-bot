@@ -1,4 +1,4 @@
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 
 /** Node's fetch (undici) defaults to 5 minutes; local models can exceed that. */
 export const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
@@ -9,11 +9,11 @@ export function createFetchWithTimeout(timeoutMs: number): typeof fetch {
 		bodyTimeout: timeoutMs,
 	});
 
+	// Node's built-in fetch uses an older undici; Agent must pair with undici's fetch.
 	return ((input, init) =>
-		fetch(input, {
-			...init,
-			// undici Agent types differ slightly from @types/node fetch dispatcher types.
-			dispatcher: agent as never,
+		undiciFetch(input as Parameters<typeof undiciFetch>[0], {
+			...(init as Parameters<typeof undiciFetch>[1]),
+			dispatcher: agent,
 		})) as typeof fetch;
 }
 
