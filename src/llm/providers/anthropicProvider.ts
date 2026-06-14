@@ -1,5 +1,9 @@
 import type { LlmProvider } from "@/llm/providers/types.js";
 import { LlmError } from "@/llm/providers/types.js";
+import {
+	createFetchWithTimeout,
+	formatFetchErrorMessage,
+} from "@/llm/requestTimeout.js";
 
 const ANTHROPIC_VERSION = "2023-06-01";
 const DEFAULT_MAX_TOKENS = 1024;
@@ -34,7 +38,8 @@ export const anthropicProvider: LlmProvider = {
 			throw new LlmError("Anthropic provider requires LLM_API_KEY");
 		}
 
-		const fetchImpl = context.fetchImpl ?? fetch;
+		const fetchImpl =
+			context.fetchImpl ?? createFetchWithTimeout(context.requestTimeoutMs);
 		const url = resolveAnthropicMessagesUrl(context.baseUrl);
 
 		let response: Response;
@@ -53,9 +58,8 @@ export const anthropicProvider: LlmProvider = {
 				}),
 			});
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "unknown error";
 			throw new LlmError(
-				`Failed to reach Anthropic at ${url.origin}: ${message}`,
+				`Failed to reach Anthropic at ${url.origin}: ${formatFetchErrorMessage(error)}`,
 			);
 		}
 

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LlmConfig } from "@/config/appConfigSchema.js";
 import { completeJsonChat } from "@/llm/llmClient.js";
+import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
 describe("completeJsonChat", () => {
 	it("delegates to the configured provider adapter", async () => {
@@ -17,6 +18,7 @@ describe("completeJsonChat", () => {
 			provider: "openai_compatible",
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
+			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 		};
 
 		const response = await completeJsonChat(config, "prompt", { fetchImpl });

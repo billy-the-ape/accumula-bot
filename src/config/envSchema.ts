@@ -7,6 +7,7 @@ import {
 const DEFAULT_ASSET_TO_ACCUMULATE = "BTC";
 const DEFAULT_ASSET_STARTING = "USDC";
 const DEFAULT_LLM_MODEL = "qwen3:8b";
+const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 const DEFAULT_DATABASE_PATH = "data/accumula.db";
 const DEFAULT_COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3";
 
@@ -40,6 +41,11 @@ export const RawEnvSchema = z
 		LLM_PROVIDER: LlmProviderIdSchema.default(DEFAULT_LLM_PROVIDER),
 		LLM_BASE_URL: z.url({ message: "LLM_BASE_URL must be a valid URL" }),
 		LLM_MODEL: z.string().trim().min(1).default(DEFAULT_LLM_MODEL),
+		LLM_REQUEST_TIMEOUT_MS: z.coerce
+			.number()
+			.int()
+			.positive()
+			.default(DEFAULT_LLM_REQUEST_TIMEOUT_MS),
 		LLM_API_KEY: z.string().trim().min(1).optional(),
 		DATABASE_PATH: z.string().trim().min(1).default(DEFAULT_DATABASE_PATH),
 		COINGECKO_BASE_URL: z.url().default(DEFAULT_COINGECKO_BASE_URL),
@@ -57,6 +63,7 @@ export const RawEnvSchema = z
 			provider: env.LLM_PROVIDER,
 			baseUrl: env.LLM_BASE_URL,
 			model: env.LLM_MODEL,
+			requestTimeoutMs: env.LLM_REQUEST_TIMEOUT_MS,
 			apiKey: env.LLM_API_KEY,
 		},
 		exchange: {

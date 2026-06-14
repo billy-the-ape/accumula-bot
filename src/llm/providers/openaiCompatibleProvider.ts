@@ -1,5 +1,9 @@
 import type { LlmProvider } from "@/llm/providers/types.js";
 import { LlmError } from "@/llm/providers/types.js";
+import {
+	createFetchWithTimeout,
+	formatFetchErrorMessage,
+} from "@/llm/requestTimeout.js";
 
 type ChatCompletionResponse = {
 	choices?: Array<{
@@ -27,7 +31,8 @@ export const openAiCompatibleProvider: LlmProvider = {
 	id: "openai_compatible",
 
 	async completeJsonChat(context, prompt) {
-		const fetchImpl = context.fetchImpl ?? fetch;
+		const fetchImpl =
+			context.fetchImpl ?? createFetchWithTimeout(context.requestTimeoutMs);
 		const url = resolveChatCompletionsUrl(context.baseUrl);
 
 		const headers: Record<string, string> = {
@@ -50,9 +55,8 @@ export const openAiCompatibleProvider: LlmProvider = {
 				}),
 			});
 		} catch (error) {
-			const message = error instanceof Error ? error.message : "unknown error";
 			throw new LlmError(
-				`Failed to reach LLM provider at ${url.origin}: ${message}`,
+				`Failed to reach LLM provider at ${url.origin}: ${formatFetchErrorMessage(error)}`,
 			);
 		}
 

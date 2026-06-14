@@ -4,6 +4,7 @@ import {
 	resolveChatCompletionsUrl,
 } from "@/llm/providers/openaiCompatibleProvider.js";
 import { LlmError } from "@/llm/providers/types.js";
+import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
 function chatCompletionResponse(content: string): string {
 	return JSON.stringify({
@@ -37,6 +38,7 @@ describe("openAiCompatibleProvider", () => {
 			{
 				baseUrl: "http://127.0.0.1:11434",
 				model: "qwen3:8b",
+				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				fetchImpl,
 			},
 			"prompt",
@@ -56,6 +58,7 @@ describe("openAiCompatibleProvider", () => {
 			{
 				baseUrl: "https://api.openai.com/v1",
 				model: "gpt-4o-mini",
+				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				apiKey: "test-key",
 				fetchImpl,
 			},
@@ -86,6 +89,7 @@ describe("openAiCompatibleProvider", () => {
 				{
 					baseUrl: "http://127.0.0.1:11434",
 					model: "missing-model",
+					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 					fetchImpl,
 				},
 				"prompt",

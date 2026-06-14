@@ -16,6 +16,7 @@ const LlmConfigSchema = z.object({
 	provider: z.enum(["openai_compatible", "anthropic"]),
 	baseUrl: z.url(),
 	model: z.string().min(1),
+	requestTimeoutMs: z.number().int().positive(),
 	apiKey: z.string().min(1).optional(),
 });
 
@@ -33,6 +34,7 @@ export type LlmConfig = {
 	provider: LlmProviderId;
 	baseUrl: string;
 	model: string;
+	requestTimeoutMs: number;
 	apiKey?: string;
 };
 
@@ -172,6 +174,7 @@ export const AppConfigSchema = z
 			provider: llmPayload.provider,
 			baseUrl: llmPayload.baseUrl,
 			model: llmPayload.model,
+			requestTimeoutMs: llmPayload.requestTimeoutMs,
 			...(llmPayload.apiKey ? { apiKey: llmPayload.apiKey } : {}),
 		};
 		const coingecko: CoinGeckoConfig = {

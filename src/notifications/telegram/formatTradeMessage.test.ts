@@ -25,10 +25,11 @@ describe("formatTradeNotification", () => {
 			accumulateSymbol: "BTC",
 		});
 
-		expect(message).toContain("Accumula Bot — Trade Executed");
+		expect(message).toContain("AccumulaBot — Trade Executed");
 		expect(message).toContain("BUY 0.01 BTC");
-		expect(message).toContain("Recommended: BTC");
-		expect(message).toContain("Reason: Strong relative momentum");
-		expect(message).toContain("0.10500000 BTC (+2.50% all-time)");
+		expect(message).toContain("<u>Reason:</u> Strong relative momentum");
+		expect(message).toContain(
+			"0.10500000 BTC (+2.50% all-time vs initial baseline)",
+		);
 	});
 });
