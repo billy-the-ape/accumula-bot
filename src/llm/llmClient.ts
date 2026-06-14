@@ -32,6 +32,7 @@ export async function completeJsonChat(
 	const context: LlmRequestContext = {
 		baseUrl: config.baseUrl,
 		model: config.model,
+		requestTimeoutMs: config.requestTimeoutMs,
 		...(config.apiKey ? { apiKey: config.apiKey } : {}),
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	};

@@ -3,6 +3,7 @@ import {
 	anthropicProvider,
 	resolveAnthropicMessagesUrl,
 } from "@/llm/providers/anthropicProvider.js";
+import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
 function anthropicResponse(content: string): string {
 	return JSON.stringify({
@@ -30,6 +31,7 @@ describe("anthropicProvider", () => {
 			{
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
+				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
@@ -50,6 +52,7 @@ describe("anthropicProvider", () => {
 			{
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
+				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
@@ -79,6 +82,7 @@ describe("anthropicProvider", () => {
 				{
 					baseUrl: "https://api.anthropic.com",
 					model: "claude-3-5-sonnet-20241022",
+					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 					fetchImpl: vi.fn(),
 				},
 				"prompt",

@@ -10,6 +10,7 @@ export class LlmError extends Error {
 export type LlmRequestContext = {
 	baseUrl: string;
 	model: string;
+	requestTimeoutMs: number;
 	apiKey?: string;
 	fetchImpl?: typeof fetch;
 };

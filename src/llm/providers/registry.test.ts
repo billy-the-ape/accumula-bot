@@ -3,6 +3,7 @@ import {
 	completeJsonChatViaProvider,
 	getLlmProvider,
 } from "@/llm/providers/registry.js";
+import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
 describe("getLlmProvider", () => {
 	it("returns the configured provider adapter", () => {
@@ -27,6 +28,7 @@ describe("completeJsonChatViaProvider", () => {
 			{
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
+				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},

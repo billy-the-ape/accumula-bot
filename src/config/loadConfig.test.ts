@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ConfigError, loadConfig } from "@/config/loadConfig.js";
+import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
 const validEnv = {
@@ -23,6 +24,7 @@ describe("loadConfig", () => {
 			provider: "openai_compatible",
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
+			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 		});
 		expect(config.databasePath).toBe("data/accumula.db");
 		expect(config.exchange).toBeUndefined();
@@ -79,6 +81,15 @@ describe("loadConfig", () => {
 		});
 
 		expect(config.llm.apiKey).toBe("sk-test");
+	});
+
+	it("allows overriding the LLM request timeout", () => {
+		const config = loadConfig({
+			...validEnv,
+			LLM_REQUEST_TIMEOUT_MS: "3600000",
+		});
+
+		expect(config.llm.requestTimeoutMs).toBe(3_600_000);
 	});
 
 	it("includes exchange credentials when both are provided", () => {
