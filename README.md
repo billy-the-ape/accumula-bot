@@ -622,12 +622,12 @@ Possible additions:
 * CoinGecko
 * CoinMarketCap
 
-## Prediction Markets
+## Prediction Markets — **implemented** (off by default)
 
 * Polymarket (Gamma + CLOB public APIs, no auth)
 * Kalshi (`trade-api/v2` public market data, no auth)
 
-Read-only — implied probabilities (e.g. daily "Bitcoin up or down" markets) used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets.
+Read-only — implied up-probabilities used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets. See [Prediction Markets](#prediction-markets) for config and the at-the-money selection it uses.
 
 ## Sentiment
 
@@ -685,6 +685,36 @@ New sources slot in via `DEFAULT_ANALYSIS_DATA_SOURCES` without changing the pro
 6. **Graceful per-source degradation** — a failing or junk source is tagged "unavailable" rather than poisoning or blocking the run; the model is told when a source is missing so absence is not mistaken for a signal.
 7. **Compute numbers where math matters** — implied probabilities, percentage changes, and spot-vs-strike are provided as numbers, not inferred from raw payloads.
 8. **Model capacity** — as sources grow, a larger-context model (the supported Anthropic provider) may replace the 8B local model, which is the bottleneck on context size and reasoning.
+
+---
+
+# Prediction Markets
+
+A read-only data source (`src/sources/prediction_markets/`, surfaced via `predictionMarketSource` in `DEFAULT_ANALYSIS_DATA_SOURCES`) that adds an **implied up-probability** per asset to the LLM context from [Kalshi](https://kalshi.com) and [Polymarket](https://polymarket.com). The bot does **not** trade on these markets — it is signal only, and the deterministic risk engine still has final authority.
+
+**Off by default.** Set `PREDICTION_MARKETS_ENABLED=true` to include the section.
+
+## At-the-money selection
+
+Both venues list **"≥ strike" threshold ladders** (e.g. *"Will Bitcoin be above $66,000 on June 16?"*), not direct up/down markets. Reading an arbitrary rung gives a probability pinned near 1¢/99¢, which is meaningless as a direction signal. Instead, for each asset the source:
+
+1. Fetches the live spot price (CoinGecko — uses `COINGECKO_BASE_URL`).
+2. Picks the rung whose **strike is closest to spot** (the at-the-money rung), within the target horizon window.
+3. Uses that rung's YES price as `impliedUpProbability` ≈ P(price ends higher than now).
+
+Spot is used **only** for rung selection — it is never fed to the model, so it does not editorialize the context. If spot can't be fetched, selection degrades gracefully to the market nearest the target horizon.
+
+Discovery: Kalshi daily series (`KXBTCD` / `KXETHD` / `KXSOLD`); Polymarket via Gamma `/events` (tag `crypto`, ordered by 24h volume) matching the daily ladder title `"<Asset> above ___ on <date>?"`. Assets without a mapping (`marketMap.ts`) — or venues that return no open market — are reported as *"no signal available"* rather than blocking the run.
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `PREDICTION_MARKETS_ENABLED` | No | `false` | Set `true`/`1` to add the prediction-market section |
+| `PREDICTION_MARKETS_HORIZON_HOURS` | No | `24` | Target signal horizon used for rung/expiry selection |
+| `KALSHI_BASE_URL` | No | `https://external-api.kalshi.com/trade-api/v2` | Kalshi public market-data base URL |
+| `POLYMARKET_GAMMA_BASE_URL` | No | `https://gamma-api.polymarket.com` | Polymarket Gamma (discovery) base URL |
+| `POLYMARKET_CLOB_BASE_URL` | No | `https://clob.polymarket.com` | Polymarket CLOB (live midpoint) base URL |
 
 ---
 
@@ -876,7 +906,7 @@ Advanced Signals
 
 Potential additions:
 
-* Prediction-market signals (Polymarket, Kalshi) — see [Multi-Source Context Strategy](#multi-source-context-strategy)
+* Prediction-market signals (Polymarket, Kalshi) — **implemented**, see [Prediction Markets](#prediction-markets)
 * Sentiment analysis
 * Narrative detection
 * On-chain analytics

@@ -28,7 +28,7 @@ function formatTradeLine(trade: StoredTrade): string {
 
 export function formatTradeNotification(input: TradeNotificationInput): string {
 	const lines = [
-		"<u><b>AccumulaBot — Trade Executed</b></u>",
+		"💰<u><b>AccumulaBot — Trade Executed</b></u>💰",
 		"",
 		...input.trades.map(formatTradeLine),
 		"",

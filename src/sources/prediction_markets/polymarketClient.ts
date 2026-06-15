@@ -1,4 +1,5 @@
 import {
+	PolymarketGammaEventsResponseSchema,
 	type PolymarketGammaMarket,
 	PolymarketGammaMarketsResponseSchema,
 	PolymarketMidpointSchema,
@@ -64,6 +65,35 @@ export function getMarketRef(market: PolymarketGammaMarket): string | null {
 	return market.conditionId ?? market.slug ?? market.id ?? null;
 }
 
+/** Parse the first USD amount from text (e.g. "$68,000", "$1m") to a number. */
+function parseUsdAmount(text: string): number | null {
+	const match = text.match(/\$\s?([\d,]+(?:\.\d+)?)\s*([kKmM])?/);
+	if (!match?.[1]) {
+		return null;
+	}
+	let value = Number(match[1].replace(/,/g, ""));
+	if (!Number.isFinite(value)) {
+		return null;
+	}
+	const suffix = match[2]?.toLowerCase();
+	if (suffix === "k") {
+		value *= 1_000;
+	} else if (suffix === "m") {
+		value *= 1_000_000;
+	}
+	return value;
+}
+
+/**
+ * Strike for a threshold market ("...above $X..."), parsed from the question.
+ * Returns null for genuine up/down markets that have no price threshold.
+ */
+export function getPolymarketStrike(
+	market: PolymarketGammaMarket,
+): number | null {
+	return parseUsdAmount(market.question ?? "");
+}
+
 function getLiquidityUsd(market: PolymarketGammaMarket): number {
 	const value = market.liquidityNum ?? market.liquidity ?? 0;
 	return Math.max(0, value);
@@ -127,6 +157,57 @@ export async function fetchPolymarketMarkets(
 	);
 
 	return fetchJson(options, url, PolymarketGammaMarketsResponseSchema);
+}
+
+export type PolymarketEventQuery = {
+	/** Gamma tag slug. Only works on `/events` (it is ignored on `/markets`). */
+	tagSlug: string;
+	/**
+	 * Case-insensitive prefix of the event title that selects the asset's daily
+	 * threshold ladder, e.g. "bitcoin above" matches "Bitcoin above ___ on
+	 * June 16?" while excluding "o1 FDV above ___…" and other assets.
+	 */
+	titlePrefix: string;
+};
+
+/**
+ * Discover an asset's threshold-ladder markets via Gamma `/events`. BTC/ETH/SOL
+ * price markets are grouped under daily events titled "<Asset> above ___ on
+ * <date>?"; each child market is a "above $X" rung. We order by 24h volume so
+ * the active daily ladders surface (the default ordering buries them), match
+ * events by title prefix, and flatten their child markets for ATM selection.
+ */
+export async function fetchPolymarketEventMarkets(
+	options: PolymarketClientOptions,
+	query: PolymarketEventQuery,
+): Promise<PolymarketGammaMarket[]> {
+	const params = new URLSearchParams({
+		active: "true",
+		closed: "false",
+		limit: "100",
+		order: "volume24hr",
+		ascending: "false",
+		tag_slug: query.tagSlug,
+	});
+
+	const url = new URL(
+		`events?${params.toString()}`,
+		`${options.gammaBaseUrl}/`,
+	);
+	const events = await fetchJson(
+		options,
+		url,
+		PolymarketGammaEventsResponseSchema,
+	);
+
+	const prefix = query.titlePrefix.toLowerCase();
+	return events
+		.filter(
+			(event) =>
+				event.closed !== true &&
+				(event.title ?? "").toLowerCase().startsWith(prefix),
+		)
+		.flatMap((event) => event.markets ?? []);
 }
 
 /**
@@ -196,6 +277,86 @@ export function selectMarketNearestHorizon(
 	});
 }
 
+export type AtmSelectionParams = {
+	nowMs: number;
+	targetHorizonHours: number;
+	spotPriceUsd: number;
+	minHorizonHours?: number;
+	maxHorizonHours?: number;
+};
+
+/**
+ * Select the at-the-money rung for an up/down signal: among open,
+ * orderbook-enabled markets within the horizon window, pick the expiry nearest
+ * the target, prefer rungs with liquidity, then choose the strike closest to
+ * current spot. The YES price of that ~spot strike approximates P(price ends
+ * higher than now). Genuine up/down markets (no parseable strike) are treated
+ * as perfectly at-the-money and always preferred. Returns null when nothing
+ * qualifies — required for Polymarket BTC/ETH markets, which are "above $X"
+ * thresholds rather than direct up/down questions.
+ */
+export function selectAtmMarket(
+	markets: readonly PolymarketGammaMarket[],
+	params: AtmSelectionParams,
+): PolymarketGammaMarket | null {
+	const { nowMs, targetHorizonHours, spotPriceUsd } = params;
+	const minMs = nowMs + (params.minHorizonHours ?? 0) * HOUR_MS;
+	const maxMs =
+		params.maxHorizonHours === undefined
+			? Number.POSITIVE_INFINITY
+			: nowMs + params.maxHorizonHours * HOUR_MS;
+	const targetMs = nowMs + targetHorizonHours * HOUR_MS;
+
+	const candidates = markets.filter((market) => {
+		if (market.closed === true || market.enableOrderBook === false) {
+			return false;
+		}
+		const endMs = market.endDate ? Date.parse(market.endDate) : Number.NaN;
+		return (
+			!Number.isNaN(endMs) &&
+			endMs > nowMs &&
+			endMs >= minMs &&
+			endMs <= maxMs &&
+			getYesTokenId(market) !== null &&
+			getGammaYesPrice(market) !== null &&
+			getMarketRef(market) !== null
+		);
+	});
+
+	if (candidates.length === 0) {
+		return null;
+	}
+
+	// Expiry nearest the target horizon, then restrict to that expiry's ladder.
+	const nearest = candidates.reduce((best, market) => {
+		const bestDelta = Math.abs(Date.parse(best.endDate ?? "") - targetMs);
+		const marketDelta = Math.abs(Date.parse(market.endDate ?? "") - targetMs);
+		return marketDelta < bestDelta ? market : best;
+	});
+	const expiryMs = Date.parse(nearest.endDate ?? "");
+	const sameExpiry = candidates.filter(
+		(market) => Date.parse(market.endDate ?? "") === expiryMs,
+	);
+
+	// Prefer rungs that have liquidity; fall back to all if none are liquid.
+	const liquid = sameExpiry.filter((market) => getLiquidityUsd(market) > 0);
+	const pool = liquid.length > 0 ? liquid : sameExpiry;
+
+	// At-the-money: strike closest to spot. No-strike (true up/down) markets get
+	// a sentinel distance of -1 so they always win.
+	return pool
+		.map((market) => {
+			const strike = getPolymarketStrike(market);
+			return {
+				market,
+				distance: strike === null ? -1 : Math.abs(strike - spotPriceUsd),
+			};
+		})
+		.reduce((best, current) =>
+			current.distance < best.distance ? current : best,
+		).market;
+}
+
 export function toPredictionSignal(
 	market: PolymarketGammaMarket,
 	params: { asset: string; nowIso: string; impliedUpProbability: number },
@@ -221,16 +382,32 @@ export function toPredictionSignal(
 
 export type FetchPolymarketSignalParams = {
 	asset: string;
+	/**
+	 * Event-based discovery (preferred): finds the asset's threshold ladder via
+	 * Gamma `/events`. Takes precedence over `query` when set.
+	 */
+	event?: PolymarketEventQuery;
+	/** Legacy `/markets` filters. Used only when `event` is not provided. */
 	query?: Record<string, string>;
 	targetHorizonHours?: number;
 	now?: Date;
+	/**
+	 * Current spot price. When provided, the at-the-money rung (strike closest
+	 * to spot) is selected so the YES price approximates an up-probability —
+	 * required for "above $X" threshold markets. Without it, the market nearest
+	 * the target horizon is used (only correct for true up/down markets).
+	 */
+	spotPriceUsd?: number;
+	minHorizonHours?: number;
+	maxHorizonHours?: number;
 };
 
 /**
- * Discover BTC/ETH "up or down" markets via Gamma, then return a normalized
- * prediction signal for the one nearest the target horizon. The YES price uses
- * the freshest CLOB midpoint, falling back to the Gamma outcome price. Returns
- * null when no suitable market is open (graceful degradation).
+ * Discover BTC/ETH markets via Gamma, then return a normalized prediction
+ * signal. With `spotPriceUsd`, selects the at-the-money rung (for "above $X"
+ * threshold markets); otherwise the market nearest the target horizon. The YES
+ * price uses the freshest CLOB midpoint, falling back to the Gamma outcome
+ * price. Returns null when no suitable market is open (graceful degradation).
  */
 export async function fetchPolymarketSignal(
 	options: PolymarketClientOptions,
@@ -240,12 +417,23 @@ export async function fetchPolymarketSignal(
 	const targetHorizonHours =
 		params.targetHorizonHours ?? DEFAULT_TARGET_HORIZON_HOURS;
 
-	const markets = await fetchPolymarketMarkets(options, params.query ?? {});
-	const market = selectMarketNearestHorizon(
-		markets,
-		now.getTime(),
-		targetHorizonHours,
-	);
+	const markets = params.event
+		? await fetchPolymarketEventMarkets(options, params.event)
+		: await fetchPolymarketMarkets(options, params.query ?? {});
+	const market =
+		params.spotPriceUsd === undefined
+			? selectMarketNearestHorizon(markets, now.getTime(), targetHorizonHours)
+			: selectAtmMarket(markets, {
+					nowMs: now.getTime(),
+					targetHorizonHours,
+					spotPriceUsd: params.spotPriceUsd,
+					...(params.minHorizonHours !== undefined
+						? { minHorizonHours: params.minHorizonHours }
+						: {}),
+					...(params.maxHorizonHours !== undefined
+						? { maxHorizonHours: params.maxHorizonHours }
+						: {}),
+				});
 
 	if (!market) {
 		return null;

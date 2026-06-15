@@ -1,4 +1,5 @@
 import { marketDataSource } from "@/analysis/sources/marketDataSource.js";
+import { predictionMarketSource } from "@/analysis/sources/predictionMarketSource.js";
 import type {
 	AnalysisContext,
 	AnalysisDataSource,
@@ -7,8 +8,12 @@ import type {
 import type { AppConfig } from "@/config/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
+// Order matters: sections are rendered into the prompt in this order. Sources
+// gated off by `isEnabled` (e.g. prediction markets default to off via
+// `PREDICTION_MARKETS_ENABLED`) are skipped at fetch time.
 export const DEFAULT_ANALYSIS_DATA_SOURCES: readonly AnalysisDataSource[] = [
 	marketDataSource,
+	predictionMarketSource,
 ];
 
 export type BuildAnalysisContextOptions = {

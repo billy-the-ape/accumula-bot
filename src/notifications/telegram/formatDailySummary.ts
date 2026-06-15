@@ -39,7 +39,7 @@ function formatHoldings(holdings: PortfolioHoldings): string {
 
 export function formatDailySummary(input: DailySummaryInput): string {
 	const lines = [
-		"<b>AccumulaBot — Daily Summary</b>",
+		"📅<b><u>AccumulaBot — Daily Summary</u></b>📅",
 		"",
 		"<u>Current BTC Amount vs Starting BTC Value:</u>",
 		`24h: <b>${formatReturnPct(input.dailyReturnPct)}</b> · ${input.tradesLast24h.length} trade(s)`,

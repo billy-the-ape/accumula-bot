@@ -15,6 +15,10 @@ export const KalshiMarketSchema = z.object({
 	volume_24h_fp: z.coerce.number(),
 	notional_value_dollars: z.coerce.number(),
 	yes_sub_title: z.string().optional(),
+	// Strike(s) that define a "≥ strike" / range market. Used to pick the
+	// at-the-money rung (strike closest to spot) for an up/down signal.
+	floor_strike: z.number().nullable().optional(),
+	cap_strike: z.number().nullable().optional(),
 });
 
 export const KalshiMarketsResponseSchema = z.object({

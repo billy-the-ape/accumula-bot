@@ -59,6 +59,15 @@ export type TwitterConfig = {
 	searchString?: string;
 	searchMaxPages?: number;
 };
+
+export type PredictionMarketsConfig = {
+	enabled: boolean;
+	kalshiBaseUrl: string;
+	polymarketGammaBaseUrl: string;
+	polymarketClobBaseUrl: string;
+	targetHorizonHours: number;
+};
+
 export type AppConfig = {
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
@@ -69,6 +78,7 @@ export type AppConfig = {
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 	telegram?: TelegramConfig;
 	twitter: TwitterConfig;
+	predictionMarkets: PredictionMarketsConfig;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -222,6 +232,7 @@ export const AppConfigSchema = z
 				searchString: env.twitter.searchString ?? "",
 				searchMaxPages: env.twitter.searchMaxPages ?? 10,
 			},
+			predictionMarkets: env.predictionMarkets,
 			...(telegram ? { telegram } : {}),
 			...(hasApiKey &&
 				hasApiSecret && {

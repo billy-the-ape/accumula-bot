@@ -1,9 +1,9 @@
 export const DEFAULT_RISK_LIMITS = {
-	maxAllocationPerPurchase: 0.25,
-	maxAllocationPerAsset: 0.5,
+	maxAllocationPerPurchase: 0.15,
+	maxAllocationPerAsset: 0.7,
 	maxPositions: 5,
-	maxDailyLossFraction: 0.03,
-	maxWeeklyLossFraction: 0.1,
+	maxDailyLossFraction: 0.1,
+	maxWeeklyLossFraction: 0.2,
 } as const;
 
 export type RiskLimits = {

@@ -46,7 +46,7 @@ describe("planPaperTrades", () => {
 		]);
 	});
 
-	it("buys bullish assets up to the 25% tranche cap", () => {
+	it("buys bullish assets up to the per-purchase cap", () => {
 		const result = planPaperTrades({
 			holdings: { USDC: 10_000 },
 			prices,
@@ -63,7 +63,7 @@ describe("planPaperTrades", () => {
 			{
 				side: "buy",
 				symbol: "BTC",
-				quantity: 2500 / 100_000,
+				quantity: 1500 / 100_000,
 				priceUsd: 100_000,
 			},
 		]);
@@ -91,7 +91,7 @@ describe("planPaperTrades", () => {
 		expect(result.fills[1]).toEqual({
 			side: "buy",
 			symbol: "SOL",
-			quantity: 2500 / 150,
+			quantity: 1500 / 150,
 			priceUsd: 150,
 		});
 	});
@@ -113,9 +113,9 @@ describe("planPaperTrades", () => {
 		expect(result.holdReason).toMatch(/no outlook-driven trades/i);
 	});
 
-	it("adds another 25% tranche when the same asset stays bullish", () => {
+	it("adds another tranche when the same asset stays bullish", () => {
 		const result = planPaperTrades({
-			holdings: { USDC: 7_500, ETH: 2500 / 3_000 },
+			holdings: { USDC: 8_500, ETH: 1500 / 3_000 },
 			prices,
 			outlooks: [
 				outlook("ETH", 8, 0.75),
@@ -130,15 +130,15 @@ describe("planPaperTrades", () => {
 			{
 				side: "buy",
 				symbol: "ETH",
-				quantity: 2500 / 3_000,
+				quantity: 1500 / 3_000,
 				priceUsd: 3_000,
 			},
 		]);
 	});
 
-	it("holds when a bullish asset is already at the 50% cap", () => {
+	it("holds when a bullish asset is already at the max position cap", () => {
 		const result = planPaperTrades({
-			holdings: { USDC: 5_000, ETH: 5000 / 3_000 },
+			holdings: { USDC: 3_000, ETH: 7000 / 3_000 },
 			prices,
 			outlooks: [
 				outlook("ETH", 9, 0.8),

@@ -53,6 +53,24 @@ async function main() {
 		console.info("Telegram notifications: enabled");
 	}
 
+	if (config.predictionMarkets.enabled) {
+		console.info("Prediction markets: enabled");
+		console.info(
+			`Prediction markets: Kalshi @ ${config.predictionMarkets.kalshiBaseUrl}`,
+		);
+		console.info(
+			`Prediction markets: Polymarket Gamma @ ${config.predictionMarkets.polymarketGammaBaseUrl}`,
+		);
+		console.info(
+			`Prediction markets: Polymarket CLOB @ ${config.predictionMarkets.polymarketClobBaseUrl}`,
+		);
+		console.info(
+			`Prediction markets: Target horizon: ${config.predictionMarkets.targetHorizonHours} hours`,
+		);
+	} else {
+		console.info("Prediction markets: disabled");
+	}
+
 	const analyzableAssets = getAnalyzableAssets(config);
 
 	console.info("Building analysis context...");

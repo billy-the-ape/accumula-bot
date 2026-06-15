@@ -71,7 +71,7 @@ describe("validateBeforeExecution", () => {
 	it("blocks when daily BTC-denominated loss exceeds the limit", () => {
 		const result = validateBeforeExecution(
 			baseInput({
-				holdings: { USDC: 9_400 },
+				holdings: { USDC: 8_999 },
 				dailyBaselineBtcValue: 0.1,
 			}),
 		);
@@ -85,7 +85,7 @@ describe("validateBeforeExecution", () => {
 	it("blocks when weekly BTC-denominated loss exceeds the limit", () => {
 		const result = validateBeforeExecution(
 			baseInput({
-				holdings: { USDC: 8_500 },
+				holdings: { USDC: 7_999 },
 				weeklyBaselineBtcValue: 0.1,
 			}),
 		);

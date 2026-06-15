@@ -145,3 +145,5 @@ vite.config.ts.timestamp-*
 
 # Cursor files
 .cursor/
+
+temp/

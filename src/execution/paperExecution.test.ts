@@ -129,8 +129,8 @@ describe("PaperExecution", () => {
 		expect(result.executed).toBe(true);
 
 		const portfolio = await findPortfolioById(db, 1);
-		expect(portfolio?.holdings.USDC).toBeCloseTo(7_500, 5);
-		expect(portfolio?.holdings.ETH).toBeCloseTo(2500 / 3_000, 5);
+		expect(portfolio?.holdings.USDC).toBeCloseTo(8_500, 5);
+		expect(portfolio?.holdings.ETH).toBeCloseTo(1500 / 3_000, 5);
 	});
 
 	it("holds when outlooks do not trigger trades", async () => {

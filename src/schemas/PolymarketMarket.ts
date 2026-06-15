@@ -26,9 +26,24 @@ export const PolymarketGammaMarketsResponseSchema = z.array(
 	PolymarketGammaMarketSchema,
 );
 
+// Gamma `/events` groups related markets (e.g. the "Bitcoin above ___ on
+// June 16?" threshold ladder). We use the event title to identify the right
+// ladder and read its child `markets` for at-the-money selection.
+export const PolymarketGammaEventSchema = z.object({
+	title: z.string().optional(),
+	slug: z.string().optional(),
+	closed: z.boolean().optional(),
+	markets: z.array(PolymarketGammaMarketSchema).optional(),
+});
+
+export const PolymarketGammaEventsResponseSchema = z.array(
+	PolymarketGammaEventSchema,
+);
+
 export const PolymarketMidpointSchema = z.object({
 	mid_price: z.coerce.number(),
 });
 
 export type PolymarketGammaMarket = z.infer<typeof PolymarketGammaMarketSchema>;
+export type PolymarketGammaEvent = z.infer<typeof PolymarketGammaEventSchema>;
 export type PolymarketMidpoint = z.infer<typeof PolymarketMidpointSchema>;

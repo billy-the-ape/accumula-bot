@@ -1,3 +1,4 @@
+import { promises } from "node:fs";
 import { loadConfig } from "@/config";
 import { sendAndConsumeAmqp } from "@/sources/social_media/twitterClient/amqpProducer.js";
 import type { TweetForDb } from "@/sources/social_media/twitterClient/types.js";
@@ -7,7 +8,7 @@ const config = loadConfig();
 export interface GetSearchScrapeResult {
 	success: boolean;
 	message?: string;
-	data?: { tweets?: Array<TweetForDb> };
+	data?: { results?: Array<TweetForDb> };
 }
 
 export const getSearchScrape = async (
@@ -15,11 +16,7 @@ export const getSearchScrape = async (
 	pagesToScrape = 1,
 	force = true,
 ): Promise<GetSearchScrapeResult> => {
-	return await sendAndConsumeAmqp<{
-		success: boolean;
-		message?: string;
-		data?: { tweets?: Array<TweetForDb> };
-	}>({
+	return await sendAndConsumeAmqp<GetSearchScrapeResult>({
 		type: "twitter-search",
 		subtype: "search",
 		userName: searchString,
@@ -68,8 +65,13 @@ export const getTwitterSearchResult = async ({
 		pagesToScrape ?? 10,
 	);
 
+	await promises.writeFile(
+		"./temp/twitterSearchResult.json",
+		JSON.stringify(result, null, 2),
+	);
+
 	return (
-		result.data?.tweets?.filter(
+		result.data?.results?.filter(
 			(tweet) => tweet.tweetedDate >= earliestDateMs,
 		) ?? []
 	);

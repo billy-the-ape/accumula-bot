@@ -27,7 +27,7 @@ describe("formatDailySummary", () => {
 			holdings: { BTC: 0.1, USDC: 5000 },
 		});
 
-		expect(message).toContain("<b>AccumulaBot — Daily Summary</b>");
+		expect(message).toContain("📅<b><u>AccumulaBot — Daily Summary</u></b>📅");
 		expect(message).toContain(
 			"<u>Current BTC Amount vs Starting BTC Value:</u>",
 		);

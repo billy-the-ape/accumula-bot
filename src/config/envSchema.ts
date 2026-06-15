@@ -13,6 +13,10 @@ export const DEFAULT_LLM_CONTEXT_TOKENS = 32_768;
 export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = 4_096;
 const DEFAULT_DATABASE_PATH = "data/accumula.db";
 const DEFAULT_COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3";
+const DEFAULT_KALSHI_BASE_URL = "https://external-api.kalshi.com/trade-api/v2";
+const DEFAULT_POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
+const DEFAULT_POLYMARKET_CLOB_BASE_URL = "https://clob.polymarket.com";
+const DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS = 24;
 
 function parseCommaSeparatedSymbols(value: string): string[] {
 	return value
@@ -75,6 +79,20 @@ export const RawEnvSchema = z
 		CLOUDAMQP_URL: z.string().trim().min(1),
 		TWITTER_SEARCH_STRING: z.string().trim().min(1).optional(),
 		TWITTER_SEARCH_MAX_PAGES: z.coerce.number().int().positive().optional(),
+		PREDICTION_MARKETS_ENABLED: z
+			.string()
+			.trim()
+			.optional()
+			.transform((value) => value === "true" || value === "1"),
+		KALSHI_BASE_URL: z.url().default(DEFAULT_KALSHI_BASE_URL),
+		POLYMARKET_GAMMA_BASE_URL: z
+			.url()
+			.default(DEFAULT_POLYMARKET_GAMMA_BASE_URL),
+		POLYMARKET_CLOB_BASE_URL: z.url().default(DEFAULT_POLYMARKET_CLOB_BASE_URL),
+		PREDICTION_MARKETS_HORIZON_HOURS: z.coerce
+			.number()
+			.positive()
+			.default(DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -107,6 +125,13 @@ export const RawEnvSchema = z
 		coingecko: {
 			baseUrl: env.COINGECKO_BASE_URL,
 			apiKey: env.COINGECKO_API_KEY,
+		},
+		predictionMarkets: {
+			enabled: env.PREDICTION_MARKETS_ENABLED,
+			kalshiBaseUrl: env.KALSHI_BASE_URL,
+			polymarketGammaBaseUrl: env.POLYMARKET_GAMMA_BASE_URL,
+			polymarketClobBaseUrl: env.POLYMARKET_CLOB_BASE_URL,
+			targetHorizonHours: env.PREDICTION_MARKETS_HORIZON_HOURS,
 		},
 	}));
 
