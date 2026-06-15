@@ -28,11 +28,8 @@ export const getSearchScrape = async (
 	});
 };
 
+// Ideally these accounts are posting market news without any bias
 const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
-	"from:DocumentingBTC",
-	"from:BTC_archive",
-	"from:saylor",
-	"from:vitalikbuterin",
 	"from:unusual_whales",
 	"from:MessariCrypto",
 	"from:WatcherGuru",
