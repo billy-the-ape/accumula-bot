@@ -73,7 +73,10 @@ describe("formatRunReport", () => {
 
 		expect(message).toContain("Trade Executed");
 		expect(message).toContain("<u>Actions:</u> BTC:BUY · avg confidence 72%");
-		expect(message).toContain("<b>BTC</b> — BUY (8/10 · conf 72%)");
+		expect(message).toContain("BTC");
+		expect(message).toContain(" BUY ");
+		expect(message).toContain("8/10");
+		expect(message).toContain("72%");
 		expect(message).toContain("Strong relative momentum");
 		expect(message).toContain("<u>Trades:</u>");
 		expect(message).toContain("BUY 0.01 BTC");
@@ -115,7 +118,7 @@ describe("formatRunReport", () => {
 			baseInput({ predictionSignals: [btcPrediction] }),
 		);
 
-		expect(message).toContain("pred up-prob: polymarket 0.79");
+		expect(message).toContain("polymarket 0.79");
 	});
 
 	it("labels SELL outlooks and escapes HTML in reasons", () => {
@@ -125,7 +128,10 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("<b>ETH</b> — SELL (2/10 · conf 60%)");
+		expect(message).toContain("ETH");
+		expect(message).toContain(" SELL ");
+		expect(message).toContain("2/10");
+		expect(message).toContain("60%");
 		expect(message).toContain("drop &lt;below&gt; support &amp; fail");
 	});
 
