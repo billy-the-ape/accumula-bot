@@ -6,7 +6,7 @@ import {
 	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 	DEFAULT_LLM_TEMPERATURE,
 } from "@/config/envSchema.js";
-import { loadConfig } from "@/config/loadConfig.js";
+import { loadTestConfig } from "@/config/loadTestConfig.js";
 import {
 	createSampleMarketSnapshots,
 	getAnalyzableAssets,
@@ -57,7 +57,7 @@ function chatCompletionResponse(content: string): Response {
 	);
 }
 
-function createAnalysisContext(config: ReturnType<typeof loadConfig>) {
+function createAnalysisContext(config: ReturnType<typeof loadTestConfig>) {
 	const analyzableAssets = getAnalyzableAssets(config);
 	const marketData = createSampleMarketSnapshots(analyzableAssets);
 
@@ -79,7 +79,7 @@ function createAnalysisContext(config: ReturnType<typeof loadConfig>) {
 
 describe("runAnalysis", () => {
 	it("calls the LLM provider and returns a validated recommendation", async () => {
-		const config = loadConfig({
+		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
@@ -119,7 +119,7 @@ describe("runAnalysis", () => {
 	});
 
 	it("retries once with a repair prompt when the initial response is invalid JSON", async () => {
-		const config = loadConfig({
+		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
@@ -163,7 +163,7 @@ describe("runAnalysis", () => {
 	});
 
 	it("logs the retry raw output and rethrows when both attempts fail", async () => {
-		const config = loadConfig({
+		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});

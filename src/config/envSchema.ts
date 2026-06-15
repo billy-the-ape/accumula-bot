@@ -72,6 +72,7 @@ export const RawEnvSchema = z
 		EXCHANGE_API_SECRET: z.string().trim().optional(),
 		TELEGRAM_BOT_TOKEN: z.string().trim().min(1).optional(),
 		TELEGRAM_CHAT_ID: z.string().trim().min(1).optional(),
+		CLOUDAMQP_URL: z.string().trim().min(1),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -96,6 +97,7 @@ export const RawEnvSchema = z
 			chatId: env.TELEGRAM_CHAT_ID,
 		},
 		databasePath: env.DATABASE_PATH,
+		cloudamqpUrl: env.CLOUDAMQP_URL,
 		coingecko: {
 			baseUrl: env.COINGECKO_BASE_URL,
 			apiKey: env.COINGECKO_API_KEY,

@@ -1,6 +1,6 @@
 import type { Client } from "@libsql/client";
 import { afterEach, describe, expect, it } from "vitest";
-import { loadConfig } from "@/config/loadConfig.js";
+import { loadTestConfig } from "@/config/loadTestConfig.js";
 import {
 	createPaperExecutionConfig,
 	PaperExecution,
@@ -68,7 +68,7 @@ describe("PaperExecution", () => {
 		client = connection.client;
 		db = connection.db;
 
-		const appConfig = loadConfig({
+		const appConfig = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
@@ -108,7 +108,7 @@ describe("PaperExecution", () => {
 		client = connection.client;
 		db = connection.db;
 
-		const appConfig = loadConfig({
+		const appConfig = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
@@ -138,7 +138,7 @@ describe("PaperExecution", () => {
 		client = connection.client;
 		db = connection.db;
 
-		const appConfig = loadConfig({
+		const appConfig = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});

@@ -9,6 +9,7 @@ import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
 const validEnv = {
+	CLOUDAMQP_URL: "amqp://localhost",
 	ASSET_TO_ACCUMULATE: "btc",
 	ASSET_TRADEABLE: "BTC, ETH, SOL, USDC",
 	ASSET_STARTING: "USDC",
@@ -40,6 +41,7 @@ describe("loadConfig", () => {
 
 	it("applies asset and LLM defaults when optional env vars are omitted", () => {
 		const config = loadConfig({
+			...validEnv,
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
@@ -53,6 +55,7 @@ describe("loadConfig", () => {
 
 	it("loads anthropic provider when configured with explicit base URL", () => {
 		const config = loadConfig({
+			...validEnv,
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_PROVIDER: "anthropic",
 			LLM_BASE_URL: "https://api.anthropic.com",

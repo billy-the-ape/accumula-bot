@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { formatMarketData } from "@/analysis/formatMarketData.js";
 import type { AnalysisContext } from "@/analysis/types.js";
-import { loadConfig } from "@/config/loadConfig.js";
+import { loadTestConfig } from "@/config/loadTestConfig.js";
 import { createSampleMarketSnapshots } from "@/llm/marketSnapshot.js";
 import { buildAnalysisPromptParts, getAnalyzableAssets } from "@/llm/prompt.js";
 
 describe("buildAnalysisPromptParts", () => {
 	it("puts JSON contract rules in the system prompt", () => {
-		const config = loadConfig({
+		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
+			CLOUDAMQP_URL: "amqp://localhost",
 		});
 		const analyzableAssets = getAnalyzableAssets(config);
 		const outlookAssets = analyzableAssets.map((asset) => asset.symbol);
@@ -41,7 +42,7 @@ describe("buildAnalysisPromptParts", () => {
 	});
 
 	it("excludes stablecoins from analyzable assets", () => {
-		const config = loadConfig({
+		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});

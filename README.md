@@ -106,13 +106,15 @@ The AI never directly controls money.
 Instead:
 
 ```text
-Market Data (current price movement, scraped news)
+Data Sources (market data, prediction markets, sentiment, news)
+     ↓
+Normalization per source (compact, trust-tagged context blocks — no pre-baked verdicts)
      ↓
 Node.js Application
      ↓
-Prompt Construction
+Prompt Construction (assembled context)
      ↓
-Local LLM
+Local LLM (infers the signal from the data)
      ↓
 Trade Recommendation
      ↓
@@ -123,7 +125,7 @@ Execution Engine
 Exchange
 ```
 
-The risk engine always has final authority.
+The risk engine always has final authority. See [Multi-Source Context Strategy](#multi-source-context-strategy) for how raw data from many sources is fed to the model safely.
 
 ---
 
@@ -620,6 +622,13 @@ Possible additions:
 * CoinGecko
 * CoinMarketCap
 
+## Prediction Markets
+
+* Polymarket (Gamma + CLOB public APIs, no auth)
+* Kalshi (`trade-api/v2` public market data, no auth)
+
+Read-only — implied probabilities (e.g. daily "Bitcoin up or down" markets) used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets.
+
 ## Sentiment
 
 * Reddit
@@ -634,6 +643,48 @@ Possible additions:
 
 * Whale activity
 * Stablecoin inflows
+
+---
+
+# Multi-Source Context Strategy
+
+The long-term plan is to feed the model **many data sources** (market data, prediction markets, social sentiment, news/events) and let it **infer the signal itself**, rather than pre-computing verdicts like "prediction markets say BTC up". The system gives the model rich context and trusts it to reason — the deterministic risk engine, not the model, controls money.
+
+## Normalize, don't editorialize
+
+There is a deliberate distinction between two things:
+
+| | What it means | Policy |
+|---|---|---|
+| **Interpretation / aggregation** | Computing the conclusion *for* the model | **Avoid** — let the model reason over the data |
+| **Normalization / sanitization / budgeting** | Cleaning, structuring, trust-tagging, and size-capping data before the prompt | **Keep** — this is hygiene, not editorializing |
+
+Slogan: **don't pre-chew the conclusion, but do wash the vegetables.**
+
+Each source is an `AnalysisDataSource` (`src/analysis/sources/`) that emits an `AnalysisSection`:
+
+* `promptText` — a compact, normalized block the model sees (not a raw API dump)
+* `payload` — the raw data, retained for storage and audit
+
+New sources slot in via `DEFAULT_ANALYSIS_DATA_SOURCES` without changing the prompt or decision logic.
+
+## Why raw, unmassaged dumps are unsafe
+
+1. **Prompt injection** — social/news text is untrusted; a crafted post could act as an instruction to a bot that moves money. Structured market/prediction APIs are lower risk; free text is the threat surface.
+2. **Context truncation** — local `qwen3:8b` via Ollama defaults to a small `num_ctx`; large raw dumps get silently truncated, so the model quietly ignores data.
+3. **Small-model limits** — 8B models are weak at arithmetic and dense-JSON parsing; compute numeric facts and let the model do qualitative synthesis.
+4. **Auditability** — "the model read 40 KB of raw data and decided" is undebuggable.
+
+## Guardrails (most → least important)
+
+1. **Deterministic risk layer keeps final authority** — whitelist, per-asset allocation caps, kill switch, and loss limits bound the outcome no matter what the model infers. The LLM is advisory only.
+2. **Schema-constrained output** — Zod validation rejects malformed decisions before execution, regardless of how messy the input was.
+3. **Trust boundaries for untrusted sources** — social/news content is wrapped in clearly delimited, tagged blocks and treated as *data to analyze, never instructions to follow*; markup is stripped. Untrusted text may be summarized in a separate pass so it never touches the decision prompt directly.
+4. **Per-source token budget** — each section's size is capped and logged so silent truncation is caught; `num_ctx` is set deliberately.
+5. **Provenance, freshness, and audit** — every datum carries its source and `as_of` timestamp, and the full context `payload` is persisted with each decision for replay.
+6. **Graceful per-source degradation** — a failing or junk source is tagged "unavailable" rather than poisoning or blocking the run; the model is told when a source is missing so absence is not mistaken for a signal.
+7. **Compute numbers where math matters** — implied probabilities, percentage changes, and spot-vs-strike are provided as numbers, not inferred from raw payloads.
+8. **Model capacity** — as sources grow, a larger-context model (the supported Anthropic provider) may replace the 8B local model, which is the bottleneck on context size and reasoning.
 
 ---
 
@@ -825,12 +876,13 @@ Advanced Signals
 
 Potential additions:
 
+* Prediction-market signals (Polymarket, Kalshi) — see [Multi-Source Context Strategy](#multi-source-context-strategy)
 * Sentiment analysis
 * Narrative detection
 * On-chain analytics
 * Event-driven trading
 
-Only after earlier phases demonstrate value.
+Added as normalized `AnalysisDataSource` modules under `src/analysis/sources/` (off by default), only after earlier phases demonstrate value.
 
 ---
 

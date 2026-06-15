@@ -63,6 +63,7 @@ export type AppConfig = {
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 	telegram?: TelegramConfig;
+	cloudamqpUrl: string;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -204,22 +205,6 @@ export const AppConfigSchema = z
 					})
 				: undefined;
 
-		if (hasApiKey && hasApiSecret) {
-			return {
-				assetToAccumulate,
-				assetTradeable,
-				assetStarting,
-				databasePath: env.databasePath,
-				coingecko,
-				llm,
-				exchange: ExchangeConfigSchema.parse({
-					apiKey: env.exchange.apiKey,
-					apiSecret: env.exchange.apiSecret,
-				}),
-				...(telegram ? { telegram } : {}),
-			};
-		}
-
 		return {
 			assetToAccumulate,
 			assetTradeable,
@@ -227,6 +212,14 @@ export const AppConfigSchema = z
 			databasePath: env.databasePath,
 			coingecko,
 			llm,
+			cloudamqpUrl: env.cloudamqpUrl,
 			...(telegram ? { telegram } : {}),
+			...(hasApiKey &&
+				hasApiSecret && {
+					exchange: ExchangeConfigSchema.parse({
+						apiKey: env.exchange.apiKey,
+						apiSecret: env.exchange.apiSecret,
+					}),
+				}),
 		};
 	});
