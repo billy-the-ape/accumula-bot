@@ -127,10 +127,27 @@ describe("tradeRepository", () => {
 		const decision = await saveDecision(db, {
 			assetToAccumulate: "BTC",
 			recommendation: {
-				rankings: [{ asset: "SOL", score: 0.8 }],
-				recommended_asset: "SOL",
-				confidence: 0.8,
-				reason: "SOL momentum",
+				outlooks: [
+					{
+						asset: "SOL",
+						direction_score: 8,
+						confidence: 0.8,
+						reason: "SOL momentum",
+					},
+					{
+						asset: "BTC",
+						direction_score: 5,
+						confidence: 0.6,
+						reason: "Stable",
+					},
+					{
+						asset: "ETH",
+						direction_score: 4,
+						confidence: 0.6,
+						reason: "Flat",
+					},
+				],
+				summary: "Buy SOL",
 			},
 			marketSnapshots: [],
 			llm: { provider: "openai_compatible", model: "qwen3:8b" },

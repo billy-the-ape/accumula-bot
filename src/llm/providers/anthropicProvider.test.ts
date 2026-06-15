@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
 import {
 	anthropicProvider,
 	resolveAnthropicMessagesUrl,
@@ -20,6 +21,11 @@ describe("resolveAnthropicMessagesUrl", () => {
 });
 
 describe("anthropicProvider", () => {
+	const samplePrompt = {
+		system: "Return valid JSON only.",
+		user: "Analyze BTC.",
+	};
+
 	it("returns text content from an Anthropic messages response", async () => {
 		const fetchImpl = vi
 			.fn()
@@ -32,10 +38,11 @@ describe("anthropicProvider", () => {
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+				temperature: DEFAULT_LLM_TEMPERATURE,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
-			"prompt",
+			samplePrompt,
 		);
 
 		expect(response).toBe('{"ok":true}');
@@ -53,10 +60,11 @@ describe("anthropicProvider", () => {
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+				temperature: DEFAULT_LLM_TEMPERATURE,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
-			"prompt",
+			samplePrompt,
 		);
 
 		const [url, init] = fetchImpl.mock.calls[0] as [URL, RequestInit];
@@ -69,11 +77,17 @@ describe("anthropicProvider", () => {
 		const body = JSON.parse(init.body as string) as {
 			model: string;
 			max_tokens: number;
+			temperature: number;
+			system: string;
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.model).toBe("claude-3-5-sonnet-20241022");
 		expect(body.max_tokens).toBeGreaterThan(0);
-		expect(body.messages).toEqual([{ role: "user", content: "prompt" }]);
+		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
+		expect(body.system).toContain("Return valid JSON only.");
+		expect(body.messages).toEqual([
+			{ role: "user", content: samplePrompt.user },
+		]);
 	});
 
 	it("requires an API key", async () => {
@@ -83,9 +97,10 @@ describe("anthropicProvider", () => {
 					baseUrl: "https://api.anthropic.com",
 					model: "claude-3-5-sonnet-20241022",
 					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+					temperature: DEFAULT_LLM_TEMPERATURE,
 					fetchImpl: vi.fn(),
 				},
-				"prompt",
+				samplePrompt,
 			),
 		).rejects.toThrow(/requires LLM_API_KEY/i);
 	});

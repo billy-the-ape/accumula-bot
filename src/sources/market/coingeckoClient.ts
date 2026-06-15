@@ -1,9 +1,9 @@
-import { deriveVolumeTrend } from "@/market/volumeTrend.js";
 import {
 	CoinGeckoMarketChartSchema,
 	CoinGeckoMarketListSchema,
 } from "@/schemas/CoinGeckoMarket.js";
 import type { VolumeTrend } from "@/schemas/MarketSnapshot.js";
+import { deriveVolumeTrend } from "@/sources/market/volumeTrend.js";
 
 export class MarketDataError extends Error {
 	constructor(message: string) {

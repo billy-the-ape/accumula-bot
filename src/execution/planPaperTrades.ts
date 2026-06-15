@@ -4,7 +4,13 @@ import {
 	getTotalPortfolioQuoteValue,
 } from "@/domain/allocation.js";
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
+import {
+	DEFAULT_OUTLOOK_THRESHOLDS,
+	deriveAssetActions,
+	type OutlookThresholds,
+} from "@/execution/outlookActions.js";
 import type { TradeSide } from "@/schemas/Trade.js";
+import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
 export type PlannedFill = {
 	side: TradeSide;
@@ -16,10 +22,11 @@ export type PlannedFill = {
 export type PlanPaperTradesInput = {
 	holdings: PortfolioHoldings;
 	prices: PriceMap;
-	recommendedAsset: string;
+	outlooks: readonly AssetOutlook[];
 	cashSymbol: string;
 	maxPurchaseFraction: number;
 	maxPositionFraction: number;
+	thresholds?: OutlookThresholds;
 };
 
 export type PlanPaperTradesResult = {
@@ -64,6 +71,60 @@ function applyFillToHoldings(
 	return next;
 }
 
+function planAssetSell(
+	holdings: PortfolioHoldings,
+	prices: PriceMap,
+	symbol: string,
+): PlannedFill | undefined {
+	const quantity = holdings[symbol] ?? 0;
+	if (quantity <= 0) {
+		return undefined;
+	}
+
+	return {
+		side: "sell",
+		symbol,
+		quantity,
+		priceUsd: requirePrice(prices, symbol),
+	};
+}
+
+function planAssetBuy(
+	holdings: PortfolioHoldings,
+	prices: PriceMap,
+	symbol: string,
+	cashSymbol: string,
+	maxPurchaseFraction: number,
+	maxPositionFraction: number,
+): PlannedFill | undefined {
+	const totalValue = getTotalPortfolioQuoteValue(holdings, prices);
+	if (totalValue <= 0) {
+		return undefined;
+	}
+
+	const currentValue = getHoldingQuoteValue(holdings, symbol, prices);
+	const roomToCap = totalValue * maxPositionFraction - currentValue;
+	const maxPurchaseValue = totalValue * maxPurchaseFraction;
+	const cashAvailable = holdings[cashSymbol] ?? 0;
+	const buyValue = Math.min(
+		Math.max(0, roomToCap),
+		maxPurchaseValue,
+		cashAvailable,
+	);
+
+	if (buyValue <= 0) {
+		return undefined;
+	}
+
+	const priceUsd = requirePrice(prices, symbol);
+	return {
+		side: "buy",
+		symbol,
+		quantity: buyValue / priceUsd,
+		priceUsd,
+	};
+}
+
 function planPartialSellToTargetAllocation(
 	holdings: PortfolioHoldings,
 	prices: PriceMap,
@@ -92,151 +153,69 @@ function planPartialSellToTargetAllocation(
 	};
 }
 
-function planDefensiveCashSells(
-	holdings: PortfolioHoldings,
-	prices: PriceMap,
-	cashSymbol: string,
-): PlannedFill[] {
-	const fills: PlannedFill[] = [];
-
-	for (const [symbol, quantity] of Object.entries(holdings)) {
-		if (symbol === cashSymbol || quantity <= 0) {
-			continue;
-		}
-
-		fills.push({
-			side: "sell",
-			symbol,
-			quantity,
-			priceUsd: requirePrice(prices, symbol),
-		});
-	}
-
-	return fills;
-}
-
-function planRecommendedBuy(
-	simulated: PortfolioHoldings,
-	recommendedAsset: string,
-	prices: PriceMap,
-	cashSymbol: string,
-	maxPurchaseFraction: number,
-	maxPositionFraction: number,
-): PlannedFill | undefined {
-	const totalValue = getTotalPortfolioQuoteValue(simulated, prices);
-	if (totalValue <= 0) {
-		return undefined;
-	}
-
-	const currentValue = getHoldingQuoteValue(
-		simulated,
-		recommendedAsset,
-		prices,
-	);
-	const roomToCap = totalValue * maxPositionFraction - currentValue;
-	const maxPurchaseValue = totalValue * maxPurchaseFraction;
-	const cashAvailable = simulated[cashSymbol] ?? 0;
-	const buyValue = Math.min(
-		Math.max(0, roomToCap),
-		maxPurchaseValue,
-		cashAvailable,
-	);
-
-	if (buyValue <= 0) {
-		return undefined;
-	}
-
-	const priceUsd = requirePrice(prices, recommendedAsset);
-	return {
-		side: "buy",
-		symbol: recommendedAsset,
-		quantity: buyValue / priceUsd,
-		priceUsd,
-	};
-}
-
-function planRotation(
-	holdings: PortfolioHoldings,
-	prices: PriceMap,
-	recommendedAsset: string,
-	cashSymbol: string,
-	maxPurchaseFraction: number,
-	maxPositionFraction: number,
-): PlannedFill[] {
-	const fills: PlannedFill[] = [];
-
-	for (const [symbol, quantity] of Object.entries(holdings)) {
-		if (symbol === cashSymbol || symbol === recommendedAsset || quantity <= 0) {
-			continue;
-		}
-
-		fills.push({
-			side: "sell",
-			symbol,
-			quantity,
-			priceUsd: requirePrice(prices, symbol),
-		});
-	}
-
-	let simulated = holdings;
-	for (const fill of fills) {
-		simulated = applyFillToHoldings(simulated, fill, cashSymbol);
-	}
-
-	const recommendedOverCap = planPartialSellToTargetAllocation(
-		simulated,
-		prices,
-		recommendedAsset,
-		maxPositionFraction,
-	);
-	if (recommendedOverCap) {
-		fills.push(recommendedOverCap);
-		simulated = applyFillToHoldings(simulated, recommendedOverCap, cashSymbol);
-	}
-
-	const buy = planRecommendedBuy(
-		simulated,
-		recommendedAsset,
-		prices,
-		cashSymbol,
-		maxPurchaseFraction,
-		maxPositionFraction,
-	);
-	if (buy) {
-		fills.push(buy);
-	}
-
-	return fills;
-}
-
 export function planPaperTrades(
 	input: PlanPaperTradesInput,
 ): PlanPaperTradesResult {
 	const {
 		holdings,
 		prices,
-		recommendedAsset,
+		outlooks,
 		cashSymbol,
 		maxPurchaseFraction,
 		maxPositionFraction,
+		thresholds = DEFAULT_OUTLOOK_THRESHOLDS,
 	} = input;
 
-	const fills =
-		recommendedAsset === cashSymbol
-			? planDefensiveCashSells(holdings, prices, cashSymbol)
-			: planRotation(
-					holdings,
-					prices,
-					recommendedAsset,
-					cashSymbol,
-					maxPurchaseFraction,
-					maxPositionFraction,
-				);
+	const actions = deriveAssetActions(outlooks, thresholds);
+	const fills: PlannedFill[] = [];
+	let simulated = holdings;
+
+	for (const [symbol, action] of actions) {
+		if (symbol === cashSymbol || action !== "sell") {
+			continue;
+		}
+
+		const sell = planAssetSell(simulated, prices, symbol);
+		if (sell) {
+			fills.push(sell);
+			simulated = applyFillToHoldings(simulated, sell, cashSymbol);
+		}
+	}
+
+	for (const [symbol, action] of actions) {
+		if (symbol === cashSymbol || action !== "buy") {
+			continue;
+		}
+
+		const trimOverCap = planPartialSellToTargetAllocation(
+			simulated,
+			prices,
+			symbol,
+			maxPositionFraction,
+		);
+		if (trimOverCap) {
+			fills.push(trimOverCap);
+			simulated = applyFillToHoldings(simulated, trimOverCap, cashSymbol);
+		}
+
+		const buy = planAssetBuy(
+			simulated,
+			prices,
+			symbol,
+			cashSymbol,
+			maxPurchaseFraction,
+			maxPositionFraction,
+		);
+		if (buy) {
+			fills.push(buy);
+			simulated = applyFillToHoldings(simulated, buy, cashSymbol);
+		}
+	}
 
 	if (fills.length === 0) {
 		return {
 			fills,
-			holdReason: "Portfolio already aligned with recommendation",
+			holdReason: "No outlook-driven trades required",
 		};
 	}
 

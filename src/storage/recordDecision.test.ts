@@ -8,10 +8,27 @@ import { recordDecision } from "@/storage/recordDecision.js";
 import { findDecisionById } from "@/storage/repositories/decisionRepository.js";
 
 const sampleRecommendation: TradeRecommendation = {
-	rankings: [{ asset: "SOL", score: 0.9 }],
-	recommended_asset: "SOL",
-	confidence: 0.8,
-	reason: "Strong momentum.",
+	outlooks: [
+		{
+			asset: "SOL",
+			direction_score: 8,
+			confidence: 0.8,
+			reason: "Strong momentum.",
+		},
+		{
+			asset: "BTC",
+			direction_score: 5,
+			confidence: 0.6,
+			reason: "Stable.",
+		},
+		{
+			asset: "ETH",
+			direction_score: 4,
+			confidence: 0.6,
+			reason: "Flat.",
+		},
+	],
+	summary: "Buy SOL.",
 };
 
 const sampleInput = {

@@ -1,21 +1,35 @@
 import { desc, eq } from "drizzle-orm";
 import z from "zod";
+import type { AnalysisContext } from "@/analysis/types.js";
 import type { AssetMarketSnapshot } from "@/llm/marketSnapshot.js";
 import { MarketSnapshotListSchema } from "@/schemas/MarketSnapshot.js";
 import {
-	AssetRankingSchema,
+	AssetOutlookSchema,
 	type TradeRecommendation,
 	TradeRecommendationSchema,
 } from "@/schemas/TradeRecommendation.js";
 import type { AppDatabase } from "@/storage/db.js";
 import { type DecisionRow, decisions } from "@/storage/schema.js";
 
-const StoredRankingsSchema = z.array(AssetRankingSchema);
+const StoredOutlooksSchema = z.array(AssetOutlookSchema);
+
+const AnalysisContextSchema = z.object({
+	fetchedAt: z.string(),
+	sections: z.array(
+		z.object({
+			sourceId: z.string(),
+			label: z.string(),
+			promptText: z.string(),
+			payload: z.unknown(),
+		}),
+	),
+});
 
 export type SaveDecisionInput = {
 	assetToAccumulate: string;
 	recommendation: TradeRecommendation;
 	marketSnapshots: AssetMarketSnapshot[];
+	analysisContext?: AnalysisContext;
 	llm: {
 		provider: string;
 		model: string;
@@ -28,6 +42,7 @@ export type StoredDecision = {
 	assetToAccumulate: string;
 	recommendation: TradeRecommendation;
 	marketSnapshots: AssetMarketSnapshot[];
+	analysisContext?: AnalysisContext;
 	llm: {
 		provider: string;
 		model: string;
@@ -35,16 +50,17 @@ export type StoredDecision = {
 };
 
 function mapRowToStoredDecision(row: DecisionRow): StoredDecision {
-	const rankings = StoredRankingsSchema.parse(JSON.parse(row.rankingsJson));
+	const outlooks = StoredOutlooksSchema.parse(JSON.parse(row.rankingsJson));
 	const marketSnapshots = MarketSnapshotListSchema.parse(
 		JSON.parse(row.marketSnapshotsJson),
 	);
 	const recommendation = TradeRecommendationSchema.parse({
-		rankings,
-		recommended_asset: row.recommendedAsset,
-		confidence: row.confidence,
-		reason: row.reason,
+		outlooks,
+		summary: row.reason,
 	});
+	const analysisContext = row.analysisContextJson
+		? AnalysisContextSchema.parse(JSON.parse(row.analysisContextJson))
+		: undefined;
 
 	return {
 		id: row.id,
@@ -52,6 +68,7 @@ function mapRowToStoredDecision(row: DecisionRow): StoredDecision {
 		assetToAccumulate: row.assetToAccumulate,
 		recommendation,
 		marketSnapshots,
+		...(analysisContext ? { analysisContext } : {}),
 		llm: {
 			provider: row.llmProvider,
 			model: row.llmModel,
@@ -68,10 +85,25 @@ export async function saveDecision(
 		.values({
 			createdAt: new Date(),
 			assetToAccumulate: input.assetToAccumulate,
-			recommendedAsset: input.recommendation.recommended_asset,
-			confidence: input.recommendation.confidence,
-			reason: input.recommendation.reason,
-			rankingsJson: JSON.stringify(input.recommendation.rankings),
+			recommendedAsset: input.recommendation.outlooks
+				.map((outlook) => outlook.asset)
+				.join(","),
+			confidence:
+				input.recommendation.outlooks.reduce(
+					(total, outlook) => total + outlook.confidence,
+					0,
+				) / input.recommendation.outlooks.length,
+			reason:
+				input.recommendation.summary ??
+				input.recommendation.outlooks
+					.map((outlook) => outlook.reason)
+					.filter((reason): reason is string => Boolean(reason))
+					.join(" | ") ??
+				"No summary provided by model.",
+			rankingsJson: JSON.stringify(input.recommendation.outlooks),
+			analysisContextJson: input.analysisContext
+				? JSON.stringify(input.analysisContext)
+				: null,
 			marketSnapshotsJson: JSON.stringify(input.marketSnapshots),
 			llmProvider: input.llm.provider,
 			llmModel: input.llm.model,

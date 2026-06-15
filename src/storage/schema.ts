@@ -14,6 +14,7 @@ export const decisions = sqliteTable("decisions", {
 	confidence: real("confidence").notNull(),
 	reason: text("reason").notNull(),
 	rankingsJson: text("rankings_json").notNull(),
+	analysisContextJson: text("analysis_context_json"),
 	marketSnapshotsJson: text("market_snapshots_json").notNull(),
 	llmProvider: text("llm_provider").notNull(),
 	llmModel: text("llm_model").notNull(),

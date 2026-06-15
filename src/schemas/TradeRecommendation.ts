@@ -4,49 +4,103 @@ function clampUnitInterval(value: number): number {
 	return Math.min(1, Math.max(0, value));
 }
 
-export const AssetRankingSchema = z.object({
+function clampDirectionScore(value: number): number {
+	return Math.min(10, Math.max(1, Math.round(value)));
+}
+
+export const AssetOutlookSchema = z.object({
 	asset: z.string(),
-	score: z.number().transform(clampUnitInterval),
+	direction_score: z.number().transform(clampDirectionScore),
+	confidence: z.number().transform(clampUnitInterval),
+	reason: z.string().min(1).optional(),
 });
 
 export const TradeRecommendationSchema = z.object({
-	rankings: z.array(AssetRankingSchema).min(1),
-	recommended_asset: z.string(),
-	confidence: z.number().transform(clampUnitInterval),
-	reason: z.string().min(1),
+	outlooks: z.array(AssetOutlookSchema).min(1),
+	summary: z.string().min(1).optional(),
 });
 
-export type AssetRanking = z.infer<typeof AssetRankingSchema>;
+export type AssetOutlook = z.infer<typeof AssetOutlookSchema>;
 export type TradeRecommendation = z.infer<typeof TradeRecommendationSchema>;
 
 export type TradeRecommendationValidation = {
-	rankingAssets: string[];
-	recommendedAssets: string[];
+	outlookAssets: string[];
 };
 
 export function createTradeRecommendationSchema(
 	validation: TradeRecommendationValidation,
 ) {
-	const rankingAllowed = new Set(validation.rankingAssets);
-	const recommendedAllowed = new Set(validation.recommendedAssets);
+	const allowedAssets = new Set(validation.outlookAssets);
 
 	return TradeRecommendationSchema.superRefine((data, ctx) => {
-		for (const [index, ranking] of data.rankings.entries()) {
-			if (!rankingAllowed.has(ranking.asset)) {
+		const seenAssets = new Set<string>();
+
+		for (const [index, outlook] of data.outlooks.entries()) {
+			if (!allowedAssets.has(outlook.asset)) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["rankings", index, "asset"],
-					message: `Unknown asset in rankings: ${ranking.asset}. Rankings must use volatile assets only: ${validation.rankingAssets.join(", ")}`,
+					path: ["outlooks", index, "asset"],
+					message: `Unknown asset in outlooks: ${outlook.asset}. Outlooks must use volatile assets only: ${validation.outlookAssets.join(", ")}`,
+				});
+			}
+
+			if (seenAssets.has(outlook.asset)) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["outlooks", index, "asset"],
+					message: `Duplicate outlook for asset: ${outlook.asset}`,
+				});
+			}
+
+			seenAssets.add(outlook.asset);
+		}
+
+		for (const asset of validation.outlookAssets) {
+			if (!seenAssets.has(asset)) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["outlooks"],
+					message: `Missing outlook for asset: ${asset}`,
 				});
 			}
 		}
-
-		if (!recommendedAllowed.has(data.recommended_asset)) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["recommended_asset"],
-				message: `recommended_asset must be one of: ${validation.recommendedAssets.join(", ")}`,
-			});
-		}
 	});
+}
+
+export function summarizeRecommendation(recommendation: TradeRecommendation): {
+	headline: string;
+	averageConfidence: number;
+} {
+	const actionableOutlooks = recommendation.outlooks.filter(
+		(outlook) => outlook.direction_score >= 7 || outlook.direction_score <= 3,
+	);
+	const averageConfidence =
+		recommendation.outlooks.reduce(
+			(total, outlook) => total + outlook.confidence,
+			0,
+		) / recommendation.outlooks.length;
+
+	if (actionableOutlooks.length === 0) {
+		return {
+			headline: "HOLD",
+			averageConfidence,
+		};
+	}
+
+	const headline = actionableOutlooks
+		.map((outlook) => {
+			const action =
+				outlook.direction_score >= 7
+					? "BUY"
+					: outlook.direction_score <= 3
+						? "SELL"
+						: "HOLD";
+			return `${outlook.asset}:${action}`;
+		})
+		.join(",");
+
+	return {
+		headline,
+		averageConfidence,
+	};
 }

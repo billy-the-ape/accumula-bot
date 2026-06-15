@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { planPaperTrades } from "@/execution/planPaperTrades.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
+import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
 const prices = {
 	BTC: 100_000,
@@ -14,82 +15,113 @@ const defaultLimits = {
 	maxPositionFraction: DEFAULT_RISK_LIMITS.maxAllocationPerAsset,
 };
 
+function outlook(
+	asset: string,
+	directionScore: number,
+	confidence: number,
+): AssetOutlook {
+	return {
+		asset,
+		direction_score: directionScore,
+		confidence,
+	};
+}
+
 describe("planPaperTrades", () => {
-	it("plans defensive sells into cash", () => {
+	it("sells bearish-held assets without touching unrelated positions", () => {
 		const result = planPaperTrades({
 			holdings: { USDC: 5_000, SOL: 10, ETH: 1 },
 			prices,
-			recommendedAsset: "USDC",
+			outlooks: [
+				outlook("ETH", 2, 0.8),
+				outlook("SOL", 5, 0.9),
+				outlook("BTC", 5, 0.9),
+			],
 			cashSymbol: "USDC",
 			...defaultLimits,
 		});
 
 		expect(result.fills).toEqual([
-			{ side: "sell", symbol: "SOL", quantity: 10, priceUsd: 150 },
 			{ side: "sell", symbol: "ETH", quantity: 1, priceUsd: 3_000 },
 		]);
 	});
 
-	it("plans rotation sells and a capped buy", () => {
+	it("buys bullish assets up to the 25% tranche cap", () => {
 		const result = planPaperTrades({
-			holdings: { USDC: 10_000, SOL: 10 },
+			holdings: { USDC: 10_000 },
 			prices,
-			recommendedAsset: "BTC",
+			outlooks: [
+				outlook("BTC", 8, 0.75),
+				outlook("ETH", 5, 0.9),
+				outlook("SOL", 4, 0.9),
+			],
+			cashSymbol: "USDC",
+			...defaultLimits,
+		});
+
+		expect(result.fills).toEqual([
+			{
+				side: "buy",
+				symbol: "BTC",
+				quantity: 2500 / 100_000,
+				priceUsd: 100_000,
+			},
+		]);
+	});
+
+	it("plans mixed sells and buys in one pass", () => {
+		const result = planPaperTrades({
+			holdings: { USDC: 2_500, ETH: 2, SOL: 10 },
+			prices,
+			outlooks: [
+				outlook("ETH", 2, 0.8),
+				outlook("SOL", 8, 0.75),
+				outlook("BTC", 5, 0.9),
+			],
 			cashSymbol: "USDC",
 			...defaultLimits,
 		});
 
 		expect(result.fills[0]).toEqual({
 			side: "sell",
-			symbol: "SOL",
-			quantity: 10,
-			priceUsd: 150,
+			symbol: "ETH",
+			quantity: 2,
+			priceUsd: 3_000,
 		});
 		expect(result.fills[1]).toEqual({
 			side: "buy",
-			symbol: "BTC",
-			quantity: 2875 / 100_000,
-			priceUsd: 100_000,
+			symbol: "SOL",
+			quantity: 2500 / 150,
+			priceUsd: 150,
 		});
 	});
 
-	it("returns hold when already aligned in cash", () => {
+	it("returns hold when outlooks are neutral or low confidence", () => {
 		const result = planPaperTrades({
-			holdings: { USDC: 10_000 },
+			holdings: { USDC: 10_000, ETH: 1 },
 			prices,
-			recommendedAsset: "USDC",
+			outlooks: [
+				outlook("ETH", 2, 0.4),
+				outlook("SOL", 8, 0.4),
+				outlook("BTC", 5, 0.9),
+			],
 			cashSymbol: "USDC",
 			...defaultLimits,
 		});
 
 		expect(result.fills).toEqual([]);
-		expect(result.holdReason).toMatch(/already aligned/i);
+		expect(result.holdReason).toMatch(/no outlook-driven trades/i);
 	});
 
-	it("buys up to 25% on first allocation from cash", () => {
-		const result = planPaperTrades({
-			holdings: { USDC: 10_000 },
-			prices,
-			recommendedAsset: "ETH",
-			cashSymbol: "USDC",
-			...defaultLimits,
-		});
-
-		expect(result.fills).toEqual([
-			{
-				side: "buy",
-				symbol: "ETH",
-				quantity: 2500 / 3_000,
-				priceUsd: 3_000,
-			},
-		]);
-	});
-
-	it("adds another 25% tranche when the same asset is recommended again", () => {
+	it("adds another 25% tranche when the same asset stays bullish", () => {
 		const result = planPaperTrades({
 			holdings: { USDC: 7_500, ETH: 2500 / 3_000 },
 			prices,
-			recommendedAsset: "ETH",
+			outlooks: [
+				outlook("ETH", 8, 0.75),
+				outlook("BTC", 5, 0.9),
+				outlook("SOL", 5, 0.9),
+			],
 			cashSymbol: "USDC",
 			...defaultLimits,
 		});
@@ -104,35 +136,20 @@ describe("planPaperTrades", () => {
 		]);
 	});
 
-	it("holds when the recommended asset is already at the 50% cap", () => {
+	it("holds when a bullish asset is already at the 50% cap", () => {
 		const result = planPaperTrades({
 			holdings: { USDC: 5_000, ETH: 5000 / 3_000 },
 			prices,
-			recommendedAsset: "ETH",
+			outlooks: [
+				outlook("ETH", 9, 0.8),
+				outlook("BTC", 5, 0.9),
+				outlook("SOL", 5, 0.9),
+			],
 			cashSymbol: "USDC",
 			...defaultLimits,
 		});
 
 		expect(result.fills).toEqual([]);
-		expect(result.holdReason).toMatch(/already aligned/i);
-	});
-
-	it("trims a recommended asset above the 50% position cap", () => {
-		const result = planPaperTrades({
-			holdings: { USDC: 4_000, ETH: 6000 / 3_000 },
-			prices,
-			recommendedAsset: "ETH",
-			cashSymbol: "USDC",
-			...defaultLimits,
-		});
-
-		expect(result.fills).toEqual([
-			{
-				side: "sell",
-				symbol: "ETH",
-				quantity: 1000 / 3_000,
-				priceUsd: 3_000,
-			},
-		]);
+		expect(result.holdReason).toMatch(/no outlook-driven trades/i);
 	});
 });

@@ -6,18 +6,31 @@ import {
 } from "@/llm/parseResponse.js";
 
 const validPayload = {
-	rankings: [
-		{ asset: "BTC", score: 0.82 },
-		{ asset: "SOL", score: 0.77 },
+	outlooks: [
+		{
+			asset: "BTC",
+			direction_score: 8,
+			confidence: 0.74,
+			reason: "BTC currently exhibits the strongest near-term setup.",
+		},
+		{
+			asset: "ETH",
+			direction_score: 5,
+			confidence: 0.6,
+			reason: "ETH likely stays range-bound.",
+		},
+		{
+			asset: "SOL",
+			direction_score: 4,
+			confidence: 0.55,
+			reason: "SOL momentum is fading.",
+		},
 	],
-	recommended_asset: "BTC",
-	confidence: 0.74,
-	reason: "BTC currently exhibits the strongest relative performance.",
+	summary: "BTC leads on 24h momentum.",
 };
 
 const validation = {
-	rankingAssets: ["BTC", "ETH", "SOL"],
-	recommendedAssets: ["BTC", "ETH", "SOL", "USDC"],
+	outlookAssets: ["BTC", "ETH", "SOL"],
 };
 
 describe("extractJsonText", () => {
@@ -32,9 +45,21 @@ describe("extractJsonText", () => {
 	it("extracts JSON after a qwen-style thinking block", () => {
 		expect(
 			extractJsonText(
-				'Let me analyze...\n\n{"recommended_asset":"BTC","confidence":0.7}',
+				'Let me analyze...\n\n{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
 			),
-		).toBe('{"recommended_asset":"BTC","confidence":0.7}');
+		).toBe(
+			'{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
+		);
+	});
+
+	it("strips qwen think tags before extracting JSON", () => {
+		expect(
+			extractJsonText(
+				'` `\nReasoning here\n`\n{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
+			),
+		).toBe(
+			'{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
+		);
 	});
 
 	it("extracts the first balanced JSON object from mixed text", () => {
@@ -45,162 +70,122 @@ describe("extractJsonText", () => {
 });
 
 describe("parseTradeRecommendationJson", () => {
-	it("parses and validates a volatile rotation recommendation", () => {
+	it("parses and validates per-asset outlooks", () => {
 		const result = parseTradeRecommendationJson(
 			JSON.stringify(validPayload),
 			validation,
 		);
 
-		expect(result.recommended_asset).toBe("BTC");
+		expect(result.outlooks).toHaveLength(3);
+		expect(result.outlooks[0]?.direction_score).toBe(8);
 	});
 
-	it("allows defensive cash as recommended_asset", () => {
-		const result = parseTradeRecommendationJson(
-			JSON.stringify({
-				...validPayload,
-				recommended_asset: "USDC",
-				reason: "Preserve capital during broad weakness.",
-			}),
-			validation,
-		);
-
-		expect(result.recommended_asset).toBe("USDC");
-	});
-
-	it("rejects stablecoins in rankings", () => {
+	it("rejects stablecoins in outlooks", () => {
 		expect(() =>
 			parseTradeRecommendationJson(
 				JSON.stringify({
 					...validPayload,
-					rankings: [{ asset: "USDC", score: 0.5 }],
+					outlooks: [{ asset: "USDC", direction_score: 5, confidence: 0.5 }],
 				}),
 				validation,
 			),
 		).toThrow(ParseResponseError);
 	});
 
-	it("rejects unknown recommended assets", () => {
+	it("rejects missing outlook assets", () => {
 		expect(() =>
-			parseTradeRecommendationJson(JSON.stringify(validPayload), {
-				...validation,
-				recommendedAssets: ["SOL"],
-			}),
+			parseTradeRecommendationJson(
+				JSON.stringify({
+					outlooks: [{ asset: "BTC", direction_score: 7, confidence: 0.7 }],
+				}),
+				validation,
+			),
 		).toThrow(ParseResponseError);
 	});
 
-	it("normalizes object-shaped rankings and missing optional fields", () => {
+	it("normalizes object-shaped outlooks and missing optional fields", () => {
 		const result = parseTradeRecommendationJson(
 			JSON.stringify({
-				rankings: {
-					BTC: 0.82,
-					ETH: -0.1,
-					SOL: -0.2,
+				outlooks: {
+					BTC: 8,
+					ETH: 5,
+					SOL: 2,
 				},
-				recommended_asset: "BTC",
 			}),
 			validation,
 		);
 
-		expect(result.rankings).toEqual([
-			{ asset: "BTC", score: 0.82 },
-			{ asset: "ETH", score: 0 },
-			{ asset: "SOL", score: 0 },
+		expect(result.outlooks).toEqual([
+			{ asset: "BTC", direction_score: 8, confidence: 0.5 },
+			{ asset: "ETH", direction_score: 5, confidence: 0.5 },
+			{ asset: "SOL", direction_score: 2, confidence: 0.5 },
 		]);
-		expect(result.confidence).toBe(0.5);
-		expect(result.reason).toBe("No reason provided by model.");
 	});
 
-	it("clamps out-of-range scores and confidence to 0-1", () => {
+	it("clamps out-of-range direction scores and confidence", () => {
 		const result = parseTradeRecommendationJson(
 			JSON.stringify({
-				...validPayload,
-				rankings: [
-					{ asset: "BTC", score: 0.9 },
-					{ asset: "ETH", score: -0.2 },
-					{ asset: "SOL", score: -0.5 },
+				outlooks: [
+					{ asset: "BTC", direction_score: 12, confidence: 1.2 },
+					{ asset: "ETH", direction_score: 0, confidence: 0.6 },
+					{ asset: "SOL", direction_score: 6, confidence: 0.5 },
 				],
-				confidence: 1.2,
 			}),
 			validation,
 		);
 
-		expect(result.rankings.map((ranking) => ranking.score)).toEqual([
-			0.9, 0, 0,
+		expect(result.outlooks.map((outlook) => outlook.direction_score)).toEqual([
+			10, 1, 6,
 		]);
-		expect(result.confidence).toBe(1);
+		expect(result.outlooks[0]?.confidence).toBe(1);
 	});
 
-	it("accepts ranking alias and symbol-shaped ranking entries", () => {
+	it("accepts outlook alias and symbol-shaped entries", () => {
 		const result = parseTradeRecommendationJson(
 			JSON.stringify({
-				ranking: [
-					{ symbol: "BTC", score: 0.9 },
-					{ symbol: "ETH", score: 0.4 },
-					{ symbol: "SOL", score: 0.2 },
+				forecasts: [
+					{ symbol: "BTC", direction_score: 9, confidence: 0.8 },
+					{ symbol: "ETH", direction_score: 4, confidence: 0.4 },
+					{ symbol: "SOL", direction_score: 2, confidence: 0.7 },
 				],
-				recommended_asset: "BTC",
+				reasoning: "BTC leads on momentum.",
+			}),
+			validation,
+		);
+
+		expect(result.outlooks).toEqual([
+			{
+				asset: "BTC",
+				direction_score: 9,
 				confidence: 0.8,
-				reason: "BTC leads on momentum.",
-			}),
-			validation,
-		);
-
-		expect(result.rankings).toEqual([
-			{ asset: "BTC", score: 0.9 },
-			{ asset: "ETH", score: 0.4 },
-			{ asset: "SOL", score: 0.2 },
+			},
+			{
+				asset: "ETH",
+				direction_score: 4,
+				confidence: 0.4,
+			},
+			{
+				asset: "SOL",
+				direction_score: 2,
+				confidence: 0.7,
+			},
 		]);
+		expect(result.summary).toBe("BTC leads on momentum.");
 	});
 
-	it("synthesizes rankings when the model omits them entirely", () => {
+	it("synthesizes neutral outlooks when the model omits them entirely", () => {
 		const result = parseTradeRecommendationJson(
 			JSON.stringify({
-				recommended_asset: "ETH",
-				confidence: 0.72,
-				reason: "ETH momentum is strongest.",
+				summary: "Insufficient detail from model.",
 			}),
 			validation,
 		);
 
-		expect(result.rankings).toEqual([
-			{ asset: "BTC", score: 0.62 },
-			{ asset: "ETH", score: 0.72 },
-			{ asset: "SOL", score: 0.62 },
+		expect(result.outlooks).toEqual([
+			{ asset: "BTC", direction_score: 5, confidence: 0.5 },
+			{ asset: "ETH", direction_score: 5, confidence: 0.5 },
+			{ asset: "SOL", direction_score: 5, confidence: 0.5 },
 		]);
-	});
-
-	it("normalizes qwen-style probability fields and reasoning alias", () => {
-		const result = parseTradeRecommendationJson(
-			JSON.stringify({
-				rankings: [
-					{
-						asset: "BTC",
-						probability_of_outperforming_btc: "0",
-					},
-					{
-						asset: "ETH",
-						probability_of_outperforming_btc:
-							"Low (based on worse 30-day performance but positive 7-day trends)",
-					},
-					{
-						asset: "SOL",
-						probability_of_outperforming_btc:
-							"Low (based on worse 30-day performance and slightly less positive 7-day trends than ETH)",
-					},
-				],
-				recommended_asset: "BTC",
-				reasoning:
-					"Over the past 30 days, BTC outperformed on relative strength.",
-			}),
-			validation,
-		);
-
-		expect(result.rankings).toEqual([
-			{ asset: "BTC", score: 0 },
-			{ asset: "ETH", score: 0.25 },
-			{ asset: "SOL", score: 0.25 },
-		]);
-		expect(result.reason).toContain("Over the past 30 days");
 	});
 
 	it("rejects invalid JSON", () => {

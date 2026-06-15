@@ -17,6 +17,7 @@ const LlmConfigSchema = z.object({
 	baseUrl: z.url(),
 	model: z.string().min(1),
 	requestTimeoutMs: z.number().int().positive(),
+	temperature: z.number().min(0).max(2),
 	apiKey: z.string().min(1).optional(),
 });
 
@@ -35,6 +36,7 @@ export type LlmConfig = {
 	baseUrl: string;
 	model: string;
 	requestTimeoutMs: number;
+	temperature: number;
 	apiKey?: string;
 };
 
@@ -175,6 +177,7 @@ export const AppConfigSchema = z
 			baseUrl: llmPayload.baseUrl,
 			model: llmPayload.model,
 			requestTimeoutMs: llmPayload.requestTimeoutMs,
+			temperature: llmPayload.temperature,
 			...(llmPayload.apiKey ? { apiKey: llmPayload.apiKey } : {}),
 		};
 		const coingecko: CoinGeckoConfig = {

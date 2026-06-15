@@ -5,6 +5,7 @@ import {
 	createPaperExecutionConfig,
 	PaperExecution,
 } from "@/execution/paperExecution.js";
+import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
 import { type AppDatabase, createDatabase } from "@/storage/db.js";
 import { findPortfolioById } from "@/storage/repositories/portfolioRepository.js";
 
@@ -38,6 +39,20 @@ const marketSnapshots = [
 	},
 ];
 
+function outlookRecommendation(
+	overrides: Partial<TradeRecommendation["outlooks"][number]>[],
+): TradeRecommendation {
+	return {
+		outlooks: overrides.map((outlook, index) => ({
+			asset: outlook.asset ?? ["BTC", "ETH", "SOL"][index] ?? "BTC",
+			direction_score: outlook.direction_score ?? 5,
+			confidence: outlook.confidence ?? 0.7,
+			reason: outlook.reason ?? "Test outlook",
+		})),
+		summary: "Test recommendation",
+	};
+}
+
 describe("PaperExecution", () => {
 	let client: Client | undefined;
 	let db: AppDatabase | undefined;
@@ -48,7 +63,7 @@ describe("PaperExecution", () => {
 		db = undefined;
 	});
 
-	it("executes defensive cash rotation with settled cash legs", async () => {
+	it("executes bearish sells for held assets", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
 		db = connection.db;
@@ -63,22 +78,20 @@ describe("PaperExecution", () => {
 		);
 
 		await execution.executeRecommendation({
-			recommendation: {
-				rankings: [{ asset: "SOL", score: 0.4 }],
-				recommended_asset: "SOL",
-				confidence: 0.7,
-				reason: "Warm up portfolio",
-			},
+			recommendation: outlookRecommendation([
+				{ asset: "BTC", direction_score: 5 },
+				{ asset: "ETH", direction_score: 8 },
+				{ asset: "SOL", direction_score: 5 },
+			]),
 			marketSnapshots,
 		});
 
 		const defensive = await execution.executeRecommendation({
-			recommendation: {
-				rankings: [{ asset: "SOL", score: 0.3 }],
-				recommended_asset: "USDC",
-				confidence: 0.8,
-				reason: "Risk off",
-			},
+			recommendation: outlookRecommendation([
+				{ asset: "BTC", direction_score: 5 },
+				{ asset: "ETH", direction_score: 2, confidence: 0.8 },
+				{ asset: "SOL", direction_score: 5 },
+			]),
 			marketSnapshots,
 		});
 
@@ -86,10 +99,11 @@ describe("PaperExecution", () => {
 		expect(defensive.trades.length).toBeGreaterThan(0);
 
 		const portfolio = await findPortfolioById(db, 1);
-		expect(portfolio?.holdings).toEqual({ USDC: 10_000 });
+		expect(portfolio?.holdings.ETH).toBeUndefined();
+		expect(portfolio?.holdings.USDC).toBeCloseTo(10_000, 5);
 	});
 
-	it("executes rotation into the recommended asset", async () => {
+	it("executes a bullish buy from cash", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
 		db = connection.db;
@@ -104,12 +118,11 @@ describe("PaperExecution", () => {
 		);
 
 		const result = await execution.executeRecommendation({
-			recommendation: {
-				rankings: [{ asset: "ETH", score: 0.8 }],
-				recommended_asset: "ETH",
-				confidence: 0.75,
-				reason: "ETH strength",
-			},
+			recommendation: outlookRecommendation([
+				{ asset: "BTC", direction_score: 5 },
+				{ asset: "ETH", direction_score: 8, confidence: 0.75 },
+				{ asset: "SOL", direction_score: 5 },
+			]),
 			marketSnapshots,
 		});
 
@@ -120,7 +133,7 @@ describe("PaperExecution", () => {
 		expect(portfolio?.holdings.ETH).toBeCloseTo(2500 / 3_000, 5);
 	});
 
-	it("holds when the portfolio is already aligned", async () => {
+	it("holds when outlooks do not trigger trades", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
 		db = connection.db;
@@ -135,16 +148,15 @@ describe("PaperExecution", () => {
 		);
 
 		const result = await execution.executeRecommendation({
-			recommendation: {
-				rankings: [{ asset: "BTC", score: 0.5 }],
-				recommended_asset: "USDC",
-				confidence: 0.6,
-				reason: "Stay in cash",
-			},
+			recommendation: outlookRecommendation([
+				{ asset: "BTC", direction_score: 5 },
+				{ asset: "ETH", direction_score: 5 },
+				{ asset: "SOL", direction_score: 5 },
+			]),
 			marketSnapshots,
 		});
 
 		expect(result.executed).toBe(false);
-		expect(result.reason).toMatch(/already aligned/i);
+		expect(result.reason).toMatch(/no outlook-driven trades/i);
 	});
 });

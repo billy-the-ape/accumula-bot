@@ -34,6 +34,6 @@ export type ValidateBeforeExecutionInput = {
 	weeklyBaselineBtcValue: number;
 	cashSymbol: string;
 	tradeableSymbols: readonly string[];
-	proposedTrade?: ProposedTrade;
+	proposedTrades?: readonly ProposedTrade[];
 	limits?: RiskLimits;
 };

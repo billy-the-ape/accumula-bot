@@ -9,14 +9,27 @@ import {
 } from "@/storage/repositories/decisionRepository.js";
 
 const sampleRecommendation: TradeRecommendation = {
-	rankings: [
-		{ asset: "SOL", score: 0.95 },
-		{ asset: "ETH", score: 0.25 },
-		{ asset: "BTC", score: 0 },
+	outlooks: [
+		{
+			asset: "SOL",
+			direction_score: 9,
+			confidence: 0.85,
+			reason: "SOL shows strong recent performance.",
+		},
+		{
+			asset: "ETH",
+			direction_score: 4,
+			confidence: 0.6,
+			reason: "ETH is weak.",
+		},
+		{
+			asset: "BTC",
+			direction_score: 5,
+			confidence: 0.55,
+			reason: "BTC is stable.",
+		},
 	],
-	recommended_asset: "SOL",
-	confidence: 0.85,
-	reason: "SOL shows strong recent performance.",
+	summary: "SOL is the strongest 24h candidate.",
 };
 
 const sampleMarketSnapshots = [
@@ -67,7 +80,7 @@ describe("decisionRepository", () => {
 
 		expect(saved.id).toBeGreaterThan(0);
 		expect(saved.assetToAccumulate).toBe("BTC");
-		expect(saved.recommendation.recommended_asset).toBe("SOL");
+		expect(saved.recommendation.outlooks).toHaveLength(3);
 		expect(saved.marketSnapshots).toHaveLength(2);
 
 		const loaded = await findDecisionById(db, saved.id);
@@ -83,7 +96,11 @@ describe("decisionRepository", () => {
 			assetToAccumulate: "BTC",
 			recommendation: {
 				...sampleRecommendation,
-				recommended_asset: "ETH",
+				outlooks: sampleRecommendation.outlooks.map((outlook) =>
+					outlook.asset === "SOL"
+						? { ...outlook, direction_score: 4 }
+						: outlook,
+				),
 			},
 			marketSnapshots: sampleMarketSnapshots,
 			llm: { provider: "openai_compatible", model: "qwen3:8b" },

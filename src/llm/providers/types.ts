@@ -11,11 +11,20 @@ export type LlmRequestContext = {
 	baseUrl: string;
 	model: string;
 	requestTimeoutMs: number;
+	temperature: number;
 	apiKey?: string;
 	fetchImpl?: typeof fetch;
 };
 
+export type LlmChatPrompt = {
+	system: string;
+	user: string;
+};
+
 export interface LlmProvider {
 	readonly id: LlmProviderId;
-	completeJsonChat(context: LlmRequestContext, prompt: string): Promise<string>;
+	completeJsonChat(
+		context: LlmRequestContext,
+		prompt: LlmChatPrompt,
+	): Promise<string>;
 }

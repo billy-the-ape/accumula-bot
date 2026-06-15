@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
 import { ConfigError, loadConfig } from "@/config/loadConfig.js";
 import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
@@ -25,6 +26,7 @@ describe("loadConfig", () => {
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
 			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+			temperature: DEFAULT_LLM_TEMPERATURE,
 		});
 		expect(config.databasePath).toBe("data/accumula.db");
 		expect(config.exchange).toBeUndefined();
@@ -90,6 +92,15 @@ describe("loadConfig", () => {
 		});
 
 		expect(config.llm.requestTimeoutMs).toBe(3_600_000);
+	});
+
+	it("allows overriding the LLM temperature", () => {
+		const config = loadConfig({
+			...validEnv,
+			LLM_TEMPERATURE: "0.1",
+		});
+
+		expect(config.llm.temperature).toBe(0.1);
 	});
 
 	it("includes exchange credentials when both are provided", () => {

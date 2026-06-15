@@ -1,9 +1,3 @@
-import {
-	type CoinGeckoClientOptions,
-	fetchCoinMarkets,
-	fetchCoinVolumeTrend,
-	MarketDataError,
-} from "@/market/coingeckoClient.js";
 import type { CoinGeckoMarket } from "@/schemas/CoinGeckoMarket.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 import {
@@ -11,6 +5,12 @@ import {
 	MarketSnapshotSchema,
 	type VolumeTrend,
 } from "@/schemas/MarketSnapshot.js";
+import {
+	type CoinGeckoClientOptions,
+	fetchCoinMarkets,
+	fetchCoinVolumeTrend,
+	MarketDataError,
+} from "@/sources/market/coingeckoClient.js";
 
 export type FetchMarketSnapshotsOptions = CoinGeckoClientOptions;
 

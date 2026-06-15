@@ -6,9 +6,9 @@ import {
 } from "@/domain/index.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
 import { getAnalyzableAssets } from "@/llm/index.js";
-import { fetchMarketSnapshots } from "@/market/index.js";
 import { formatDailySummary } from "@/notifications/telegram/formatDailySummary.js";
 import { sendTelegramMessage } from "@/notifications/telegram/telegramClient.js";
+import { fetchMarketSnapshots } from "@/sources/market/index.js";
 import type { AppDatabase } from "@/storage/db.js";
 import { getLatestPortfolio } from "@/storage/repositories/portfolioRepository.js";
 import { listTradesSince } from "@/storage/repositories/tradeRepository.js";

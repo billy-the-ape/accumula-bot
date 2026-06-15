@@ -58,9 +58,9 @@ export function extractJsonText(raw: string): string {
 		trimmed = fencedMatch[1].trim();
 	}
 
-	// qwen3 and similar models may emit a thinking block before JSON
-	if (/[\s\S]*?/i.test(trimmed)) {
-		trimmed = trimmed.replace(/[\s\S]*?/gi, "").trim();
+	const thinkBlockMatch = trimmed.match(/^[\s\S]*?<\/think>\s*/i);
+	if (thinkBlockMatch) {
+		trimmed = trimmed.slice(thinkBlockMatch[0].length).trim();
 	}
 
 	const extracted = extractBalancedJsonObject(trimmed);
@@ -108,46 +108,84 @@ function coerceUnitScore(value: unknown, fallback = 0.5): number {
 	return fallback;
 }
 
-const SCORE_FIELD_PATTERN = /score|probability|rank|weight|outperform/i;
+function coerceDirectionScore(value: unknown, fallback = 5): number {
+	if (typeof value === "number" && Number.isFinite(value)) {
+		return value;
+	}
 
-function extractScoreFromRankingItem(
+	if (typeof value === "string") {
+		const trimmed = value.trim();
+		const numericMatch = trimmed.match(/^-?\d+(?:\.\d+)?/);
+		if (numericMatch) {
+			return Number(numericMatch[0]);
+		}
+	}
+
+	return fallback;
+}
+
+const DIRECTION_FIELD_PATTERN =
+	/direction|score|outlook|rating|forecast|trend/i;
+
+function extractDirectionScoreFromOutlookItem(
 	item: Record<string, unknown>,
-	position: number,
-	total: number,
 ): number {
 	const explicitKeys = [
+		"direction_score",
+		"directionScore",
+		"direction",
 		"score",
-		"ranking",
-		"probability",
-		"probability_of_outperforming_btc",
-		"probability_of_outperforming",
-		"outperformance_probability",
-		"weight",
+		"outlook_score",
+		"rating",
 	] as const;
 
 	for (const key of explicitKeys) {
 		if (item[key] !== undefined) {
-			return coerceUnitScore(item[key]);
+			return coerceDirectionScore(item[key]);
 		}
 	}
 
 	for (const [key, value] of Object.entries(item)) {
-		if (key === "asset" || key === "symbol") {
+		if (key === "asset" || key === "symbol" || key === "confidence") {
 			continue;
 		}
-		if (SCORE_FIELD_PATTERN.test(key)) {
-			return coerceUnitScore(value);
+		if (DIRECTION_FIELD_PATTERN.test(key)) {
+			return coerceDirectionScore(value);
 		}
 	}
 
-	return (total - position) / total;
+	return 5;
 }
 
-function normalizeRankingItem(
-	item: unknown,
-	position: number,
-	total: number,
-): unknown {
+function extractConfidenceFromOutlookItem(
+	item: Record<string, unknown>,
+): number {
+	if (item.confidence !== undefined) {
+		return coerceUnitScore(item.confidence);
+	}
+
+	if (item.confidence_score !== undefined) {
+		return coerceUnitScore(item.confidence_score);
+	}
+
+	return 0.5;
+}
+
+function extractReasonFromOutlookItem(
+	item: Record<string, unknown>,
+): string | undefined {
+	if (typeof item.reason === "string" && item.reason.trim().length > 0) {
+		return item.reason.trim();
+	}
+
+	if (typeof item.reasoning === "string" && item.reasoning.trim().length > 0) {
+		return item.reasoning.trim();
+	}
+
+	return undefined;
+}
+
+function normalizeOutlookItem(item: unknown): unknown {
 	if (!isRecord(item)) {
 		return item;
 	}
@@ -163,37 +201,64 @@ function normalizeRankingItem(
 		return item;
 	}
 
-	return {
+	const normalized: Record<string, unknown> = {
 		asset,
-		score: extractScoreFromRankingItem(item, position, total),
+		direction_score: extractDirectionScoreFromOutlookItem(item),
+		confidence: extractConfidenceFromOutlookItem(item),
 	};
+
+	const reason = extractReasonFromOutlookItem(item);
+	if (reason) {
+		normalized.reason = reason;
+	}
+
+	return normalized;
 }
 
-function normalizeRankings(rankings: unknown): unknown {
-	if (Array.isArray(rankings)) {
-		return rankings.map((item, index) =>
-			normalizeRankingItem(item, index, rankings.length),
-		);
+function normalizeOutlooks(outlooks: unknown): unknown {
+	if (Array.isArray(outlooks)) {
+		return outlooks.map((item) => normalizeOutlookItem(item));
 	}
 
-	if (!isRecord(rankings)) {
-		return rankings;
+	if (!isRecord(outlooks)) {
+		return outlooks;
 	}
 
-	const entries = Object.entries(rankings);
-	if (entries.every(([, score]) => typeof score === "number")) {
-		return entries.map(([asset, score]) => ({ asset, score }));
+	const entries = Object.entries(outlooks);
+	if (
+		entries.every(
+			([, value]) =>
+				typeof value === "number" ||
+				(typeof value === "object" && value !== null),
+		)
+	) {
+		return entries.map(([asset, value]) => {
+			if (typeof value === "number") {
+				return {
+					asset,
+					direction_score: value,
+					confidence: 0.5,
+				};
+			}
+
+			if (isRecord(value)) {
+				return normalizeOutlookItem({ asset, ...value });
+			}
+
+			return { asset, direction_score: 5, confidence: 0.5 };
+		});
 	}
 
-	return rankings;
+	return outlooks;
 }
 
-const RANKINGS_FIELD_NAMES = [
-	"rankings",
-	"ranking",
-	"asset_rankings",
-	"assetRankings",
-	"scores",
+const OUTLOOKS_FIELD_NAMES = [
+	"outlooks",
+	"outlook",
+	"asset_outlooks",
+	"assetOutlooks",
+	"forecasts",
+	"predictions",
 ] as const;
 
 const NESTED_PAYLOAD_KEYS = [
@@ -203,8 +268,8 @@ const NESTED_PAYLOAD_KEYS = [
 	"output",
 ] as const;
 
-function findRankingsField(parsed: Record<string, unknown>): unknown {
-	for (const key of RANKINGS_FIELD_NAMES) {
+function findOutlooksField(parsed: Record<string, unknown>): unknown {
+	for (const key of OUTLOOKS_FIELD_NAMES) {
 		if (parsed[key] !== undefined) {
 			return parsed[key];
 		}
@@ -213,7 +278,7 @@ function findRankingsField(parsed: Record<string, unknown>): unknown {
 	for (const key of NESTED_PAYLOAD_KEYS) {
 		const nested = parsed[key];
 		if (isRecord(nested)) {
-			const found = findRankingsField(nested);
+			const found = findOutlooksField(nested);
 			if (found !== undefined) {
 				return found;
 			}
@@ -223,22 +288,18 @@ function findRankingsField(parsed: Record<string, unknown>): unknown {
 	return undefined;
 }
 
-function synthesizeRankings(
-	rankingAssets: string[],
-	recommendedAsset: string | undefined,
-	confidence: number,
-): Array<{ asset: string; score: number }> {
-	const topScore = confidence;
-	const otherScore = Math.max(0, topScore - 0.1);
-
-	return rankingAssets.map((asset) => ({
+function synthesizeOutlooks(
+	outlookAssets: string[],
+): Array<{ asset: string; direction_score: number; confidence: number }> {
+	return outlookAssets.map((asset) => ({
 		asset,
-		score: asset === recommendedAsset ? topScore : otherScore,
+		direction_score: 5,
+		confidence: 0.5,
 	}));
 }
 
 export type NormalizeTradeRecommendationOptions = {
-	rankingAssets?: string[];
+	outlookAssets?: string[];
 };
 
 export function normalizeTradeRecommendationPayload(
@@ -250,56 +311,30 @@ export function normalizeTradeRecommendationPayload(
 	}
 
 	const normalized: Record<string, unknown> = { ...parsed };
-	const rankingsField = findRankingsField(parsed);
-	normalized.rankings = normalizeRankings(rankingsField ?? parsed.rankings);
-
-	if (typeof normalized.recommended_asset !== "string") {
-		if (typeof parsed.recommendedAsset === "string") {
-			normalized.recommended_asset = parsed.recommendedAsset;
-		} else if (typeof parsed.recommended === "string") {
-			normalized.recommended_asset = parsed.recommended;
-		}
-	}
-
-	if (typeof normalized.confidence !== "number") {
-		if (typeof parsed.confidence_score === "number") {
-			normalized.confidence = parsed.confidence_score;
-		} else {
-			normalized.confidence = 0.5;
-		}
-	}
+	const outlooksField = findOutlooksField(parsed);
+	normalized.outlooks = normalizeOutlooks(outlooksField ?? parsed.outlooks);
 
 	if (
-		typeof normalized.reason !== "string" ||
-		normalized.reason.trim().length === 0
+		typeof normalized.summary !== "string" ||
+		normalized.summary.trim().length === 0
 	) {
-		if (
+		if (typeof parsed.reason === "string" && parsed.reason.trim().length > 0) {
+			normalized.summary = parsed.reason;
+		} else if (
 			typeof parsed.reasoning === "string" &&
 			parsed.reasoning.trim().length > 0
 		) {
-			normalized.reason = parsed.reasoning;
-		} else {
-			normalized.reason = "No reason provided by model.";
+			normalized.summary = parsed.reasoning;
 		}
 	}
 
-	const rankings = normalized.rankings;
+	const outlooks = normalized.outlooks;
 	if (
-		(!Array.isArray(rankings) || rankings.length === 0) &&
-		options.rankingAssets &&
-		options.rankingAssets.length > 0
+		(!Array.isArray(outlooks) || outlooks.length === 0) &&
+		options.outlookAssets &&
+		options.outlookAssets.length > 0
 	) {
-		const recommendedAsset =
-			typeof normalized.recommended_asset === "string"
-				? normalized.recommended_asset
-				: undefined;
-		const confidence =
-			typeof normalized.confidence === "number" ? normalized.confidence : 0.5;
-		normalized.rankings = synthesizeRankings(
-			options.rankingAssets,
-			recommendedAsset,
-			confidence,
-		);
+		normalized.outlooks = synthesizeOutlooks(options.outlookAssets);
 	}
 
 	return normalized;
@@ -319,7 +354,7 @@ export function parseTradeRecommendationJson(
 
 	const schema = createTradeRecommendationSchema(validation);
 	const normalized = normalizeTradeRecommendationPayload(parsed, {
-		rankingAssets: validation.rankingAssets,
+		outlookAssets: validation.outlookAssets,
 	});
 	const result = schema.safeParse(normalized);
 	if (!result.success) {

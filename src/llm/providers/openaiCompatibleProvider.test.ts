@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
 import {
 	openAiCompatibleProvider,
 	resolveChatCompletionsUrl,
@@ -27,6 +28,11 @@ describe("resolveChatCompletionsUrl", () => {
 });
 
 describe("openAiCompatibleProvider", () => {
+	const samplePrompt = {
+		system: "Return valid JSON only.",
+		user: "Analyze BTC.",
+	};
+
 	it("returns assistant content from an OpenAI-compatible response", async () => {
 		const fetchImpl = vi.fn().mockResolvedValue(
 			new Response(chatCompletionResponse('{"ok":true}'), {
@@ -39,9 +45,10 @@ describe("openAiCompatibleProvider", () => {
 				baseUrl: "http://127.0.0.1:11434",
 				model: "qwen3:8b",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+				temperature: DEFAULT_LLM_TEMPERATURE,
 				fetchImpl,
 			},
-			"prompt",
+			samplePrompt,
 		);
 
 		expect(response).toBe('{"ok":true}');
@@ -59,10 +66,11 @@ describe("openAiCompatibleProvider", () => {
 				baseUrl: "https://api.openai.com/v1",
 				model: "gpt-4o-mini",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+				temperature: DEFAULT_LLM_TEMPERATURE,
 				apiKey: "test-key",
 				fetchImpl,
 			},
-			"prompt",
+			samplePrompt,
 		);
 
 		const [url, init] = fetchImpl.mock.calls[0] as [URL, RequestInit];
@@ -73,10 +81,15 @@ describe("openAiCompatibleProvider", () => {
 
 		const body = JSON.parse(init.body as string) as {
 			response_format: { type: string };
+			temperature: number;
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.response_format).toEqual({ type: "json_object" });
-		expect(body.messages).toEqual([{ role: "user", content: "prompt" }]);
+		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
+		expect(body.messages).toEqual([
+			{ role: "system", content: samplePrompt.system },
+			{ role: "user", content: samplePrompt.user },
+		]);
 	});
 
 	it("throws when the provider responds with an HTTP error", async () => {
@@ -90,9 +103,10 @@ describe("openAiCompatibleProvider", () => {
 					baseUrl: "http://127.0.0.1:11434",
 					model: "missing-model",
 					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+					temperature: DEFAULT_LLM_TEMPERATURE,
 					fetchImpl,
 				},
-				"prompt",
+				samplePrompt,
 			),
 		).rejects.toThrow(LlmError);
 	});

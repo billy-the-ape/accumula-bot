@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { deriveVolumeTrend } from "@/market/volumeTrend.js";
+import { deriveVolumeTrend } from "@/sources/market/volumeTrend.js";
 
 describe("deriveVolumeTrend", () => {
 	it("returns rising when recent volume is materially higher", () => {

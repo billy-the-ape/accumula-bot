@@ -1,21 +1,77 @@
 import { describe, expect, it, vi } from "vitest";
+import { formatMarketData } from "@/analysis/formatMarketData.js";
+import type { AnalysisContext } from "@/analysis/types.js";
+import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
 import { loadConfig } from "@/config/loadConfig.js";
 import {
 	createSampleMarketSnapshots,
 	getAnalyzableAssets,
 	runAnalysis,
 } from "@/llm/index.js";
+import { ParseResponseError } from "@/llm/parseResponse.js";
 
 const validRecommendation = JSON.stringify({
-	rankings: [
-		{ asset: "BTC", score: 0.82 },
-		{ asset: "ETH", score: 0.71 },
-		{ asset: "SOL", score: 0.77 },
+	outlooks: [
+		{
+			asset: "BTC",
+			direction_score: 8,
+			confidence: 0.74,
+			reason: "BTC shows the strongest near-term structure.",
+		},
+		{
+			asset: "ETH",
+			direction_score: 5,
+			confidence: 0.6,
+			reason: "ETH likely stays range-bound.",
+		},
+		{
+			asset: "SOL",
+			direction_score: 4,
+			confidence: 0.55,
+			reason: "SOL momentum is fading.",
+		},
 	],
-	recommended_asset: "BTC",
-	confidence: 0.74,
-	reason: "BTC shows the strongest relative structure.",
+	summary: "BTC is the strongest 24h candidate.",
 });
+
+function chatCompletionResponse(content: string): Response {
+	return new Response(
+		JSON.stringify({
+			choices: [
+				{
+					message: {
+						role: "assistant",
+						content,
+					},
+				},
+			],
+		}),
+		{
+			status: 200,
+			headers: { "Content-Type": "application/json" },
+		},
+	);
+}
+
+function createAnalysisContext(config: ReturnType<typeof loadConfig>) {
+	const analyzableAssets = getAnalyzableAssets(config);
+	const marketData = createSampleMarketSnapshots(analyzableAssets);
+
+	return {
+		context: {
+			fetchedAt: new Date().toISOString(),
+			sections: [
+				{
+					sourceId: "market",
+					label: "Market data",
+					payload: marketData,
+					promptText: formatMarketData(marketData),
+				},
+			],
+		} satisfies AnalysisContext,
+		analyzableAssets,
+	};
+}
 
 describe("runAnalysis", () => {
 	it("calls the LLM provider and returns a validated recommendation", async () => {
@@ -23,32 +79,17 @@ describe("runAnalysis", () => {
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
-		const marketData = createSampleMarketSnapshots(getAnalyzableAssets(config));
+		const { context } = createAnalysisContext(config);
 
-		const fetchImpl = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					choices: [
-						{
-							message: {
-								role: "assistant",
-								content: validRecommendation,
-							},
-						},
-					],
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				},
-			),
-		);
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValue(chatCompletionResponse(validRecommendation));
 
-		const recommendation = await runAnalysis(config, marketData, {
+		const recommendation = await runAnalysis(config, context, {
 			fetchImpl,
 		});
 
-		expect(recommendation.recommended_asset).toBe("BTC");
+		expect(recommendation.outlooks).toHaveLength(3);
 		expect(fetchImpl).toHaveBeenCalledOnce();
 
 		const [url, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
@@ -57,53 +98,87 @@ describe("runAnalysis", () => {
 		const body = JSON.parse(request.body as string) as {
 			model: string;
 			stream: boolean;
+			temperature: number;
 			response_format: { type: string };
+			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.model).toBe("qwen3:8b");
+		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
 		expect(body.response_format).toEqual({ type: "json_object" });
 		expect(body.stream).toBe(false);
+		expect(body.messages[0]?.role).toBe("system");
+		expect(body.messages[1]?.role).toBe("user");
 	});
 
-	it("accepts defensive cash recommendations from the LLM", async () => {
+	it("retries once with a repair prompt when the initial response is invalid JSON", async () => {
 		const config = loadConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
-		const marketData = createSampleMarketSnapshots(getAnalyzableAssets(config));
-		const defensiveRecommendation = JSON.stringify({
-			rankings: [
-				{ asset: "BTC", score: 0.45 },
-				{ asset: "ETH", score: 0.38 },
-				{ asset: "SOL", score: 0.32 },
-			],
-			recommended_asset: "USDC",
-			confidence: 0.68,
-			reason: "Broad weakness; preserve capital in cash.",
-		});
+		const { context } = createAnalysisContext(config);
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 
-		const fetchImpl = vi.fn().mockResolvedValue(
-			new Response(
-				JSON.stringify({
-					choices: [
-						{
-							message: {
-								role: "assistant",
-								content: defensiveRecommendation,
-							},
-						},
-					],
-				}),
-				{
-					status: 200,
-					headers: { "Content-Type": "application/json" },
-				},
-			),
-		);
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse("not-json"))
+			.mockResolvedValueOnce(chatCompletionResponse(validRecommendation));
 
-		const recommendation = await runAnalysis(config, marketData, {
+		const recommendation = await runAnalysis(config, context, {
 			fetchImpl,
 		});
 
-		expect(recommendation.recommended_asset).toBe("USDC");
+		expect(recommendation.outlooks).toHaveLength(3);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(infoSpy).toHaveBeenCalledWith(
+			"Retrying LLM analysis with a JSON repair prompt...",
+		);
+		expect(errorSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/LLM initial response parse failed/i),
+		);
+		expect(errorSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/LLM initial raw output:\nnot-json/i),
+		);
+
+		const [, retryRequest] = fetchImpl.mock.calls[1] as [URL, RequestInit];
+		const retryBody = JSON.parse(retryRequest.body as string) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		expect(retryBody.messages[1]?.content).toContain(
+			"Your previous response could not be parsed as valid JSON.",
+		);
+		expect(retryBody.messages[1]?.content).toContain("Invalid response:");
+		expect(retryBody.messages[1]?.content).toContain("not-json");
+
+		errorSpy.mockRestore();
+		infoSpy.mockRestore();
+	});
+
+	it("logs the retry raw output and rethrows when both attempts fail", async () => {
+		const config = loadConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const { context } = createAnalysisContext(config);
+		const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+		vi.spyOn(console, "info").mockImplementation(() => {});
+
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse("still-not-json"))
+			.mockResolvedValueOnce(chatCompletionResponse("also-not-json"));
+
+		await expect(
+			runAnalysis(config, context, {
+				fetchImpl,
+			}),
+		).rejects.toThrow(ParseResponseError);
+
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(errorSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/LLM retry raw output:\nalso-not-json/i),
+		);
+
+		errorSpy.mockRestore();
 	});
 });

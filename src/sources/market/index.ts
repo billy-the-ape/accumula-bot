@@ -3,9 +3,9 @@ export {
 	fetchCoinMarkets,
 	fetchCoinVolumeTrend,
 	MarketDataError,
-} from "@/market/coingeckoClient.js";
+} from "@/sources/market/coingeckoClient.js";
 export {
 	type FetchMarketSnapshotsOptions,
 	fetchMarketSnapshots,
-} from "@/market/fetchMarketSnapshots.js";
-export { deriveVolumeTrend } from "@/market/volumeTrend.js";
+} from "@/sources/market/fetchMarketSnapshots.js";
+export { deriveVolumeTrend } from "@/sources/market/volumeTrend.js";

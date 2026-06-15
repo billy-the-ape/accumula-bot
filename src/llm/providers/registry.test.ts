@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
 import {
 	completeJsonChatViaProvider,
 	getLlmProvider,
@@ -29,10 +30,14 @@ describe("completeJsonChatViaProvider", () => {
 				baseUrl: "https://api.anthropic.com",
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
+				temperature: DEFAULT_LLM_TEMPERATURE,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
-			"prompt",
+			{
+				system: "Return JSON.",
+				user: "Analyze.",
+			},
 		);
 
 		expect(response).toBe('{"ok":true}');

@@ -1,6 +1,9 @@
 import type { LlmConfig } from "@/config/appConfigSchema.js";
 import { completeJsonChatViaProvider } from "@/llm/providers/registry.js";
-import type { LlmRequestContext } from "@/llm/providers/types.js";
+import type {
+	LlmChatPrompt,
+	LlmRequestContext,
+} from "@/llm/providers/types.js";
 
 export {
 	anthropicProvider,
@@ -15,6 +18,7 @@ export {
 	getLlmProvider,
 } from "@/llm/providers/registry.js";
 export {
+	type LlmChatPrompt,
 	LlmError,
 	type LlmProvider,
 	type LlmRequestContext,
@@ -26,13 +30,14 @@ export type CompleteJsonChatOptions = {
 
 export async function completeJsonChat(
 	config: LlmConfig,
-	prompt: string,
+	prompt: LlmChatPrompt,
 	options: CompleteJsonChatOptions = {},
 ): Promise<string> {
 	const context: LlmRequestContext = {
 		baseUrl: config.baseUrl,
 		model: config.model,
 		requestTimeoutMs: config.requestTimeoutMs,
+		temperature: config.temperature,
 		...(config.apiKey ? { apiKey: config.apiKey } : {}),
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	};

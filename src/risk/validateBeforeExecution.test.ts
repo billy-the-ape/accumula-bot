@@ -10,13 +10,27 @@ const prices = {
 } as const;
 
 const recommendation: TradeRecommendation = {
-	rankings: [
-		{ asset: "SOL", score: 0.75 },
-		{ asset: "ETH", score: 0.65 },
+	outlooks: [
+		{
+			asset: "SOL",
+			direction_score: 8,
+			confidence: 0.75,
+			reason: "SOL momentum",
+		},
+		{
+			asset: "BTC",
+			direction_score: 5,
+			confidence: 0.6,
+			reason: "BTC stable",
+		},
+		{
+			asset: "ETH",
+			direction_score: 4,
+			confidence: 0.6,
+			reason: "ETH flat",
+		},
 	],
-	recommended_asset: "SOL",
-	confidence: 0.7,
-	reason: "SOL momentum",
+	summary: "Buy SOL",
 };
 
 function baseInput(
@@ -82,14 +96,10 @@ describe("validateBeforeExecution", () => {
 		);
 	});
 
-	it("allows defensive cash as recommended_asset", () => {
+	it("skips max allocation checks for cash trades", () => {
 		const result = validateBeforeExecution(
 			baseInput({
-				recommendation: {
-					...recommendation,
-					recommended_asset: "USDC",
-					reason: "Broad weakness; preserve capital in cash.",
-				},
+				proposedTrades: [{ symbol: "USDC", quoteValue: 5_000 }],
 			}),
 		);
 
@@ -97,23 +107,19 @@ describe("validateBeforeExecution", () => {
 		expect(result.violations).toEqual([]);
 	});
 
-	it("skips max allocation checks for defensive cash trades", () => {
-		const result = validateBeforeExecution(
-			baseInput({
-				proposedTrade: { symbol: "USDC", quoteValue: 5_000 },
-			}),
-		);
-
-		expect(result.allowed).toBe(true);
-		expect(result.violations).toEqual([]);
-	});
-
-	it("rejects assets outside the tradeable universe", () => {
+	it("rejects outlook assets outside the tradeable universe", () => {
 		const result = validateBeforeExecution(
 			baseInput({
 				recommendation: {
 					...recommendation,
-					recommended_asset: "LINK",
+					outlooks: [
+						{
+							asset: "LINK",
+							direction_score: 8,
+							confidence: 0.7,
+							reason: "Invalid asset",
+						},
+					],
 				},
 			}),
 		);
@@ -127,7 +133,7 @@ describe("validateBeforeExecution", () => {
 	it("blocks proposed trades that exceed the per-purchase limit", () => {
 		const result = validateBeforeExecution(
 			baseInput({
-				proposedTrade: { symbol: "SOL", quoteValue: 2_501 },
+				proposedTrades: [{ symbol: "SOL", quoteValue: 2_501 }],
 			}),
 		);
 
@@ -141,7 +147,7 @@ describe("validateBeforeExecution", () => {
 		const result = validateBeforeExecution(
 			baseInput({
 				holdings: { USDC: 5_000, SOL: 33.34 },
-				proposedTrade: { symbol: "SOL", quoteValue: 2_500 },
+				proposedTrades: [{ symbol: "SOL", quoteValue: 2_500 }],
 			}),
 		);
 
@@ -176,7 +182,7 @@ describe("validateBeforeExecution", () => {
 					"AVAX",
 					"MATIC",
 				],
-				proposedTrade: { symbol: "MATIC", quoteValue: 100 },
+				proposedTrades: [{ symbol: "MATIC", quoteValue: 100 }],
 			}),
 		);
 

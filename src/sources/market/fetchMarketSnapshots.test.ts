@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { getCryptocurrency } from "@/config/assets.js";
-import { fetchMarketSnapshots } from "@/market/fetchMarketSnapshots.js";
+import { fetchMarketSnapshots } from "@/sources/market/fetchMarketSnapshots.js";
 
 const coingeckoOptions = {
 	baseUrl: "https://api.coingecko.com/api/v3",

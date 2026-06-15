@@ -1,4 +1,4 @@
-import type { LlmProvider } from "@/llm/providers/types.js";
+import type { LlmChatPrompt, LlmProvider } from "@/llm/providers/types.js";
 import { LlmError } from "@/llm/providers/types.js";
 import {
 	createFetchWithTimeout,
@@ -30,7 +30,7 @@ export function resolveChatCompletionsUrl(baseUrl: string): URL {
 export const openAiCompatibleProvider: LlmProvider = {
 	id: "openai_compatible",
 
-	async completeJsonChat(context, prompt) {
+	async completeJsonChat(context, prompt: LlmChatPrompt) {
 		const fetchImpl =
 			context.fetchImpl ?? createFetchWithTimeout(context.requestTimeoutMs);
 		const url = resolveChatCompletionsUrl(context.baseUrl);
@@ -49,8 +49,12 @@ export const openAiCompatibleProvider: LlmProvider = {
 				headers,
 				body: JSON.stringify({
 					model: context.model,
-					messages: [{ role: "user", content: prompt }],
+					messages: [
+						{ role: "system", content: prompt.system },
+						{ role: "user", content: prompt.user },
+					],
 					stream: false,
+					temperature: context.temperature,
 					response_format: { type: "json_object" },
 				}),
 			});

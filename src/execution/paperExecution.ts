@@ -10,8 +10,8 @@ import type {
 	ExecutionEngine,
 	ExecutionResult,
 } from "@/execution/types.js";
+import { validatePlannedPaperTrades } from "@/execution/validatePlannedTrades.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
-import { validateBeforeExecution } from "@/risk/validateBeforeExecution.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AppDatabase } from "@/storage/db.js";
 import {
@@ -63,7 +63,7 @@ export class PaperExecution implements ExecutionEngine {
 		const plan = planPaperTrades({
 			holdings: portfolio.holdings,
 			prices,
-			recommendedAsset: input.recommendation.recommended_asset,
+			outlooks: input.recommendation.outlooks,
 			cashSymbol: this.config.cashSymbol,
 			maxPurchaseFraction,
 			maxPositionFraction,
@@ -77,17 +77,7 @@ export class PaperExecution implements ExecutionEngine {
 			};
 		}
 
-		const buyFill = plan.fills.find(
-			(fill) => fill.side === "buy" && fill.symbol !== this.config.cashSymbol,
-		);
-		const proposedTrade = buyFill
-			? {
-					symbol: buyFill.symbol,
-					quoteValue: buyFill.quantity * buyFill.priceUsd,
-				}
-			: undefined;
-
-		const risk = validateBeforeExecution({
+		const risk = validatePlannedPaperTrades({
 			recommendation: input.recommendation,
 			holdings: portfolio.holdings,
 			prices,
@@ -96,7 +86,7 @@ export class PaperExecution implements ExecutionEngine {
 			weeklyBaselineBtcValue: portfolio.weeklyBaselineBtcValue,
 			cashSymbol: this.config.cashSymbol,
 			tradeableSymbols: this.config.tradeableSymbols,
-			...(proposedTrade ? { proposedTrade } : {}),
+			fills: plan.fills,
 		});
 
 		if (!risk.allowed) {

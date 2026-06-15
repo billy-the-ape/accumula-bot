@@ -1,4 +1,4 @@
-import type { LlmProvider } from "@/llm/providers/types.js";
+import type { LlmChatPrompt, LlmProvider } from "@/llm/providers/types.js";
 import { LlmError } from "@/llm/providers/types.js";
 import {
 	createFetchWithTimeout,
@@ -33,7 +33,7 @@ export function resolveAnthropicMessagesUrl(baseUrl: string): URL {
 export const anthropicProvider: LlmProvider = {
 	id: "anthropic",
 
-	async completeJsonChat(context, prompt) {
+	async completeJsonChat(context, prompt: LlmChatPrompt) {
 		if (!context.apiKey) {
 			throw new LlmError("Anthropic provider requires LLM_API_KEY");
 		}
@@ -54,7 +54,9 @@ export const anthropicProvider: LlmProvider = {
 				body: JSON.stringify({
 					model: context.model,
 					max_tokens: DEFAULT_MAX_TOKENS,
-					messages: [{ role: "user", content: prompt }],
+					temperature: context.temperature,
+					system: `${prompt.system}\n\nRespond with valid JSON only.`,
+					messages: [{ role: "user", content: prompt.user }],
 				}),
 			});
 		} catch (error) {
