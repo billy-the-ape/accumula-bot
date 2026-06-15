@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planPaperTrades } from "@/execution/planPaperTrades.js";
+import { planTrades } from "@/execution/planTrades.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
@@ -8,6 +8,12 @@ const prices = {
 	ETH: 3_000,
 	SOL: 150,
 	USDC: 1,
+} as const;
+
+const DEFAULT_OUTLOOK_THRESHOLDS = {
+	buyMinDirectionScore: 7,
+	sellMaxDirectionScore: 3,
+	minConfidence: 0.6,
 } as const;
 
 const defaultLimits = {
@@ -27,9 +33,9 @@ function outlook(
 	};
 }
 
-describe("planPaperTrades", () => {
+describe("planTrades", () => {
 	it("sells bearish-held assets without touching unrelated positions", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 5_000, SOL: 10, ETH: 1 },
 			prices,
 			outlooks: [
@@ -38,6 +44,7 @@ describe("planPaperTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 
@@ -47,7 +54,7 @@ describe("planPaperTrades", () => {
 	});
 
 	it("buys bullish assets up to the per-purchase cap", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 10_000 },
 			prices,
 			outlooks: [
@@ -56,6 +63,7 @@ describe("planPaperTrades", () => {
 				outlook("SOL", 4, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 
@@ -70,7 +78,7 @@ describe("planPaperTrades", () => {
 	});
 
 	it("plans mixed sells and buys in one pass", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 2_500, ETH: 2, SOL: 10 },
 			prices,
 			outlooks: [
@@ -79,6 +87,7 @@ describe("planPaperTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 
@@ -97,7 +106,7 @@ describe("planPaperTrades", () => {
 	});
 
 	it("returns hold when outlooks are neutral or low confidence", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 10_000, ETH: 1 },
 			prices,
 			outlooks: [
@@ -106,6 +115,7 @@ describe("planPaperTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 
@@ -114,7 +124,7 @@ describe("planPaperTrades", () => {
 	});
 
 	it("adds another tranche when the same asset stays bullish", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 8_500, ETH: 1500 / 3_000 },
 			prices,
 			outlooks: [
@@ -123,6 +133,7 @@ describe("planPaperTrades", () => {
 				outlook("SOL", 5, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 
@@ -137,7 +148,7 @@ describe("planPaperTrades", () => {
 	});
 
 	it("holds when a bullish asset is already at the max position cap", () => {
-		const result = planPaperTrades({
+		const result = planTrades({
 			holdings: { USDC: 3_000, ETH: 7000 / 3_000 },
 			prices,
 			outlooks: [
@@ -146,6 +157,7 @@ describe("planPaperTrades", () => {
 				outlook("SOL", 5, 0.9),
 			],
 			cashSymbol: "USDC",
+			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 			...defaultLimits,
 		});
 

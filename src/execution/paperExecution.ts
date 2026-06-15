@@ -2,7 +2,8 @@ import type { AppConfig } from "@/config/index.js";
 import { getTotalPortfolioQuoteValue } from "@/domain/allocation.js";
 import { computePortfolioBtcValue } from "@/domain/btcBenchmark.js";
 import type { PriceMap } from "@/domain/types.js";
-import { planPaperTrades } from "@/execution/planPaperTrades.js";
+import type { OutlookThresholds } from "@/execution/outlookActions";
+import { planTrades } from "@/execution/planTrades.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
 import { settleFill } from "@/execution/settleFill.js";
 import type {
@@ -28,6 +29,7 @@ export type PaperExecutionConfig = {
 	initialCashUsd: number;
 	maxPurchaseFraction?: number;
 	maxPositionFraction?: number;
+	outlookThresholds: OutlookThresholds;
 };
 
 export function createPaperExecutionConfig(
@@ -39,6 +41,7 @@ export function createPaperExecutionConfig(
 		cashSymbol: config.assetStarting.symbol,
 		tradeableSymbols: config.assetTradeable.map((asset) => asset.symbol),
 		initialCashUsd: overrides.initialCashUsd ?? DEFAULT_PAPER_STARTING_CASH_USD,
+		outlookThresholds: config.outlookThresholds,
 	};
 }
 
@@ -60,13 +63,14 @@ export class PaperExecution implements ExecutionEngine {
 
 		const prices = buildPriceMap(input.marketSnapshots, this.config.cashSymbol);
 		const portfolio = await this.ensurePortfolio(prices);
-		const plan = planPaperTrades({
+		const plan = planTrades({
 			holdings: portfolio.holdings,
 			prices,
 			outlooks: input.recommendation.outlooks,
 			cashSymbol: this.config.cashSymbol,
 			maxPurchaseFraction,
 			maxPositionFraction,
+			thresholds: this.config.outlookThresholds,
 		});
 
 		if (plan.fills.length === 0) {

@@ -1,4 +1,4 @@
-import type { PlannedFill } from "@/execution/planPaperTrades.js";
+import type { PlannedFill } from "@/execution/planTrades.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AppDatabase } from "@/storage/db.js";
 import { recordTrade } from "@/storage/repositories/tradeRepository.js";

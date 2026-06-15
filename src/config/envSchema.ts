@@ -18,6 +18,10 @@ const DEFAULT_POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = "https://clob.polymarket.com";
 const DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS = 24;
 
+const DEFAULT_BUY_MIN_DIRECTION_SCORE = 7.2;
+const DEFAULT_SELL_MAX_DIRECTION_SCORE = 3.6;
+const DEFAULT_MIN_CONFIDENCE = 0.75;
+
 function parseCommaSeparatedSymbols(value: string): string[] {
 	return value
 		.split(",")
@@ -93,6 +97,22 @@ export const RawEnvSchema = z
 			.number()
 			.positive()
 			.default(DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS),
+
+		BUY_MIN_DIRECTION_SCORE: z.coerce
+			.number()
+			.min(5)
+			.max(10)
+			.default(DEFAULT_BUY_MIN_DIRECTION_SCORE),
+		SELL_MAX_DIRECTION_SCORE: z.coerce
+			.number()
+			.min(0)
+			.max(5)
+			.default(DEFAULT_SELL_MAX_DIRECTION_SCORE),
+		MIN_CONFIDENCE: z.coerce
+			.number()
+			.min(0)
+			.max(1)
+			.default(DEFAULT_MIN_CONFIDENCE),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -132,6 +152,11 @@ export const RawEnvSchema = z
 			polymarketGammaBaseUrl: env.POLYMARKET_GAMMA_BASE_URL,
 			polymarketClobBaseUrl: env.POLYMARKET_CLOB_BASE_URL,
 			targetHorizonHours: env.PREDICTION_MARKETS_HORIZON_HOURS,
+		},
+		outlookThresholds: {
+			buyMinDirectionScore: env.BUY_MIN_DIRECTION_SCORE,
+			sellMaxDirectionScore: env.SELL_MAX_DIRECTION_SCORE,
+			minConfidence: env.MIN_CONFIDENCE,
 		},
 	}));
 

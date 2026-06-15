@@ -80,7 +80,7 @@ describe("PaperExecution", () => {
 		await execution.executeRecommendation({
 			recommendation: outlookRecommendation([
 				{ asset: "BTC", direction_score: 5 },
-				{ asset: "ETH", direction_score: 8 },
+				{ asset: "ETH", direction_score: 8, confidence: 0.8 },
 				{ asset: "SOL", direction_score: 5 },
 			]),
 			marketSnapshots,

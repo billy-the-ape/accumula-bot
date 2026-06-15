@@ -1,5 +1,5 @@
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
-import type { PlannedFill } from "@/execution/planPaperTrades.js";
+import type { PlannedFill } from "@/execution/planTrades.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
 import type { ProposedTrade } from "@/risk/types.js";
 import { validateBeforeExecution } from "@/risk/validateBeforeExecution.js";

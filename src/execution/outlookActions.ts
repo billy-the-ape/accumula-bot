@@ -1,11 +1,5 @@
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
-export const DEFAULT_OUTLOOK_THRESHOLDS = {
-	buyMinDirectionScore: 7,
-	sellMaxDirectionScore: 3,
-	minConfidence: 0.6,
-} as const;
-
 export type OutlookThresholds = {
 	readonly buyMinDirectionScore: number;
 	readonly sellMaxDirectionScore: number;
@@ -16,7 +10,7 @@ export type AssetAction = "buy" | "sell" | "hold";
 
 export function deriveAssetAction(
 	outlook: AssetOutlook,
-	thresholds: OutlookThresholds = DEFAULT_OUTLOOK_THRESHOLDS,
+	thresholds: OutlookThresholds,
 ): AssetAction {
 	if (outlook.confidence < thresholds.minConfidence) {
 		return "hold";
@@ -35,7 +29,7 @@ export function deriveAssetAction(
 
 export function deriveAssetActions(
 	outlooks: readonly AssetOutlook[],
-	thresholds: OutlookThresholds = DEFAULT_OUTLOOK_THRESHOLDS,
+	thresholds: OutlookThresholds,
 ): Map<string, AssetAction> {
 	return new Map(
 		outlooks.map((outlook) => [

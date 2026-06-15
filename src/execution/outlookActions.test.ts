@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
-	DEFAULT_OUTLOOK_THRESHOLDS,
 	deriveAssetAction,
 	deriveAssetActions,
 } from "@/execution/outlookActions.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
+
+const DEFAULT_OUTLOOK_THRESHOLDS = {
+	buyMinDirectionScore: 7,
+	sellMaxDirectionScore: 3,
+	minConfidence: 0.6,
+} as const;
 
 function outlook(
 	asset: string,
@@ -27,7 +32,7 @@ describe("deriveAssetAction", () => {
 
 	it("returns sell for bearish outlooks above the confidence threshold", () => {
 		expect(
-			deriveAssetAction(outlook("ETH", 2, 0.7), DEFAULT_OUTLOOK_THRESHOLDS),
+			deriveAssetAction(outlook("ETH", 2, 0.8), DEFAULT_OUTLOOK_THRESHOLDS),
 		).toBe("sell");
 	});
 
@@ -46,11 +51,10 @@ describe("deriveAssetAction", () => {
 
 describe("deriveAssetActions", () => {
 	it("maps each outlook to an action", () => {
-		const actions = deriveAssetActions([
-			outlook("BTC", 7, 0.8),
-			outlook("ETH", 3, 0.7),
-			outlook("SOL", 5, 0.9),
-		]);
+		const actions = deriveAssetActions(
+			[outlook("BTC", 8, 0.8), outlook("ETH", 3, 0.8), outlook("SOL", 5, 0.9)],
+			DEFAULT_OUTLOOK_THRESHOLDS,
+		);
 
 		expect(Object.fromEntries(actions)).toEqual({
 			BTC: "buy",

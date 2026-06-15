@@ -5,6 +5,7 @@ export {
 } from "@/analysis/buildAnalysisContext.js";
 export { formatMarketData } from "@/analysis/formatMarketData.js";
 export { getMarketSnapshotsFromContext } from "@/analysis/getMarketSnapshots.js";
+export { getPredictionSignalsFromContext } from "@/analysis/getPredictionSignals.js";
 export { marketDataSource } from "@/analysis/sources/marketDataSource.js";
 export { predictionMarketSource } from "@/analysis/sources/predictionMarketSource.js";
 export {

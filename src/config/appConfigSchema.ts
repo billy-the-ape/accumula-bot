@@ -6,6 +6,7 @@ import {
 	isKnownCryptocurrencySymbol,
 } from "@/config/assets.js";
 import type { ParsedEnv } from "@/config/envSchema.js";
+import type { OutlookThresholds } from "@/execution/outlookActions";
 import {
 	type Cryptocurrency,
 	CryptocurrencySchema,
@@ -79,6 +80,7 @@ export type AppConfig = {
 	telegram?: TelegramConfig;
 	twitter: TwitterConfig;
 	predictionMarkets: PredictionMarketsConfig;
+	outlookThresholds: OutlookThresholds;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -227,6 +229,7 @@ export const AppConfigSchema = z
 			databasePath: env.databasePath,
 			coingecko,
 			llm,
+			outlookThresholds: env.outlookThresholds,
 			twitter: {
 				cloudamqpUrl: env.twitter.cloudamqpUrl,
 				searchString: env.twitter.searchString ?? "",

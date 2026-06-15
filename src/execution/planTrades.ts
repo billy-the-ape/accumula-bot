@@ -5,7 +5,6 @@ import {
 } from "@/domain/allocation.js";
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
 import {
-	DEFAULT_OUTLOOK_THRESHOLDS,
 	deriveAssetActions,
 	type OutlookThresholds,
 } from "@/execution/outlookActions.js";
@@ -19,17 +18,17 @@ export type PlannedFill = {
 	priceUsd: number;
 };
 
-export type PlanPaperTradesInput = {
+export type PlanTradesInput = {
 	holdings: PortfolioHoldings;
 	prices: PriceMap;
 	outlooks: readonly AssetOutlook[];
 	cashSymbol: string;
 	maxPurchaseFraction: number;
 	maxPositionFraction: number;
-	thresholds?: OutlookThresholds;
+	thresholds: OutlookThresholds;
 };
 
-export type PlanPaperTradesResult = {
+export type PlanTradesResult = {
 	fills: PlannedFill[];
 	holdReason?: string;
 };
@@ -153,9 +152,7 @@ function planPartialSellToTargetAllocation(
 	};
 }
 
-export function planPaperTrades(
-	input: PlanPaperTradesInput,
-): PlanPaperTradesResult {
+export function planTrades(input: PlanTradesInput): PlanTradesResult {
 	const {
 		holdings,
 		prices,
@@ -163,7 +160,7 @@ export function planPaperTrades(
 		cashSymbol,
 		maxPurchaseFraction,
 		maxPositionFraction,
-		thresholds = DEFAULT_OUTLOOK_THRESHOLDS,
+		thresholds,
 	} = input;
 
 	const actions = deriveAssetActions(outlooks, thresholds);
