@@ -9,6 +9,8 @@ const DEFAULT_ASSET_STARTING = "USDC";
 const DEFAULT_LLM_MODEL = "qwen3:8b";
 const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_LLM_TEMPERATURE = 0.2;
+export const DEFAULT_LLM_CONTEXT_TOKENS = 32_768;
+export const DEFAULT_LLM_MAX_OUTPUT_TOKENS = 4_096;
 const DEFAULT_DATABASE_PATH = "data/accumula.db";
 const DEFAULT_COINGECKO_BASE_URL = "https://api.coingecko.com/api/v3";
 
@@ -52,6 +54,16 @@ export const RawEnvSchema = z
 			.min(0)
 			.max(2)
 			.default(DEFAULT_LLM_TEMPERATURE),
+		LLM_CONTEXT_TOKENS: z.coerce
+			.number()
+			.int()
+			.min(2048)
+			.default(DEFAULT_LLM_CONTEXT_TOKENS),
+		LLM_MAX_OUTPUT_TOKENS: z.coerce
+			.number()
+			.int()
+			.positive()
+			.default(DEFAULT_LLM_MAX_OUTPUT_TOKENS),
 		LLM_API_KEY: z.string().trim().min(1).optional(),
 		DATABASE_PATH: z.string().trim().min(1).default(DEFAULT_DATABASE_PATH),
 		COINGECKO_BASE_URL: z.url().default(DEFAULT_COINGECKO_BASE_URL),
@@ -71,6 +83,8 @@ export const RawEnvSchema = z
 			model: env.LLM_MODEL,
 			requestTimeoutMs: env.LLM_REQUEST_TIMEOUT_MS,
 			temperature: env.LLM_TEMPERATURE,
+			contextTokens: env.LLM_CONTEXT_TOKENS,
+			maxOutputTokens: env.LLM_MAX_OUTPUT_TOKENS,
 			apiKey: env.LLM_API_KEY,
 		},
 		exchange: {

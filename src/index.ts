@@ -41,6 +41,9 @@ async function main() {
 	console.info(
 		`LLM: ${config.llm.provider} / ${config.llm.model} @ ${config.llm.baseUrl}`,
 	);
+	console.info(
+		`LLM limits: context=${config.llm.contextTokens} tokens, max_output=${config.llm.maxOutputTokens} tokens`,
+	);
 
 	console.info(`Database: ${config.databasePath}`);
 

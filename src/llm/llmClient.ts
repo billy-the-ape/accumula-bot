@@ -38,6 +38,8 @@ export async function completeJsonChat(
 		model: config.model,
 		requestTimeoutMs: config.requestTimeoutMs,
 		temperature: config.temperature,
+		contextTokens: config.contextTokens,
+		maxOutputTokens: config.maxOutputTokens,
 		...(config.apiKey ? { apiKey: config.apiKey } : {}),
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	};

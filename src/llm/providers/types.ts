@@ -12,6 +12,8 @@ export type LlmRequestContext = {
 	model: string;
 	requestTimeoutMs: number;
 	temperature: number;
+	contextTokens: number;
+	maxOutputTokens: number;
 	apiKey?: string;
 	fetchImpl?: typeof fetch;
 };

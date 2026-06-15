@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
+import {
+	DEFAULT_LLM_CONTEXT_TOKENS,
+	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+	DEFAULT_LLM_TEMPERATURE,
+} from "@/config/envSchema.js";
 import {
 	openAiCompatibleProvider,
 	resolveChatCompletionsUrl,
@@ -46,6 +50,8 @@ describe("openAiCompatibleProvider", () => {
 				model: "qwen3:8b",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				temperature: DEFAULT_LLM_TEMPERATURE,
+				contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+				maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 				fetchImpl,
 			},
 			samplePrompt,
@@ -67,6 +73,8 @@ describe("openAiCompatibleProvider", () => {
 				model: "gpt-4o-mini",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				temperature: DEFAULT_LLM_TEMPERATURE,
+				contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+				maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 				apiKey: "test-key",
 				fetchImpl,
 			},
@@ -82,10 +90,14 @@ describe("openAiCompatibleProvider", () => {
 		const body = JSON.parse(init.body as string) as {
 			response_format: { type: string };
 			temperature: number;
+			max_tokens: number;
+			options: { num_ctx: number };
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.response_format).toEqual({ type: "json_object" });
 		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
+		expect(body.max_tokens).toBe(DEFAULT_LLM_MAX_OUTPUT_TOKENS);
+		expect(body.options.num_ctx).toBe(DEFAULT_LLM_CONTEXT_TOKENS);
 		expect(body.messages).toEqual([
 			{ role: "system", content: samplePrompt.system },
 			{ role: "user", content: samplePrompt.user },
@@ -104,6 +116,8 @@ describe("openAiCompatibleProvider", () => {
 					model: "missing-model",
 					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 					temperature: DEFAULT_LLM_TEMPERATURE,
+					contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+					maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 					fetchImpl,
 				},
 				samplePrompt,

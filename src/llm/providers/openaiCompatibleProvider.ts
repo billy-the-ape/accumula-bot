@@ -55,6 +55,10 @@ export const openAiCompatibleProvider: LlmProvider = {
 					],
 					stream: false,
 					temperature: context.temperature,
+					max_tokens: context.maxOutputTokens,
+					options: {
+						num_ctx: context.contextTokens,
+					},
 					response_format: { type: "json_object" },
 				}),
 			});

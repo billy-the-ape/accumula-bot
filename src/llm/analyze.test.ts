@@ -1,7 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 import { formatMarketData } from "@/analysis/formatMarketData.js";
 import type { AnalysisContext } from "@/analysis/types.js";
-import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
+import {
+	DEFAULT_LLM_CONTEXT_TOKENS,
+	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+	DEFAULT_LLM_TEMPERATURE,
+} from "@/config/envSchema.js";
 import { loadConfig } from "@/config/loadConfig.js";
 import {
 	createSampleMarketSnapshots,
@@ -99,11 +103,15 @@ describe("runAnalysis", () => {
 			model: string;
 			stream: boolean;
 			temperature: number;
+			max_tokens: number;
+			options: { num_ctx: number };
 			response_format: { type: string };
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.model).toBe("qwen3:8b");
 		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
+		expect(body.max_tokens).toBe(DEFAULT_LLM_MAX_OUTPUT_TOKENS);
+		expect(body.options.num_ctx).toBe(DEFAULT_LLM_CONTEXT_TOKENS);
 		expect(body.response_format).toEqual({ type: "json_object" });
 		expect(body.stream).toBe(false);
 		expect(body.messages[0]?.role).toBe("system");

@@ -6,7 +6,6 @@ import {
 } from "@/llm/requestTimeout.js";
 
 const ANTHROPIC_VERSION = "2023-06-01";
-const DEFAULT_MAX_TOKENS = 1024;
 
 type AnthropicMessageResponse = {
 	content?: Array<{
@@ -53,7 +52,7 @@ export const anthropicProvider: LlmProvider = {
 				},
 				body: JSON.stringify({
 					model: context.model,
-					max_tokens: DEFAULT_MAX_TOKENS,
+					max_tokens: context.maxOutputTokens,
 					temperature: context.temperature,
 					system: `${prompt.system}\n\nRespond with valid JSON only.`,
 					messages: [{ role: "user", content: prompt.user }],

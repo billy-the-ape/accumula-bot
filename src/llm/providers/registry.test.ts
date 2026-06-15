@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
+import {
+	DEFAULT_LLM_CONTEXT_TOKENS,
+	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+	DEFAULT_LLM_TEMPERATURE,
+} from "@/config/envSchema.js";
 import {
 	completeJsonChatViaProvider,
 	getLlmProvider,
@@ -31,6 +35,8 @@ describe("completeJsonChatViaProvider", () => {
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				temperature: DEFAULT_LLM_TEMPERATURE,
+				contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+				maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},

@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
-import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
+import {
+	DEFAULT_LLM_CONTEXT_TOKENS,
+	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+	DEFAULT_LLM_TEMPERATURE,
+} from "@/config/envSchema.js";
 import {
 	anthropicProvider,
 	resolveAnthropicMessagesUrl,
@@ -39,6 +43,8 @@ describe("anthropicProvider", () => {
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				temperature: DEFAULT_LLM_TEMPERATURE,
+				contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+				maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
@@ -61,6 +67,8 @@ describe("anthropicProvider", () => {
 				model: "claude-3-5-sonnet-20241022",
 				requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 				temperature: DEFAULT_LLM_TEMPERATURE,
+				contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+				maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 				apiKey: "anthropic-key",
 				fetchImpl,
 			},
@@ -82,7 +90,7 @@ describe("anthropicProvider", () => {
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.model).toBe("claude-3-5-sonnet-20241022");
-		expect(body.max_tokens).toBeGreaterThan(0);
+		expect(body.max_tokens).toBe(DEFAULT_LLM_MAX_OUTPUT_TOKENS);
 		expect(body.temperature).toBe(DEFAULT_LLM_TEMPERATURE);
 		expect(body.system).toContain("Return valid JSON only.");
 		expect(body.messages).toEqual([
@@ -98,6 +106,8 @@ describe("anthropicProvider", () => {
 					model: "claude-3-5-sonnet-20241022",
 					requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 					temperature: DEFAULT_LLM_TEMPERATURE,
+					contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+					maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 					fetchImpl: vi.fn(),
 				},
 				samplePrompt,

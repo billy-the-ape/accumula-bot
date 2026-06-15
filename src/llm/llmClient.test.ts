@@ -1,6 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import type { LlmConfig } from "@/config/appConfigSchema.js";
-import { DEFAULT_LLM_TEMPERATURE } from "@/config/envSchema.js";
+import {
+	DEFAULT_LLM_CONTEXT_TOKENS,
+	DEFAULT_LLM_MAX_OUTPUT_TOKENS,
+	DEFAULT_LLM_TEMPERATURE,
+} from "@/config/envSchema.js";
 import { completeJsonChat } from "@/llm/llmClient.js";
 import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
@@ -21,6 +25,8 @@ describe("completeJsonChat", () => {
 			model: "qwen3:8b",
 			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 			temperature: DEFAULT_LLM_TEMPERATURE,
+			contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
+			maxOutputTokens: DEFAULT_LLM_MAX_OUTPUT_TOKENS,
 		};
 
 		const response = await completeJsonChat(
