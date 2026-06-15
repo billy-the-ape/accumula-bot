@@ -89,7 +89,7 @@ describe("formatRunReport", () => {
 		const message = formatRunReport(
 			baseInput({
 				outcome: "hold",
-				headline: "HOLD",
+				headline: "ALL:HOLD",
 				trades: [],
 				executionReason: "No trades planned",
 			}),

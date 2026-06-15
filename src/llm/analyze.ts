@@ -2,6 +2,7 @@ import type { AnalysisContext } from "@/analysis/types.js";
 import type { AppConfig } from "@/config/index.js";
 import { completeJsonChat } from "@/llm/llmClient.js";
 import {
+	extractThinkingText,
 	ParseResponseError,
 	parseTradeRecommendationJson,
 } from "@/llm/parseResponse.js";
@@ -17,6 +18,17 @@ import type {
 
 export type RunAnalysisOptions = {
 	fetchImpl?: typeof fetch;
+};
+
+export type LlmAnalysisMetadata = {
+	rawResponse: string;
+	thinking?: string;
+	attempt: "initial" | "retry";
+};
+
+export type AnalysisResult = {
+	recommendation: TradeRecommendation;
+	llm: LlmAnalysisMetadata;
 };
 
 function logParseFailure(
@@ -44,11 +56,24 @@ function parseRecommendationOrThrow(
 	}
 }
 
+function buildAnalysisMetadata(
+	rawResponse: string,
+	attempt: LlmAnalysisMetadata["attempt"],
+): LlmAnalysisMetadata {
+	const thinking = extractThinkingText(rawResponse);
+
+	return {
+		rawResponse,
+		attempt,
+		...(thinking ? { thinking } : {}),
+	};
+}
+
 export async function runAnalysis(
 	config: AppConfig,
 	context: AnalysisContext,
 	options: RunAnalysisOptions = {},
-): Promise<TradeRecommendation> {
+): Promise<AnalysisResult> {
 	const outlookAssets = getAnalyzableAssets(config).map(
 		(asset) => asset.symbol,
 	);
@@ -63,7 +88,15 @@ export async function runAnalysis(
 	const rawResponse = await completeJsonChat(config.llm, prompt, chatOptions);
 
 	try {
-		return parseRecommendationOrThrow(rawResponse, validation, "initial");
+		const recommendation = parseRecommendationOrThrow(
+			rawResponse,
+			validation,
+			"initial",
+		);
+		return {
+			recommendation,
+			llm: buildAnalysisMetadata(rawResponse, "initial"),
+		};
 	} catch (error) {
 		if (!(error instanceof ParseResponseError)) {
 			throw error;
@@ -80,7 +113,15 @@ export async function runAnalysis(
 			repairPrompt,
 			chatOptions,
 		);
+		const recommendation = parseRecommendationOrThrow(
+			retryResponse,
+			validation,
+			"retry",
+		);
 
-		return parseRecommendationOrThrow(retryResponse, validation, "retry");
+		return {
+			recommendation,
+			llm: buildAnalysisMetadata(retryResponse, "retry"),
+		};
 	}
 }

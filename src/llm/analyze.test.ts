@@ -89,11 +89,13 @@ describe("runAnalysis", () => {
 			.fn()
 			.mockResolvedValue(chatCompletionResponse(validRecommendation));
 
-		const recommendation = await runAnalysis(config, context, {
+		const analysis = await runAnalysis(config, context, {
 			fetchImpl,
 		});
 
-		expect(recommendation.outlooks).toHaveLength(3);
+		expect(analysis.recommendation.outlooks).toHaveLength(3);
+		expect(analysis.llm.attempt).toBe("initial");
+		expect(analysis.llm.thinking).toBeUndefined();
 		expect(fetchImpl).toHaveBeenCalledOnce();
 
 		const [url, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
@@ -132,11 +134,12 @@ describe("runAnalysis", () => {
 			.mockResolvedValueOnce(chatCompletionResponse("not-json"))
 			.mockResolvedValueOnce(chatCompletionResponse(validRecommendation));
 
-		const recommendation = await runAnalysis(config, context, {
+		const analysis = await runAnalysis(config, context, {
 			fetchImpl,
 		});
 
-		expect(recommendation.outlooks).toHaveLength(3);
+		expect(analysis.recommendation.outlooks).toHaveLength(3);
+		expect(analysis.llm.attempt).toBe("retry");
 		expect(fetchImpl).toHaveBeenCalledTimes(2);
 		expect(infoSpy).toHaveBeenCalledWith(
 			"Retrying LLM analysis with a JSON repair prompt...",
@@ -160,6 +163,26 @@ describe("runAnalysis", () => {
 
 		errorSpy.mockRestore();
 		infoSpy.mockRestore();
+	});
+
+	it("captures qwen thinking text from the successful response", async () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const { context } = createAnalysisContext(config);
+		const thinkOpenTag = ["<", "think", ">"].join("");
+		const thinkCloseTag = ["<", "/", "think", ">"].join("");
+		const responseWithThinking = `${thinkOpenTag}\nChain-of-thought here\n${thinkCloseTag}\n${validRecommendation}`;
+
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValue(chatCompletionResponse(responseWithThinking));
+
+		const analysis = await runAnalysis(config, context, { fetchImpl });
+
+		expect(analysis.llm.thinking).toBe("Chain-of-thought here");
+		expect(analysis.recommendation.outlooks).toHaveLength(3);
 	});
 
 	it("logs the retry raw output and rethrows when both attempts fail", async () => {

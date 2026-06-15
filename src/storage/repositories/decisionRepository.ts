@@ -33,6 +33,7 @@ export type SaveDecisionInput = {
 	llm: {
 		provider: string;
 		model: string;
+		thinking?: string;
 	};
 };
 
@@ -46,6 +47,7 @@ export type StoredDecision = {
 	llm: {
 		provider: string;
 		model: string;
+		thinking?: string;
 	};
 };
 
@@ -72,6 +74,7 @@ function mapRowToStoredDecision(row: DecisionRow): StoredDecision {
 		llm: {
 			provider: row.llmProvider,
 			model: row.llmModel,
+			...(row.llmThinkingText ? { thinking: row.llmThinkingText } : {}),
 		},
 	};
 }
@@ -107,6 +110,7 @@ export async function saveDecision(
 			marketSnapshotsJson: JSON.stringify(input.marketSnapshots),
 			llmProvider: input.llm.provider,
 			llmModel: input.llm.model,
+			llmThinkingText: input.llm.thinking ?? null,
 		})
 		.returning();
 

@@ -82,7 +82,7 @@ export function summarizeRecommendation(recommendation: TradeRecommendation): {
 
 	if (actionableOutlooks.length === 0) {
 		return {
-			headline: "HOLD",
+			headline: "ACTIONS:EMPTY",
 			averageConfidence,
 		};
 	}

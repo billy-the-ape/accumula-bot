@@ -60,21 +60,43 @@ function formatPercent(fraction: number): string {
 	return `${Math.round(fraction * 100)}%`;
 }
 
-function directionLabel(
+function getDirectionString(
 	directionScore: number,
 	confidence: number,
 	outlookThresholds: OutlookThresholds,
 ): string {
 	if (confidence < outlookThresholds.minConfidence) {
-		return "🤷‍♂️ HOLD";
+		return "HOLD";
 	}
 	if (directionScore >= outlookThresholds.buyMinDirectionScore) {
-		return "📈 BUY";
+		return "BUY";
 	}
 	if (directionScore <= outlookThresholds.sellMaxDirectionScore) {
-		return "📉 SELL";
+		return "SELL";
 	}
-	return "📴 HOLD";
+	return "HOLD";
+}
+
+function directionLabel(
+	directionScore: number,
+	confidence: number,
+	outlookThresholds: OutlookThresholds,
+): string {
+	const directionString = getDirectionString(
+		directionScore,
+		confidence,
+		outlookThresholds,
+	);
+	if (confidence < outlookThresholds.minConfidence) {
+		return `🤷‍♂️ ${directionString}`;
+	}
+	if (directionScore >= outlookThresholds.buyMinDirectionScore) {
+		return `📈 ${directionString}`;
+	}
+	if (directionScore <= outlookThresholds.sellMaxDirectionScore) {
+		return `📉 ${directionString}`;
+	}
+	return `🙅 ${directionString}`;
 }
 
 function truncate(value: string): string {
@@ -130,19 +152,37 @@ export function formatRunReport(input: RunReportInput): string {
 		{} as Record<string, number>,
 	);
 
-	const socialMediaSignalsLines = Object.entries(socialMediaSignalsMap)
-		.map(([source, count]) => {
-			return `  ${source}: ${count}`;
-		})
-		.join("\n");
+	const socialMediaSignalsLines =
+		Object.entries(socialMediaSignalsMap)
+			.map(([source, count]) => {
+				return `  ${source}: ${count}`;
+			})
+			.join("\n") || "<i>None</i>";
+
+	const predictionSignalsLines =
+		input.predictionSignals.length > 0
+			? input.predictionSignals
+					.map((signal) => {
+						return `  ${signal.source}: ${signal.impliedUpProbability.toFixed(2)} ${signal.impliedUpProbability >= 0.5 ? "📈" : "📉"}`;
+					})
+					.join("\n")
+			: "<i>None</i>";
 
 	const lines: string[] = [
 		OUTCOME_HEADERS[input.outcome],
 		"",
-		`<u>Actions:</u> ${escapeHtml(input.headline)} · avg confidence ${formatPercent(input.averageConfidence)}`,
+		`<u>Actions:</u> ${input.outlooks
+			.flatMap(
+				(outlook) =>
+					`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
+			)
+			.join(", ")} · avg confidence ${formatPercent(input.averageConfidence)}`,
 		"",
 		"<u>Social media signals:</u>",
 		socialMediaSignalsLines,
+		"",
+		"<u>Prediction signals:</u>",
+		predictionSignalsLines,
 		"",
 		"<u>Outlooks:</u>",
 		...input.outlooks.flatMap((outlook) =>

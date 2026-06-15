@@ -113,12 +113,20 @@ async function main() {
 		const llmStart = Date.now();
 		console.info("Running LLM analysis...");
 
-		const recommendation = await runAnalysis(config, analysisContext);
+		const analysis = await runAnalysis(config, analysisContext);
+
+		const { recommendation, llm: llmAnalysis } = analysis;
 
 		const recommendationSummary = summarizeRecommendation(recommendation);
 
 		const llmDuration = Date.now() - llmStart;
 		console.info(`LLM analysis completed in ${llmDuration.toLocaleString()}ms`);
+
+		if (llmAnalysis.thinking) {
+			console.info(
+				`LLM thinking captured (${llmAnalysis.thinking.length.toLocaleString()} chars, attempt=${llmAnalysis.attempt})`,
+			);
+		}
 
 		console.info("Trade recommendation:");
 
@@ -139,6 +147,7 @@ async function main() {
 				llm: {
 					provider: config.llm.provider,
 					model: config.llm.model,
+					...(llmAnalysis.thinking ? { thinking: llmAnalysis.thinking } : {}),
 				},
 			});
 

@@ -18,6 +18,7 @@ export const decisions = sqliteTable("decisions", {
 	marketSnapshotsJson: text("market_snapshots_json").notNull(),
 	llmProvider: text("llm_provider").notNull(),
 	llmModel: text("llm_model").notNull(),
+	llmThinkingText: text("llm_thinking_text"),
 });
 
 export const portfolios = sqliteTable("portfolios", {

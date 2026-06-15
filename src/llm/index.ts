@@ -11,7 +11,12 @@ export type {
 	AnalysisDataSource,
 	AnalysisSection,
 } from "@/analysis/types.js";
-export { type RunAnalysisOptions, runAnalysis } from "@/llm/analyze.js";
+export {
+	type AnalysisResult,
+	type LlmAnalysisMetadata,
+	type RunAnalysisOptions,
+	runAnalysis,
+} from "@/llm/analyze.js";
 export {
 	anthropicProvider,
 	type CompleteJsonChatOptions,
@@ -28,6 +33,7 @@ export {
 } from "@/llm/marketSnapshot.js";
 export {
 	extractJsonText,
+	extractThinkingText,
 	ParseResponseError,
 	parseTradeRecommendationJson,
 } from "@/llm/parseResponse.js";

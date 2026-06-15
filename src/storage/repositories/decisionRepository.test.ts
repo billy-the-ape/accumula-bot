@@ -87,6 +87,26 @@ describe("decisionRepository", () => {
 		expect(loaded?.recommendation).toEqual(sampleRecommendation);
 	});
 
+	it("persists and reads LLM thinking text when provided", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const saved = await saveDecision(db, {
+			assetToAccumulate: "BTC",
+			recommendation: sampleRecommendation,
+			marketSnapshots: sampleMarketSnapshots,
+			llm: {
+				provider: "openai_compatible",
+				model: "qwen3:8b",
+				thinking: "Model reasoning about SOL momentum.",
+			},
+		});
+
+		const loaded = await findDecisionById(db, saved.id);
+		expect(loaded?.llm.thinking).toBe("Model reasoning about SOL momentum.");
+	});
+
 	it("lists recent decisions newest first", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;

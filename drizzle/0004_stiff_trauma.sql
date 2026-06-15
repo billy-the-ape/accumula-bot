@@ -1,0 +1,1 @@
+ALTER TABLE `decisions` ADD `llm_thinking_text` text;

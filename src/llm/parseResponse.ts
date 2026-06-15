@@ -50,6 +50,36 @@ function extractBalancedJsonObject(text: string): string | null {
 	return null;
 }
 
+const THINK_OPEN_TAG = ["<", "think", ">"].join("");
+const THINK_CLOSE_TAG = ["<", "/", "think", ">"].join("");
+const THINK_OPEN_TAG_PATTERN = new RegExp(
+	`^${THINK_OPEN_TAG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`,
+	"i",
+);
+const THINK_CLOSE_TAG_PATTERN = new RegExp(
+	`^([\\s\\S]*?)${THINK_CLOSE_TAG.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*`,
+	"i",
+);
+
+function splitThinkingBlock(raw: string): {
+	thinking?: string;
+	remainder: string;
+} {
+	const trimmed = raw.trim();
+	const closeMatch = trimmed.match(THINK_CLOSE_TAG_PATTERN);
+	if (!closeMatch?.[1]) {
+		return { remainder: trimmed };
+	}
+
+	const thinking = closeMatch[1].replace(THINK_OPEN_TAG_PATTERN, "").trim();
+	const remainder = trimmed.slice(closeMatch[0].length).trim();
+
+	return {
+		...(thinking.length > 0 ? { thinking } : {}),
+		remainder,
+	};
+}
+
 export function extractJsonText(raw: string): string {
 	let trimmed = raw.trim();
 
@@ -58,13 +88,15 @@ export function extractJsonText(raw: string): string {
 		trimmed = fencedMatch[1].trim();
 	}
 
-	const thinkBlockMatch = trimmed.match(/^[\s\S]*?<\/think>\s*/i);
-	if (thinkBlockMatch) {
-		trimmed = trimmed.slice(thinkBlockMatch[0].length).trim();
-	}
+	const withoutThinking = splitThinkingBlock(trimmed);
+	trimmed = withoutThinking.remainder;
 
 	const extracted = extractBalancedJsonObject(trimmed);
 	return extracted ?? trimmed;
+}
+
+export function extractThinkingText(raw: string): string | undefined {
+	return splitThinkingBlock(raw).thinking;
 }
 
 export class ParseResponseError extends Error {

@@ -1,9 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	extractJsonText,
+	extractThinkingText,
 	ParseResponseError,
 	parseTradeRecommendationJson,
 } from "@/llm/parseResponse.js";
+
+const thinkOpenTag = ["<", "think", ">"].join("");
+const thinkCloseTag = ["<", "/", "think", ">"].join("");
 
 const validPayload = {
 	outlooks: [
@@ -53,13 +57,16 @@ describe("extractJsonText", () => {
 	});
 
 	it("strips qwen think tags before extracting JSON", () => {
-		expect(
-			extractJsonText(
-				'` `\nReasoning here\n`\n{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
-			),
-		).toBe(
+		const raw = `${thinkOpenTag}\nReasoning here\n${thinkCloseTag}\n{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}`;
+
+		expect(extractJsonText(raw)).toBe(
 			'{"outlooks":[{"asset":"BTC","direction_score":7,"confidence":0.7}]}',
 		);
+		expect(extractThinkingText(raw)).toBe("Reasoning here");
+	});
+
+	it("returns undefined when no thinking block is present", () => {
+		expect(extractThinkingText('{"outlooks":[]}')).toBeUndefined();
 	});
 
 	it("extracts the first balanced JSON object from mixed text", () => {
