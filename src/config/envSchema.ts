@@ -73,6 +73,8 @@ export const RawEnvSchema = z
 		TELEGRAM_BOT_TOKEN: z.string().trim().min(1).optional(),
 		TELEGRAM_CHAT_ID: z.string().trim().min(1).optional(),
 		CLOUDAMQP_URL: z.string().trim().min(1),
+		TWITTER_SEARCH_STRING: z.string().trim().min(1).optional(),
+		TWITTER_SEARCH_MAX_PAGES: z.coerce.number().int().positive().optional(),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -96,8 +98,12 @@ export const RawEnvSchema = z
 			botToken: env.TELEGRAM_BOT_TOKEN,
 			chatId: env.TELEGRAM_CHAT_ID,
 		},
+		twitter: {
+			searchString: env.TWITTER_SEARCH_STRING,
+			searchMaxPages: env.TWITTER_SEARCH_MAX_PAGES,
+			cloudamqpUrl: env.CLOUDAMQP_URL,
+		},
 		databasePath: env.DATABASE_PATH,
-		cloudamqpUrl: env.CLOUDAMQP_URL,
 		coingecko: {
 			baseUrl: env.COINGECKO_BASE_URL,
 			apiKey: env.COINGECKO_API_KEY,

@@ -4,7 +4,8 @@ import amqp from "amqplib/callback_api";
 import { loadConfig } from "@/config";
 
 const config = loadConfig();
-const CLOUDAMQP_URL = config.cloudamqpUrl;
+const CLOUDAMQP_URL = config.twitter.cloudamqpUrl;
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const noop = () => {};
 

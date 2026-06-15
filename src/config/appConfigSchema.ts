@@ -54,6 +54,11 @@ export type TelegramConfig = {
 	chatId: string;
 };
 
+export type TwitterConfig = {
+	cloudamqpUrl: string;
+	searchString?: string;
+	searchMaxPages?: number;
+};
 export type AppConfig = {
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
@@ -63,7 +68,7 @@ export type AppConfig = {
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 	telegram?: TelegramConfig;
-	cloudamqpUrl: string;
+	twitter: TwitterConfig;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -212,7 +217,11 @@ export const AppConfigSchema = z
 			databasePath: env.databasePath,
 			coingecko,
 			llm,
-			cloudamqpUrl: env.cloudamqpUrl,
+			twitter: {
+				cloudamqpUrl: env.twitter.cloudamqpUrl,
+				searchString: env.twitter.searchString ?? "",
+				searchMaxPages: env.twitter.searchMaxPages ?? 10,
+			},
 			...(telegram ? { telegram } : {}),
 			...(hasApiKey &&
 				hasApiSecret && {
