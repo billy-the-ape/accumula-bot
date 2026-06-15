@@ -3,9 +3,6 @@ import EventEmitter from "node:events";
 import amqp from "amqplib/callback_api";
 import { loadConfig } from "@/config";
 
-const config = loadConfig();
-const CLOUDAMQP_URL = config.twitter.cloudamqpUrl;
-
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 const noop = () => {};
 
@@ -22,6 +19,9 @@ let shuttingDown = false;
 
 const setupChannelQueue = (queueName: string): Promise<ReplyToChannel> =>
 	new Promise<ReplyToChannel>((resolve, reject) => {
+		const config = loadConfig();
+		const CLOUDAMQP_URL = config.socialMedia.twitterConfig.cloudamqpUrl;
+
 		if (_cachedChannel) {
 			_cachedChannel.assertQueue(queueName, undefined, (err) => {
 				if (err) {

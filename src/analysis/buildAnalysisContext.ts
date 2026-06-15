@@ -1,5 +1,6 @@
 import { marketDataSource } from "@/analysis/sources/marketDataSource.js";
 import { predictionMarketSource } from "@/analysis/sources/predictionMarketSource.js";
+import { socialMediaSource } from "@/analysis/sources/socialMediaSource";
 import type {
 	AnalysisContext,
 	AnalysisDataSource,
@@ -14,6 +15,7 @@ import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 export const DEFAULT_ANALYSIS_DATA_SOURCES: readonly AnalysisDataSource[] = [
 	marketDataSource,
 	predictionMarketSource,
+	socialMediaSource,
 ];
 
 export type BuildAnalysisContextOptions = {

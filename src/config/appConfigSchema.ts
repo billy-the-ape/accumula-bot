@@ -69,7 +69,13 @@ export type PredictionMarketsConfig = {
 	targetHorizonHours: number;
 };
 
+export type SocialMediaConfig = {
+	enabled: boolean;
+	twitterConfig: TwitterConfig;
+};
+
 export type AppConfig = {
+	socialMedia: SocialMediaConfig;
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
 	assetStarting: Cryptocurrency;
@@ -78,7 +84,6 @@ export type AppConfig = {
 	llm: LlmConfig;
 	exchange?: z.infer<typeof ExchangeConfigSchema>;
 	telegram?: TelegramConfig;
-	twitter: TwitterConfig;
 	predictionMarkets: PredictionMarketsConfig;
 	outlookThresholds: OutlookThresholds;
 };
@@ -230,10 +235,13 @@ export const AppConfigSchema = z
 			coingecko,
 			llm,
 			outlookThresholds: env.outlookThresholds,
-			twitter: {
-				cloudamqpUrl: env.twitter.cloudamqpUrl,
-				searchString: env.twitter.searchString ?? "",
-				searchMaxPages: env.twitter.searchMaxPages ?? 10,
+			socialMedia: {
+				enabled: env.socialMedia.enabled,
+				twitterConfig: {
+					cloudamqpUrl: env.socialMedia.twitterConfig.cloudamqpUrl,
+					searchString: env.socialMedia.twitterConfig.searchString ?? "",
+					searchMaxPages: env.socialMedia.twitterConfig.searchMaxPages ?? 10,
+				},
 			},
 			predictionMarkets: env.predictionMarkets,
 			...(telegram ? { telegram } : {}),

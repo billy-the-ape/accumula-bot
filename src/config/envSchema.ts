@@ -20,7 +20,7 @@ const DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS = 24;
 
 const DEFAULT_BUY_MIN_DIRECTION_SCORE = 7.2;
 const DEFAULT_SELL_MAX_DIRECTION_SCORE = 3.6;
-const DEFAULT_MIN_CONFIDENCE = 0.75;
+const DEFAULT_MIN_CONFIDENCE = 0.69;
 
 function parseCommaSeparatedSymbols(value: string): string[] {
 	return value
@@ -98,6 +98,12 @@ export const RawEnvSchema = z
 			.positive()
 			.default(DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS),
 
+		SOCIAL_MEDIA_ENABLED: z
+			.string()
+			.trim()
+			.optional()
+			.transform((value) => value === "true" || value === "1"),
+
 		BUY_MIN_DIRECTION_SCORE: z.coerce
 			.number()
 			.min(5)
@@ -136,15 +142,19 @@ export const RawEnvSchema = z
 			botToken: env.TELEGRAM_BOT_TOKEN,
 			chatId: env.TELEGRAM_CHAT_ID,
 		},
-		twitter: {
-			searchString: env.TWITTER_SEARCH_STRING,
-			searchMaxPages: env.TWITTER_SEARCH_MAX_PAGES,
-			cloudamqpUrl: env.CLOUDAMQP_URL,
-		},
 		databasePath: env.DATABASE_PATH,
 		coingecko: {
 			baseUrl: env.COINGECKO_BASE_URL,
 			apiKey: env.COINGECKO_API_KEY,
+		},
+		socialMedia: {
+			enabled: env.SOCIAL_MEDIA_ENABLED,
+
+			twitterConfig: {
+				searchString: env.TWITTER_SEARCH_STRING,
+				searchMaxPages: env.TWITTER_SEARCH_MAX_PAGES,
+				cloudamqpUrl: env.CLOUDAMQP_URL,
+			},
 		},
 		predictionMarkets: {
 			enabled: env.PREDICTION_MARKETS_ENABLED,

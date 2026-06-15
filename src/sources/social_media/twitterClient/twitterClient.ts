@@ -3,8 +3,6 @@ import { loadConfig } from "@/config";
 import { sendAndConsumeAmqp } from "@/sources/social_media/twitterClient/amqpProducer.js";
 import type { TweetForDb } from "@/sources/social_media/twitterClient/types.js";
 
-const config = loadConfig();
-
 export interface GetSearchScrapeResult {
 	success: boolean;
 	message?: string;
@@ -47,22 +45,33 @@ const DEFAULT_SEARCH_STRING = [
 ].join(" ");
 
 interface TwitterSearchOptions {
-	earliestDate?: Date;
-	pagesToScrape?: number;
-	searchString?: string;
+	earliestDate?: Date | undefined;
+	pagesToScrape?: number | undefined;
+	searchString?: string | undefined;
 }
 
 export const getTwitterSearchResult = async ({
 	earliestDate,
-	pagesToScrape = config.twitter.searchMaxPages,
-	searchString = config.twitter.searchString,
+	pagesToScrape: pagesToScrapeFromProps,
+	searchString: searchStringFromProps,
 }: TwitterSearchOptions) => {
 	const earliestDateMs =
 		earliestDate?.getTime() ?? Date.now() - 1000 * 60 * 60 * 24; // 24 hours ago
 
+	let searchString = searchStringFromProps;
+	let pagesToScrape = pagesToScrapeFromProps;
+	if (!searchStringFromProps || !pagesToScrapeFromProps) {
+		const config = loadConfig();
+
+		searchString =
+			searchString || config.socialMedia.twitterConfig.searchString;
+		pagesToScrape =
+			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages;
+	}
+
 	const result = await getSearchScrape(
-		searchString ?? DEFAULT_SEARCH_STRING,
-		pagesToScrape ?? 10,
+		searchString || DEFAULT_SEARCH_STRING,
+		pagesToScrape || 10,
 	);
 
 	await promises.writeFile(

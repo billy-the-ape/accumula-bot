@@ -1,3 +1,4 @@
+import { getSocialMediaSignalsFromContext } from "@/analysis/getSocialMediaSignals";
 import {
 	buildAnalysisContext,
 	getMarketSnapshotsFromContext,
@@ -76,9 +77,22 @@ async function main() {
 		console.info("Prediction markets: disabled");
 	}
 
+	if (config.socialMedia.enabled) {
+		console.info("Social media: enabled");
+		console.info(
+			`Social media: Twitter search string: ${config.socialMedia.twitterConfig.searchString}`,
+		);
+		console.info(
+			`Social media: Twitter search max pages: ${config.socialMedia.twitterConfig.searchMaxPages}`,
+		);
+	} else {
+		console.info("Social media: disabled");
+	}
+
 	try {
 		const analyzableAssets = getAnalyzableAssets(config);
 
+		const analysisStart = Date.now();
 		console.info("Building analysis context...");
 
 		const analysisContext = await buildAnalysisContext(
@@ -86,14 +100,25 @@ async function main() {
 			analyzableAssets,
 		);
 
+		const analysisDuration = Date.now() - analysisStart;
+		console.info(
+			`Analysis context built in ${analysisDuration.toLocaleString()}ms`,
+		);
+
 		const marketData = getMarketSnapshotsFromContext(analysisContext);
 		const predictionSignals = getPredictionSignalsFromContext(analysisContext);
+		const socialMediaSignals =
+			getSocialMediaSignalsFromContext(analysisContext);
 
+		const llmStart = Date.now();
 		console.info("Running LLM analysis...");
 
 		const recommendation = await runAnalysis(config, analysisContext);
 
 		const recommendationSummary = summarizeRecommendation(recommendation);
+
+		const llmDuration = Date.now() - llmStart;
+		console.info(`LLM analysis completed in ${llmDuration.toLocaleString()}ms`);
 
 		console.info("Trade recommendation:");
 
@@ -182,6 +207,7 @@ async function main() {
 						trades: execution.trades,
 						executionReason: execution.reason,
 						predictionSignals,
+						socialMediaSignals,
 						accumulateSymbol: config.assetToAccumulate.symbol,
 						outlookThresholds: config.outlookThresholds,
 						...(portfolioReport ? { portfolio: portfolioReport } : {}),
@@ -216,8 +242,13 @@ async function main() {
 	}
 }
 
-main().catch((error: unknown) => {
-	console.error("Failed to start:", error);
+main()
+	.then(() => {
+		console.info("Accumula Bot run completed.");
+		process.exit(0);
+	})
+	.catch((error: unknown) => {
+		console.error("Failed to start:", error);
 
-	process.exit(1);
-});
+		process.exit(1);
+	});

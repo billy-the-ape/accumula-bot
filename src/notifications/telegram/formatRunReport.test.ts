@@ -59,6 +59,7 @@ function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 		trades: [sampleTrade],
 		executionReason: "Executed 1 planned fill(s)",
 		predictionSignals: [],
+		socialMediaSignals: [],
 		accumulateSymbol: "BTC",
 		portfolio: { btcValue: 0.105, returnPct: 2.5 },
 		outlookThresholds: DEFAULT_OUTLOOK_THRESHOLDS,

@@ -1,5 +1,6 @@
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
+import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
@@ -17,6 +18,8 @@ export type RunReportInput = {
 	executionReason: string;
 	/** Prediction-market signals to surface per asset (may be empty). */
 	predictionSignals: readonly PredictionSignal[];
+	/** Social media signals to surface (may be empty). */
+	socialMediaSignals: readonly SocialMediaSignal[];
 	accumulateSymbol: string;
 	portfolio?: {
 		btcValue: number;
@@ -119,10 +122,27 @@ function formatTradeLine(trade: StoredTrade): string {
  * the execution status, and the portfolio's accumulated value + return.
  */
 export function formatRunReport(input: RunReportInput): string {
+	const socialMediaSignalsMap = input.socialMediaSignals.reduce(
+		(acc, signal) => {
+			acc[signal.source] = (acc[signal.source] || 0) + 1;
+			return acc;
+		},
+		{} as Record<string, number>,
+	);
+
+	const socialMediaSignalsLines = Object.entries(socialMediaSignalsMap)
+		.map(([source, count]) => {
+			return `  ${source}: ${count}`;
+		})
+		.join("\n");
+
 	const lines: string[] = [
 		OUTCOME_HEADERS[input.outcome],
 		"",
 		`<u>Actions:</u> ${escapeHtml(input.headline)} · avg confidence ${formatPercent(input.averageConfidence)}`,
+		"",
+		"<u>Social media signals:</u>",
+		socialMediaSignalsLines,
 		"",
 		"<u>Outlooks:</u>",
 		...input.outlooks.flatMap((outlook) =>
@@ -136,6 +156,8 @@ export function formatRunReport(input: RunReportInput): string {
 
 	if (input.trades.length > 0) {
 		lines.push("", "<u>Trades:</u>", ...input.trades.map(formatTradeLine));
+	} else {
+		lines.push("", "<u>No trades executed</u>");
 	}
 
 	lines.push("", `<u>Status:</u> ${escapeHtml(input.executionReason)}`);

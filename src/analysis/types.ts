@@ -1,11 +1,11 @@
 import type { AppConfig } from "@/config/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
-export type AnalysisSection = {
+export type AnalysisSection<TPayload = unknown> = {
 	sourceId: string;
 	label: string;
 	promptText: string;
-	payload: unknown;
+	payload: TPayload;
 };
 
 export type AnalysisContext = {
@@ -13,11 +13,11 @@ export type AnalysisContext = {
 	sections: AnalysisSection[];
 };
 
-export interface AnalysisDataSource {
+export interface AnalysisDataSource<TPayload = unknown> {
 	readonly id: string;
 	isEnabled(config: AppConfig): boolean;
 	fetch(
 		config: AppConfig,
 		assets: readonly Cryptocurrency[],
-	): Promise<AnalysisSection>;
+	): Promise<AnalysisSection<TPayload>>;
 }
