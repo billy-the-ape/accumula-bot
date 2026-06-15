@@ -66,15 +66,15 @@ function directionLabel(
 	outlookThresholds: OutlookThresholds,
 ): string {
 	if (confidence < outlookThresholds.minConfidence) {
-		return "HOLD";
+		return "🤷‍♂️ HOLD";
 	}
 	if (directionScore >= outlookThresholds.buyMinDirectionScore) {
-		return "BUY";
+		return "📈 BUY";
 	}
 	if (directionScore <= outlookThresholds.sellMaxDirectionScore) {
-		return "SELL";
+		return "📉 SELL";
 	}
-	return "HOLD";
+	return "📴 HOLD";
 }
 
 function truncate(value: string): string {
@@ -90,7 +90,7 @@ function formatOutlookBlock(
 ): string[] {
 	const asset = escapeHtml(outlook.asset);
 	const lines = [
-		`<b>${asset}</b> — ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} (${outlook.direction_score}/10 · conf ${formatPercent(outlook.confidence)})`,
+		`<b>· ${asset}:</b> ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} (${outlook.direction_score}/10 · Confidence ${formatPercent(outlook.confidence)})`,
 	];
 
 	const predictions = predictionSignals
@@ -100,11 +100,11 @@ function formatOutlookBlock(
 				`${escapeHtml(signal.source)} ${signal.impliedUpProbability.toFixed(2)}`,
 		);
 	if (predictions.length > 0) {
-		lines.push(`  pred up-prob: ${predictions.join(" · ")}`);
+		lines.push(`  Pred markets: ${predictions.join(" · ")}`);
 	}
 
 	if (outlook.reason) {
-		lines.push(`  ${escapeHtml(truncate(outlook.reason))}`);
+		lines.push(`  Reasoning: ${escapeHtml(truncate(outlook.reason))}`);
 	}
 
 	return lines;
