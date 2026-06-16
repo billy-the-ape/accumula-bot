@@ -48,6 +48,9 @@ const btcPrediction: PredictionSignal = {
 	liquidityUsd: 50_000,
 	asOf: "2026-06-15T12:00:00.000Z",
 	marketRef: "0xcondA",
+	modeStrikeUsd: 68_500,
+	spotUsd: 66_000,
+	modeBucketProbability: 0.42,
 };
 
 function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
@@ -113,12 +116,14 @@ describe("formatRunReport", () => {
 		expect(message).toContain("<u>Status:</u> Allocation cap exceeded for BTC");
 	});
 
-	it("includes prediction-market up-probabilities per asset when available", () => {
+	it("includes prediction-market scores with mode vs spot when available", () => {
 		const message = formatRunReport(
 			baseInput({ predictionSignals: [btcPrediction] }),
 		);
 
 		expect(message).toContain("polymarket 0.79");
+		expect(message).toContain("mode $68.5k vs spot $66.0k");
+		expect(message).toContain("BTC|POLYM:");
 	});
 
 	it("labels SELL outlooks and escapes HTML in reasons", () => {

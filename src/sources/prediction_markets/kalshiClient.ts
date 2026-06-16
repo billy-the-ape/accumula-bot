@@ -6,9 +6,22 @@ import {
 	type PredictionSignal,
 	PredictionSignalSchema,
 } from "@/schemas/PredictionSignal.js";
+import {
+	type LadderRung,
+	type LadderScore,
+	type LadderScoringOptions,
+	scoreLadder,
+} from "@/sources/prediction_markets/impliedDistribution.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DEFAULT_TARGET_HORIZON_HOURS = 24;
+
+export const DEFAULT_KALSHI_LADDER_SCORING: LadderScoringOptions = {
+	normalizationBandPct: 0.05,
+	maxRungs: 6,
+	minRungs: 3,
+	minRungLiquidityUsd: 1_000,
+};
 
 export class KalshiError extends Error {
 	constructor(message: string) {
@@ -29,7 +42,7 @@ function normalizeProbability(value: number): number {
 
 // `liquidity_dollars` is deprecated (always "0.0000"), so use 24h traded value
 // (contracts * notional) as a liquidity proxy.
-function computeLiquidityUsd(market: KalshiMarket): number {
+export function computeLiquidityUsd(market: KalshiMarket): number {
 	return Math.max(0, market.volume_24h_fp * market.notional_value_dollars);
 }
 
@@ -95,8 +108,8 @@ export async function fetchKalshiMarkets(
 
 /**
  * Implied probability that the YES side resolves true, derived from top-of-book.
- * For an "up or down" market this is the probability of "up". Returns null when
- * the market has no usable price (thin/illiquid book and no trades).
+ * For an "above $X" rung this is P(price > strike). Returns null when the market
+ * has no usable price (thin/illiquid book and no trades).
  */
 export function deriveImpliedUpProbability(
 	market: KalshiMarket,
@@ -145,26 +158,39 @@ export function getKalshiStrike(market: KalshiMarket): number | null {
 	return Number.isFinite(parsed) ? parsed : null;
 }
 
-export type AtmSelectionParams = {
+export function kalshiMarketToLadderRung(
+	market: KalshiMarket,
+): LadderRung | null {
+	const strikeUsd = getKalshiStrike(market);
+	const probabilityAbove = deriveImpliedUpProbability(market);
+	if (strikeUsd === null || probabilityAbove === null) {
+		return null;
+	}
+
+	return {
+		strikeUsd,
+		probabilityAbove,
+		liquidityUsd: computeLiquidityUsd(market),
+		marketRef: market.ticker,
+	};
+}
+
+export type HorizonSelectionParams = {
 	nowMs: number;
 	targetHorizonHours: number;
-	spotPriceUsd: number;
 	minHorizonHours?: number;
 	maxHorizonHours?: number;
 };
 
 /**
- * Select the at-the-money rung for an up/down signal: among open markets within
- * the horizon window, pick the expiry nearest the target, prefer rungs with
- * liquidity, then choose the strike closest to current spot. The YES price of
- * that ~spot strike approximates P(price ends higher than now). Returns null
- * when nothing qualifies.
+ * Return all open ladder rungs at the expiry nearest `now + targetHorizonHours`.
+ * Markets without a parseable strike or usable YES price are excluded.
  */
-export function selectAtmMarket(
+export function selectMarketsAtHorizon(
 	markets: readonly KalshiMarket[],
-	params: AtmSelectionParams,
-): KalshiMarket | null {
-	const { nowMs, targetHorizonHours, spotPriceUsd } = params;
+	params: HorizonSelectionParams,
+): KalshiMarket[] {
+	const { nowMs, targetHorizonHours } = params;
 	const minMs = nowMs + (params.minHorizonHours ?? 0) * HOUR_MS;
 	const maxMs =
 		params.maxHorizonHours === undefined
@@ -185,92 +211,46 @@ export function selectAtmMarket(
 	});
 
 	if (candidates.length === 0) {
-		return null;
+		return [];
 	}
 
-	// Expiry nearest the target horizon, then restrict to that expiry's ladder.
 	const nearest = candidates.reduce((best, market) => {
 		const bestDelta = Math.abs(Date.parse(best.close_time) - targetMs);
 		const marketDelta = Math.abs(Date.parse(market.close_time) - targetMs);
 		return marketDelta < bestDelta ? market : best;
 	});
 	const expiryMs = Date.parse(nearest.close_time);
-	const sameExpiry = candidates.filter(
+
+	return candidates.filter(
 		(market) => Date.parse(market.close_time) === expiryMs,
 	);
-
-	// Prefer rungs that have traded; fall back to all if none are liquid.
-	const liquid = sameExpiry.filter((market) => computeLiquidityUsd(market) > 0);
-	const pool = liquid.length > 0 ? liquid : sameExpiry;
-
-	// At-the-money: strike closest to spot.
-	return pool
-		.map((market) => ({
-			market,
-			strike: getKalshiStrike(market) ?? Number.POSITIVE_INFINITY,
-		}))
-		.reduce((best, current) =>
-			Math.abs(current.strike - spotPriceUsd) <
-			Math.abs(best.strike - spotPriceUsd)
-				? current
-				: best,
-		).market;
 }
 
-/**
- * Pick the open, still-tradeable market whose close time is closest to
- * `now + targetHorizonHours`. Markets that already closed or have no usable
- * price are ignored. Returns null when nothing qualifies.
- */
-export function selectMarketNearestHorizon(
+export function buildKalshiLadderRungs(
 	markets: readonly KalshiMarket[],
-	nowMs: number,
-	targetHorizonHours: number,
-): KalshiMarket | null {
-	const targetMs = nowMs + targetHorizonHours * HOUR_MS;
-
-	const candidates = markets.filter((market) => {
-		const closeMs = Date.parse(market.close_time);
-		return (
-			!Number.isNaN(closeMs) &&
-			closeMs > nowMs &&
-			deriveImpliedUpProbability(market) !== null
-		);
-	});
-
-	if (candidates.length === 0) {
-		return null;
-	}
-
-	return candidates.reduce((best, market) => {
-		const bestDelta = Math.abs(Date.parse(best.close_time) - targetMs);
-		const marketDelta = Math.abs(Date.parse(market.close_time) - targetMs);
-		return marketDelta < bestDelta ? market : best;
-	});
+): LadderRung[] {
+	return markets
+		.map(kalshiMarketToLadderRung)
+		.filter((rung): rung is LadderRung => rung !== null);
 }
 
-export function toPredictionSignal(
-	market: KalshiMarket,
-	params: { asset: string; nowIso: string },
+export function toPredictionSignalFromLadderScore(
+	asset: string,
+	nowIso: string,
+	horizonHours: number,
+	ladderScore: LadderScore,
 ): PredictionSignal {
-	const impliedUpProbability = deriveImpliedUpProbability(market);
-	if (impliedUpProbability === null) {
-		throw new KalshiError(`Kalshi market ${market.ticker} has no usable price`);
-	}
-
-	const horizonHours =
-		(Date.parse(market.close_time) - Date.parse(params.nowIso)) / HOUR_MS;
-
-	const liquidityUsd = computeLiquidityUsd(market);
-
 	return PredictionSignalSchema.parse({
-		asset: params.asset,
+		asset,
 		source: "kalshi",
-		impliedUpProbability,
+		impliedUpProbability: ladderScore.score,
 		horizonHours,
-		liquidityUsd,
-		asOf: params.nowIso,
-		marketRef: market.ticker,
+		liquidityUsd: ladderScore.liquidityUsd,
+		asOf: nowIso,
+		marketRef: ladderScore.marketRef,
+		modeStrikeUsd: ladderScore.modeStrikeUsd,
+		spotUsd: ladderScore.spotUsd,
+		modeBucketProbability: ladderScore.modeBucketProbability,
 	});
 }
 
@@ -279,22 +259,18 @@ export type FetchKalshiSignalParams = {
 	seriesTicker: string;
 	targetHorizonHours?: number;
 	now?: Date;
-	/**
-	 * Current spot price. When provided, the at-the-money rung (strike closest
-	 * to spot) is selected so the YES price approximates an up-probability —
-	 * required for "≥ strike" ladder series like KXBTCD. Without it, the market
-	 * nearest the target horizon is used (only correct for true up/down series).
-	 */
-	spotPriceUsd?: number;
+	/** Current spot price — required for implied-distribution scoring. */
+	spotPriceUsd: number;
+	scoring?: LadderScoringOptions;
 	minHorizonHours?: number;
 	maxHorizonHours?: number;
 };
 
 /**
- * Fetch open markets for a series and return the normalized prediction signal.
- * With `spotPriceUsd`, selects the at-the-money rung (for threshold ladders);
- * otherwise the market nearest the target horizon. Returns null when no
- * suitable market is open (graceful degradation — absence is not a signal).
+ * Fetch open markets for a series, build an implied distribution from rungs near
+ * spot at the target horizon, and return a normalized directional score. Returns
+ * null when spot is missing/invalid, too few rungs qualify, or scoring fails
+ * (graceful degradation — absence is not a signal).
  */
 export async function fetchKalshiSignal(
 	options: KalshiClientOptions,
@@ -303,6 +279,11 @@ export async function fetchKalshiSignal(
 	const now = params.now ?? new Date();
 	const targetHorizonHours =
 		params.targetHorizonHours ?? DEFAULT_TARGET_HORIZON_HOURS;
+	const scoring = params.scoring ?? DEFAULT_KALSHI_LADDER_SCORING;
+
+	if (!Number.isFinite(params.spotPriceUsd) || params.spotPriceUsd <= 0) {
+		return null;
+	}
 
 	const markets = await fetchKalshiMarkets(
 		options,
@@ -310,27 +291,36 @@ export async function fetchKalshiSignal(
 		"open",
 	);
 
-	const market =
-		params.spotPriceUsd === undefined
-			? selectMarketNearestHorizon(markets, now.getTime(), targetHorizonHours)
-			: selectAtmMarket(markets, {
-					nowMs: now.getTime(),
-					targetHorizonHours,
-					spotPriceUsd: params.spotPriceUsd,
-					...(params.minHorizonHours !== undefined
-						? { minHorizonHours: params.minHorizonHours }
-						: {}),
-					...(params.maxHorizonHours !== undefined
-						? { maxHorizonHours: params.maxHorizonHours }
-						: {}),
-				});
-
-	if (!market) {
+	const horizonMarkets = selectMarketsAtHorizon(markets, {
+		nowMs: now.getTime(),
+		targetHorizonHours,
+		...(params.minHorizonHours !== undefined
+			? { minHorizonHours: params.minHorizonHours }
+			: {}),
+		...(params.maxHorizonHours !== undefined
+			? { maxHorizonHours: params.maxHorizonHours }
+			: {}),
+	});
+	if (horizonMarkets.length === 0) {
 		return null;
 	}
 
-	return toPredictionSignal(market, {
-		asset: params.asset,
-		nowIso: now.toISOString(),
-	});
+	const ladderRungs = buildKalshiLadderRungs(horizonMarkets);
+	const ladderScore = scoreLadder(ladderRungs, params.spotPriceUsd, scoring);
+	if (ladderScore === null) {
+		return null;
+	}
+
+	const closeTime = horizonMarkets[0]?.close_time;
+	const horizonHours =
+		closeTime === undefined
+			? targetHorizonHours
+			: (Date.parse(closeTime) - now.getTime()) / HOUR_MS;
+
+	return toPredictionSignalFromLadderScore(
+		params.asset,
+		now.toISOString(),
+		horizonHours,
+		ladderScore,
+	);
 }

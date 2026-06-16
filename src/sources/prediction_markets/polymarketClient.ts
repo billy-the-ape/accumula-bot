@@ -2,15 +2,27 @@ import {
 	PolymarketGammaEventsResponseSchema,
 	type PolymarketGammaMarket,
 	PolymarketGammaMarketsResponseSchema,
-	PolymarketMidpointSchema,
 } from "@/schemas/PolymarketMarket.js";
 import {
 	type PredictionSignal,
 	PredictionSignalSchema,
 } from "@/schemas/PredictionSignal.js";
+import {
+	type LadderRung,
+	type LadderScore,
+	type LadderScoringOptions,
+	scoreLadder,
+} from "@/sources/prediction_markets/impliedDistribution.js";
 
 const HOUR_MS = 60 * 60 * 1000;
 const DEFAULT_TARGET_HORIZON_HOURS = 24;
+
+export const DEFAULT_POLYMARKET_LADDER_SCORING: LadderScoringOptions = {
+	normalizationBandPct: 0.05,
+	maxRungs: 6,
+	minRungs: 3,
+	minRungLiquidityUsd: 1_000,
+};
 
 export class PolymarketError extends Error {
 	constructor(message: string) {
@@ -94,9 +106,31 @@ export function getPolymarketStrike(
 	return parseUsdAmount(market.question ?? "");
 }
 
-function getLiquidityUsd(market: PolymarketGammaMarket): number {
+export function getLiquidityUsd(market: PolymarketGammaMarket): number {
 	const value = market.liquidityNum ?? market.liquidity ?? 0;
 	return Math.max(0, value);
+}
+
+function isPolymarketLadderCandidate(
+	market: PolymarketGammaMarket,
+	nowMs: number,
+	minMs: number,
+	maxMs: number,
+): boolean {
+	if (market.closed === true || market.enableOrderBook === false) {
+		return false;
+	}
+
+	const endMs = market.endDate ? Date.parse(market.endDate) : Number.NaN;
+	return (
+		!Number.isNaN(endMs) &&
+		endMs > nowMs &&
+		endMs >= minMs &&
+		endMs <= maxMs &&
+		getPolymarketStrike(market) !== null &&
+		getGammaYesPrice(market) !== null &&
+		getMarketRef(market) !== null
+	);
 }
 
 async function fetchJson<T>(
@@ -173,9 +207,7 @@ export type PolymarketEventQuery = {
 /**
  * Discover an asset's threshold-ladder markets via Gamma `/events`. BTC/ETH/SOL
  * price markets are grouped under daily events titled "<Asset> above ___ on
- * <date>?"; each child market is a "above $X" rung. We order by 24h volume so
- * the active daily ladders surface (the default ordering buries them), match
- * events by title prefix, and flatten their child markets for ATM selection.
+ * <date>?"; each child market is a "above $X" rung.
  */
 export async function fetchPolymarketEventMarkets(
 	options: PolymarketClientOptions,
@@ -210,96 +242,47 @@ export async function fetchPolymarketEventMarkets(
 		.flatMap((event) => event.markets ?? []);
 }
 
-/**
- * CLOB midpoint (average of best bid/ask) for a token. Returns null when the
- * token has no orderbook (404) or the request otherwise fails — the caller
- * falls back to the Gamma outcome price instead of erroring out.
- */
-export async function fetchMidpoint(
-	options: PolymarketClientOptions,
-	tokenId: string,
-): Promise<number | null> {
-	const fetchImpl = options.fetchImpl ?? fetch;
-	const url = new URL(
-		`midpoint?token_id=${encodeURIComponent(tokenId)}`,
-		`${options.clobBaseUrl}/`,
-	);
-
-	try {
-		const response = await fetchImpl(url);
-		if (!response.ok) {
-			return null;
-		}
-		const payload = await response.json();
-		const { mid_price } = PolymarketMidpointSchema.parse(payload);
-		return Number.isFinite(mid_price) && mid_price > 0
-			? normalizeProbability(mid_price)
-			: null;
-	} catch {
+export function polymarketMarketToLadderRung(
+	market: PolymarketGammaMarket,
+): LadderRung | null {
+	const strikeUsd = getPolymarketStrike(market);
+	const probabilityAbove = getGammaYesPrice(market);
+	const marketRef = getMarketRef(market);
+	if (strikeUsd === null || probabilityAbove === null || marketRef === null) {
 		return null;
 	}
+
+	return {
+		strikeUsd,
+		probabilityAbove,
+		liquidityUsd: getLiquidityUsd(market),
+		marketRef,
+	};
 }
 
-/**
- * Pick the open, orderbook-enabled market whose end date is closest to
- * `now + targetHorizonHours`. Closed/resolved markets, those without a YES
- * token, and those with no usable Gamma price are ignored.
- */
-export function selectMarketNearestHorizon(
+export function buildPolymarketLadderRungs(
 	markets: readonly PolymarketGammaMarket[],
-	nowMs: number,
-	targetHorizonHours: number,
-): PolymarketGammaMarket | null {
-	const targetMs = nowMs + targetHorizonHours * HOUR_MS;
-
-	const candidates = markets.filter((market) => {
-		if (market.closed === true || market.enableOrderBook === false) {
-			return false;
-		}
-		const endMs = market.endDate ? Date.parse(market.endDate) : Number.NaN;
-		return (
-			!Number.isNaN(endMs) &&
-			endMs > nowMs &&
-			getYesTokenId(market) !== null &&
-			getGammaYesPrice(market) !== null &&
-			getMarketRef(market) !== null
-		);
-	});
-
-	if (candidates.length === 0) {
-		return null;
-	}
-
-	return candidates.reduce((best, market) => {
-		const bestDelta = Math.abs(Date.parse(best.endDate ?? "") - targetMs);
-		const marketDelta = Math.abs(Date.parse(market.endDate ?? "") - targetMs);
-		return marketDelta < bestDelta ? market : best;
-	});
+): LadderRung[] {
+	return markets
+		.map(polymarketMarketToLadderRung)
+		.filter((rung): rung is LadderRung => rung !== null);
 }
 
-export type AtmSelectionParams = {
+export type HorizonSelectionParams = {
 	nowMs: number;
 	targetHorizonHours: number;
-	spotPriceUsd: number;
 	minHorizonHours?: number;
 	maxHorizonHours?: number;
 };
 
 /**
- * Select the at-the-money rung for an up/down signal: among open,
- * orderbook-enabled markets within the horizon window, pick the expiry nearest
- * the target, prefer rungs with liquidity, then choose the strike closest to
- * current spot. The YES price of that ~spot strike approximates P(price ends
- * higher than now). Genuine up/down markets (no parseable strike) are treated
- * as perfectly at-the-money and always preferred. Returns null when nothing
- * qualifies — required for Polymarket BTC/ETH markets, which are "above $X"
- * thresholds rather than direct up/down questions.
+ * Return all threshold-ladder rungs at the expiry nearest `now + targetHorizonHours`.
  */
-export function selectAtmMarket(
+export function selectMarketsAtHorizon(
 	markets: readonly PolymarketGammaMarket[],
-	params: AtmSelectionParams,
-): PolymarketGammaMarket | null {
-	const { nowMs, targetHorizonHours, spotPriceUsd } = params;
+	params: HorizonSelectionParams,
+): PolymarketGammaMarket[] {
+	const { nowMs, targetHorizonHours } = params;
 	const minMs = nowMs + (params.minHorizonHours ?? 0) * HOUR_MS;
 	const maxMs =
 		params.maxHorizonHours === undefined
@@ -307,76 +290,43 @@ export function selectAtmMarket(
 			: nowMs + params.maxHorizonHours * HOUR_MS;
 	const targetMs = nowMs + targetHorizonHours * HOUR_MS;
 
-	const candidates = markets.filter((market) => {
-		if (market.closed === true || market.enableOrderBook === false) {
-			return false;
-		}
-		const endMs = market.endDate ? Date.parse(market.endDate) : Number.NaN;
-		return (
-			!Number.isNaN(endMs) &&
-			endMs > nowMs &&
-			endMs >= minMs &&
-			endMs <= maxMs &&
-			getYesTokenId(market) !== null &&
-			getGammaYesPrice(market) !== null &&
-			getMarketRef(market) !== null
-		);
-	});
+	const candidates = markets.filter((market) =>
+		isPolymarketLadderCandidate(market, nowMs, minMs, maxMs),
+	);
 
 	if (candidates.length === 0) {
-		return null;
+		return [];
 	}
 
-	// Expiry nearest the target horizon, then restrict to that expiry's ladder.
 	const nearest = candidates.reduce((best, market) => {
 		const bestDelta = Math.abs(Date.parse(best.endDate ?? "") - targetMs);
 		const marketDelta = Math.abs(Date.parse(market.endDate ?? "") - targetMs);
 		return marketDelta < bestDelta ? market : best;
 	});
 	const expiryMs = Date.parse(nearest.endDate ?? "");
-	const sameExpiry = candidates.filter(
+
+	return candidates.filter(
 		(market) => Date.parse(market.endDate ?? "") === expiryMs,
 	);
-
-	// Prefer rungs that have liquidity; fall back to all if none are liquid.
-	const liquid = sameExpiry.filter((market) => getLiquidityUsd(market) > 0);
-	const pool = liquid.length > 0 ? liquid : sameExpiry;
-
-	// At-the-money: strike closest to spot. No-strike (true up/down) markets get
-	// a sentinel distance of -1 so they always win.
-	return pool
-		.map((market) => {
-			const strike = getPolymarketStrike(market);
-			return {
-				market,
-				distance: strike === null ? -1 : Math.abs(strike - spotPriceUsd),
-			};
-		})
-		.reduce((best, current) =>
-			current.distance < best.distance ? current : best,
-		).market;
 }
 
-export function toPredictionSignal(
-	market: PolymarketGammaMarket,
-	params: { asset: string; nowIso: string; impliedUpProbability: number },
+export function toPredictionSignalFromLadderScore(
+	asset: string,
+	nowIso: string,
+	horizonHours: number,
+	ladderScore: LadderScore,
 ): PredictionSignal {
-	const marketRef = getMarketRef(market);
-	if (marketRef === null) {
-		throw new PolymarketError("Polymarket market has no usable identifier");
-	}
-
-	const horizonHours =
-		(Date.parse(market.endDate ?? "") - Date.parse(params.nowIso)) / HOUR_MS;
-
 	return PredictionSignalSchema.parse({
-		asset: params.asset,
+		asset,
 		source: "polymarket",
-		impliedUpProbability: params.impliedUpProbability,
+		impliedUpProbability: ladderScore.score,
 		horizonHours,
-		liquidityUsd: getLiquidityUsd(market),
-		asOf: params.nowIso,
-		marketRef,
+		liquidityUsd: ladderScore.liquidityUsd,
+		asOf: nowIso,
+		marketRef: ladderScore.marketRef,
+		modeStrikeUsd: ladderScore.modeStrikeUsd,
+		spotUsd: ladderScore.spotUsd,
+		modeBucketProbability: ladderScore.modeBucketProbability,
 	});
 }
 
@@ -391,23 +341,18 @@ export type FetchPolymarketSignalParams = {
 	query?: Record<string, string>;
 	targetHorizonHours?: number;
 	now?: Date;
-	/**
-	 * Current spot price. When provided, the at-the-money rung (strike closest
-	 * to spot) is selected so the YES price approximates an up-probability —
-	 * required for "above $X" threshold markets. Without it, the market nearest
-	 * the target horizon is used (only correct for true up/down markets).
-	 */
-	spotPriceUsd?: number;
+	/** Current spot price — required for implied-distribution scoring. */
+	spotPriceUsd: number;
+	scoring?: LadderScoringOptions;
 	minHorizonHours?: number;
 	maxHorizonHours?: number;
 };
 
 /**
- * Discover BTC/ETH markets via Gamma, then return a normalized prediction
- * signal. With `spotPriceUsd`, selects the at-the-money rung (for "above $X"
- * threshold markets); otherwise the market nearest the target horizon. The YES
- * price uses the freshest CLOB midpoint, falling back to the Gamma outcome
- * price. Returns null when no suitable market is open (graceful degradation).
+ * Discover threshold-ladder markets via Gamma, build an implied distribution
+ * from rungs near spot at the target horizon, and return a normalized directional
+ * score. Uses bulk Gamma `outcomePrices` (no per-rung CLOB calls). Returns null
+ * when spot is missing/invalid, too few rungs qualify, or scoring fails.
  */
 export async function fetchPolymarketSignal(
 	options: PolymarketClientOptions,
@@ -416,40 +361,46 @@ export async function fetchPolymarketSignal(
 	const now = params.now ?? new Date();
 	const targetHorizonHours =
 		params.targetHorizonHours ?? DEFAULT_TARGET_HORIZON_HOURS;
+	const scoring = params.scoring ?? DEFAULT_POLYMARKET_LADDER_SCORING;
+
+	if (!Number.isFinite(params.spotPriceUsd) || params.spotPriceUsd <= 0) {
+		return null;
+	}
 
 	const markets = params.event
 		? await fetchPolymarketEventMarkets(options, params.event)
 		: await fetchPolymarketMarkets(options, params.query ?? {});
-	const market =
-		params.spotPriceUsd === undefined
-			? selectMarketNearestHorizon(markets, now.getTime(), targetHorizonHours)
-			: selectAtmMarket(markets, {
-					nowMs: now.getTime(),
-					targetHorizonHours,
-					spotPriceUsd: params.spotPriceUsd,
-					...(params.minHorizonHours !== undefined
-						? { minHorizonHours: params.minHorizonHours }
-						: {}),
-					...(params.maxHorizonHours !== undefined
-						? { maxHorizonHours: params.maxHorizonHours }
-						: {}),
-				});
 
-	if (!market) {
-		return null;
-	}
-
-	const tokenId = getYesTokenId(market);
-	const midpoint = tokenId ? await fetchMidpoint(options, tokenId) : null;
-	const impliedUpProbability = midpoint ?? getGammaYesPrice(market);
-
-	if (impliedUpProbability === null) {
-		return null;
-	}
-
-	return toPredictionSignal(market, {
-		asset: params.asset,
-		nowIso: now.toISOString(),
-		impliedUpProbability,
+	const horizonMarkets = selectMarketsAtHorizon(markets, {
+		nowMs: now.getTime(),
+		targetHorizonHours,
+		...(params.minHorizonHours !== undefined
+			? { minHorizonHours: params.minHorizonHours }
+			: {}),
+		...(params.maxHorizonHours !== undefined
+			? { maxHorizonHours: params.maxHorizonHours }
+			: {}),
 	});
+	if (horizonMarkets.length === 0) {
+		return null;
+	}
+
+	const ladderRungs = buildPolymarketLadderRungs(horizonMarkets);
+	const ladderScore = scoreLadder(ladderRungs, params.spotPriceUsd, scoring);
+	if (ladderScore === null) {
+		return null;
+	}
+
+	const endDate = horizonMarkets[0]?.endDate;
+	const horizonHours =
+		endDate === undefined
+			? targetHorizonHours
+			: (Date.parse(endDate) - now.getTime()) / HOUR_MS;
+
+	return toPredictionSignalFromLadderScore(
+		params.asset,
+		now.toISOString(),
+		horizonHours,
+		ladderScore,
+	);
 }

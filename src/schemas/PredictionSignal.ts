@@ -15,6 +15,12 @@ export const PredictionSignalSchema = z.object({
 			message: "asOf must be a parseable date-time string",
 		}),
 	marketRef: z.string().min(1),
+	/** Midpoint of the highest-probability bucket (implied mode strike), when available. */
+	modeStrikeUsd: z.number().positive().optional(),
+	/** Spot price used for ladder selection and score normalization. */
+	spotUsd: z.number().positive().optional(),
+	/** Probability mass held by the mode bucket. */
+	modeBucketProbability: z.number().min(0).max(1).optional(),
 });
 
 export const PredictionSignalListSchema = z.array(PredictionSignalSchema);

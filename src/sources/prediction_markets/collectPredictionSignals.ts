@@ -10,10 +10,8 @@ export type CollectPredictionSignalsDeps = {
 	fetchPolymarketSignal?: typeof fetchPolymarketSignal;
 	now?: Date;
 	/**
-	 * Current spot price per asset symbol. When an asset's spot is present, the
-	 * venues select the at-the-money rung (strike nearest spot) so the YES price
-	 * approximates an up-probability — required for the "≥ strike" ladders both
-	 * venues list. Absent spot falls back to nearest-horizon selection.
+	 * Current spot price per asset symbol. Required for implied-distribution
+	 * scoring on both venues; assets without spot are skipped.
 	 */
 	spotPrices?: Record<string, number>;
 };
@@ -49,6 +47,7 @@ export async function collectPredictionSignals(
 		polymarketGammaBaseUrl,
 		polymarketClobBaseUrl,
 		targetHorizonHours,
+		scoring,
 	} = config.predictionMarkets;
 
 	const signals: PredictionSignal[] = [];
@@ -60,6 +59,9 @@ export async function collectPredictionSignals(
 		}
 
 		const spotPriceUsd = spotPrices[asset.symbol];
+		if (spotPriceUsd === undefined) {
+			continue;
+		}
 
 		if (mapping.kalshiSeriesTicker) {
 			const seriesTicker = mapping.kalshiSeriesTicker;
@@ -71,7 +73,8 @@ export async function collectPredictionSignals(
 						seriesTicker,
 						targetHorizonHours,
 						now,
-						...(spotPriceUsd !== undefined ? { spotPriceUsd } : {}),
+						spotPriceUsd,
+						scoring,
 					},
 				),
 			);
@@ -93,7 +96,8 @@ export async function collectPredictionSignals(
 						event,
 						targetHorizonHours,
 						now,
-						...(spotPriceUsd !== undefined ? { spotPriceUsd } : {}),
+						spotPriceUsd,
+						scoring,
 					},
 				),
 			);

@@ -5,14 +5,49 @@ function roundHours(value: number): number {
 	return Math.round(value * 10) / 10;
 }
 
+export function formatCompactUsd(value: number): string {
+	const abs = Math.abs(value);
+	if (abs >= 1_000_000) {
+		return `$${(value / 1_000_000).toFixed(1)}m`;
+	}
+	if (abs >= 1_000) {
+		return `$${(value / 1_000).toFixed(1)}k`;
+	}
+	return `$${value.toFixed(abs >= 100 ? 0 : 2)}`;
+}
+
+/** Human-readable one-liner for Telegram / logs (score, icon, mode vs spot). */
+export function formatPredictionSignalDisplay(
+	signal: PredictionSignal,
+): string {
+	const score = signal.impliedUpProbability.toFixed(2);
+	const icon = signal.impliedUpProbability >= 0.5 ? "📈" : "📉";
+	if (signal.modeStrikeUsd !== undefined && signal.spotUsd !== undefined) {
+		return `${score} ${icon} (mode ${formatCompactUsd(signal.modeStrikeUsd)} vs spot ${formatCompactUsd(signal.spotUsd)})`;
+	}
+	return `${score} ${icon}`;
+}
+
 function formatSignalLine(signal: PredictionSignal): string {
-	return [
+	const parts = [
 		`  ${signal.source}:`,
-		`implied_up_probability=${signal.impliedUpProbability}`,
+		`directional_score=${signal.impliedUpProbability}`,
+	];
+	if (signal.modeStrikeUsd !== undefined) {
+		parts.push(`mode_strike_usd=${Math.round(signal.modeStrikeUsd)}`);
+	}
+	if (signal.spotUsd !== undefined) {
+		parts.push(`spot_usd=${Math.round(signal.spotUsd)}`);
+	}
+	if (signal.modeBucketProbability !== undefined) {
+		parts.push(`mode_bucket_probability=${signal.modeBucketProbability}`);
+	}
+	parts.push(
 		`horizon_hours=${roundHours(signal.horizonHours)}`,
 		`liquidity_usd=${Math.round(signal.liquidityUsd)}`,
 		`(ref ${signal.marketRef})`,
-	].join(" ");
+	);
+	return parts.join(" ");
 }
 
 /**

@@ -1,16 +1,23 @@
 import { describe, expect, it } from "vitest";
 import { getCryptocurrency } from "@/config/assets.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
-import { formatPredictionSignals } from "@/sources/prediction_markets/formatPredictionSignals.js";
+import {
+	formatCompactUsd,
+	formatPredictionSignalDisplay,
+	formatPredictionSignals,
+} from "@/sources/prediction_markets/formatPredictionSignals.js";
 
 const btcKalshi: PredictionSignal = {
 	asset: "BTC",
 	source: "kalshi",
-	impliedUpProbability: 0.58,
+	impliedUpProbability: 0.75,
 	horizonHours: 23.97,
 	liquidityUsd: 10_000,
 	asOf: "2026-06-15T12:00:00.000Z",
-	marketRef: "KXBTCD-26JUN16-UP",
+	marketRef: "KXBTCD-26JUN16-T100000",
+	modeStrikeUsd: 102_500,
+	spotUsd: 100_000,
+	modeBucketProbability: 0.51,
 };
 
 const btcPolymarket: PredictionSignal = {
@@ -23,8 +30,39 @@ const btcPolymarket: PredictionSignal = {
 	marketRef: "0xcondA",
 };
 
+const legacyKalshi: PredictionSignal = {
+	asset: "BTC",
+	source: "kalshi",
+	impliedUpProbability: 0.58,
+	horizonHours: 24,
+	liquidityUsd: 10_000,
+	asOf: "2026-06-15T12:00:00.000Z",
+	marketRef: "KXBTCD-26JUN16-UP",
+};
+
+describe("formatCompactUsd", () => {
+	it("formats large values in k/m suffixes", () => {
+		expect(formatCompactUsd(102_500)).toBe("$102.5k");
+		expect(formatCompactUsd(1_000_000)).toBe("$1.0m");
+		expect(formatCompactUsd(75)).toBe("$75.00");
+		expect(formatCompactUsd(150)).toBe("$150");
+	});
+});
+
+describe("formatPredictionSignalDisplay", () => {
+	it("includes mode and spot when debug fields are present", () => {
+		expect(formatPredictionSignalDisplay(btcKalshi)).toBe(
+			"0.75 📈 (mode $102.5k vs spot $100.0k)",
+		);
+	});
+
+	it("falls back to score and icon only for legacy signals", () => {
+		expect(formatPredictionSignalDisplay(legacyKalshi)).toBe("0.58 📈");
+	});
+});
+
 describe("formatPredictionSignals", () => {
-	it("renders one block per asset with both venues", () => {
+	it("renders one block per asset with mode and spot context", () => {
 		const text = formatPredictionSignals(
 			[btcKalshi, btcPolymarket],
 			[getCryptocurrency("BTC")],
@@ -32,10 +70,10 @@ describe("formatPredictionSignals", () => {
 
 		expect(text).toContain("BTC:");
 		expect(text).toContain(
-			"kalshi: implied_up_probability=0.58 horizon_hours=24 liquidity_usd=10000 (ref KXBTCD-26JUN16-UP)",
+			"kalshi: directional_score=0.75 mode_strike_usd=102500 spot_usd=100000 mode_bucket_probability=0.51 horizon_hours=24 liquidity_usd=10000 (ref KXBTCD-26JUN16-T100000)",
 		);
 		expect(text).toContain(
-			"polymarket: implied_up_probability=0.62 horizon_hours=24 liquidity_usd=50000 (ref 0xcondA)",
+			"polymarket: directional_score=0.62 horizon_hours=24 liquidity_usd=50000 (ref 0xcondA)",
 		);
 	});
 

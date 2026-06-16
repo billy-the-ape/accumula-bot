@@ -61,12 +61,24 @@ export type TwitterConfig = {
 	searchMaxPages?: number;
 };
 
+export type PredictionMarketScoringConfig = {
+	/** Percentage gap from spot (e.g. 0.05 = ±5%) mapped to the [0,1] extremes. */
+	normalizationBandPct: number;
+	/** Maximum rungs nearest spot used to build the implied distribution. */
+	maxRungs: number;
+	/** Minimum rungs required to emit a signal (else no signal). */
+	minRungs: number;
+	/** Liquidity floor (USD) a rung must clear; falls back to all rungs if too few. */
+	minRungLiquidityUsd: number;
+};
+
 export type PredictionMarketsConfig = {
 	enabled: boolean;
 	kalshiBaseUrl: string;
 	polymarketGammaBaseUrl: string;
 	polymarketClobBaseUrl: string;
 	targetHorizonHours: number;
+	scoring: PredictionMarketScoringConfig;
 };
 
 export type SocialMediaConfig = {

@@ -1,12 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import type { KalshiMarket } from "@/schemas/KalshiMarket.js";
 import {
+	buildKalshiLadderRungs,
+	DEFAULT_KALSHI_LADDER_SCORING,
 	deriveImpliedUpProbability,
 	fetchKalshiSignal,
 	getKalshiStrike,
 	KalshiError,
-	selectAtmMarket,
-	selectMarketNearestHorizon,
+	kalshiMarketToLadderRung,
+	selectMarketsAtHorizon,
 } from "@/sources/prediction_markets/kalshiClient.js";
 
 const baseUrl = "https://external-api.kalshi.com/trade-api/v2";
@@ -19,74 +21,109 @@ function jsonResponse(body: unknown, status = 200): Response {
 	});
 }
 
-// Trimmed Kalshi GET /markets response: three open BTC markets at different
-// horizons. Prices are dollar strings where the YES price = implied probability.
-const marketsFixture = {
+function ladderRung(
+	strike: number,
+	bid: number,
+	ask: number,
+	volume: number,
+): KalshiMarket {
+	return {
+		ticker: `KXBTCD-26JUN16-T${strike}`,
+		event_ticker: "KXBTCD-26JUN16",
+		status: "active",
+		close_time: "2026-06-16T12:00:00.000Z",
+		yes_bid_dollars: bid,
+		yes_ask_dollars: ask,
+		last_price_dollars: (bid + ask) / 2,
+		volume_24h_fp: volume,
+		notional_value_dollars: 1,
+		yes_sub_title: `Above ${strike}`,
+		floor_strike: strike,
+	};
+}
+
+const ladderFixture = {
 	cursor: "",
 	markets: [
-		{
-			ticker: "KXBTCD-26JUN15-T1H",
-			event_ticker: "KXBTCD-26JUN15",
-			status: "active",
-			close_time: "2026-06-15T13:00:00.000Z", // +1h
-			yes_bid_dollars: "0.50",
-			yes_ask_dollars: "0.52",
-			last_price_dollars: "0.51",
-			volume_24h_fp: "2000.00",
-			notional_value_dollars: "1.0000",
-			yes_sub_title: "Up at 1pm",
-		},
-		{
-			ticker: "KXBTCD-26JUN16-UP",
-			event_ticker: "KXBTCD-26JUN16",
-			status: "active",
-			close_time: "2026-06-16T12:00:00.000Z", // +24h (target)
-			yes_bid_dollars: "0.56",
-			yes_ask_dollars: "0.60",
-			last_price_dollars: "0.58",
-			volume_24h_fp: "10000.00",
-			notional_value_dollars: "1.0000",
-			yes_sub_title: "Up tomorrow",
-		},
-		{
-			ticker: "KXBTCD-26JUN17-UP",
-			event_ticker: "KXBTCD-26JUN17",
-			status: "active",
-			close_time: "2026-06-17T12:00:00.000Z", // +48h
-			yes_bid_dollars: "0.00",
-			yes_ask_dollars: "0.00",
-			last_price_dollars: "0.40",
-			volume_24h_fp: "500.00",
-			notional_value_dollars: "1.0000",
-			yes_sub_title: "Up in two days",
-		},
+		ladderRung(95_000, 0.9, 0.92, 1_000),
+		ladderRung(100_000, 0.8, 0.82, 5_000),
+		ladderRung(105_000, 0.28, 0.32, 5_000),
+		ladderRung(110_000, 0.08, 0.1, 2_000),
 	],
 };
 
 describe("fetchKalshiSignal", () => {
-	it("selects the open market nearest the target horizon and normalizes it", async () => {
+	it("scores the implied distribution from rungs near spot at the target horizon", async () => {
 		const fetchImpl = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
 			const url = String(input);
 			expect(url).toContain("/markets");
 			expect(url).toContain("series_ticker=KXBTCD");
 			expect(url).toContain("status=open");
-			return jsonResponse(marketsFixture);
+			return jsonResponse(ladderFixture);
 		});
 
 		const signal = await fetchKalshiSignal(
 			{ baseUrl, fetchImpl },
-			{ asset: "BTC", seriesTicker: "KXBTCD", targetHorizonHours: 24, now },
+			{
+				asset: "BTC",
+				seriesTicker: "KXBTCD",
+				targetHorizonHours: 24,
+				spotPriceUsd: 100_000,
+				now,
+			},
 		);
 
 		expect(signal).toEqual({
 			asset: "BTC",
 			source: "kalshi",
-			impliedUpProbability: 0.58, // mid of 0.56 / 0.60
+			impliedUpProbability: 0.75,
 			horizonHours: 24,
-			liquidityUsd: 10_000, // volume_24h * notional
+			liquidityUsd: 13_000,
 			asOf: now.toISOString(),
-			marketRef: "KXBTCD-26JUN16-UP",
+			marketRef: "KXBTCD-26JUN16-T100000",
+			modeStrikeUsd: 102_500,
+			spotUsd: 100_000,
+			modeBucketProbability: 0.51,
 		});
+	});
+
+	it("returns null when spot is missing or invalid", async () => {
+		const fetchImpl = vi.fn(async () => jsonResponse(ladderFixture));
+
+		await expect(
+			fetchKalshiSignal(
+				{ baseUrl, fetchImpl },
+				{
+					asset: "BTC",
+					seriesTicker: "KXBTCD",
+					spotPriceUsd: 0,
+					now,
+				},
+			),
+		).resolves.toBeNull();
+		expect(fetchImpl).not.toHaveBeenCalled();
+	});
+
+	it("returns null when fewer than minRungs qualify", async () => {
+		const fetchImpl = vi.fn(async () =>
+			jsonResponse({
+				cursor: "",
+				markets: [ladderRung(100_000, 0.8, 0.82, 5_000)],
+			}),
+		);
+
+		const signal = await fetchKalshiSignal(
+			{ baseUrl, fetchImpl },
+			{
+				asset: "BTC",
+				seriesTicker: "KXBTCD",
+				spotPriceUsd: 100_000,
+				now,
+				scoring: { ...DEFAULT_KALSHI_LADDER_SCORING, minRungs: 3 },
+			},
+		);
+
+		expect(signal).toBeNull();
 	});
 
 	it("returns null when no open markets are available", async () => {
@@ -96,7 +133,12 @@ describe("fetchKalshiSignal", () => {
 
 		const signal = await fetchKalshiSignal(
 			{ baseUrl, fetchImpl },
-			{ asset: "BTC", seriesTicker: "KXBTCD", now },
+			{
+				asset: "BTC",
+				seriesTicker: "KXBTCD",
+				spotPriceUsd: 100_000,
+				now,
+			},
 		);
 
 		expect(signal).toBeNull();
@@ -108,7 +150,12 @@ describe("fetchKalshiSignal", () => {
 		await expect(
 			fetchKalshiSignal(
 				{ baseUrl, fetchImpl },
-				{ asset: "BTC", seriesTicker: "KXBTCD", now },
+				{
+					asset: "BTC",
+					seriesTicker: "KXBTCD",
+					spotPriceUsd: 100_000,
+					now,
+				},
 			),
 		).rejects.toBeInstanceOf(KalshiError);
 	});
@@ -155,28 +202,6 @@ describe("deriveImpliedUpProbability", () => {
 	});
 });
 
-// A "≥ strike" ladder at one expiry (+24h), priced by distance from spot.
-function ladderRung(
-	strike: number,
-	bid: number,
-	ask: number,
-	volume: number,
-): KalshiMarket {
-	return {
-		ticker: `KXBTCD-26JUN16-T${strike}`,
-		event_ticker: "KXBTCD-26JUN16",
-		status: "active",
-		close_time: "2026-06-16T12:00:00.000Z",
-		yes_bid_dollars: bid,
-		yes_ask_dollars: ask,
-		last_price_dollars: (bid + ask) / 2,
-		volume_24h_fp: volume,
-		notional_value_dollars: 1,
-		yes_sub_title: `Above ${strike}`,
-		floor_strike: strike,
-	};
-}
-
 const ladder: KalshiMarket[] = [
 	ladderRung(60_000, 0.9, 0.92, 1_000),
 	ladderRung(65_000, 0.49, 0.53, 5_000),
@@ -195,103 +220,50 @@ describe("getKalshiStrike", () => {
 	});
 });
 
-describe("selectAtmMarket", () => {
-	it("picks the rung whose strike is closest to spot", () => {
-		const selected = selectAtmMarket(ladder, {
-			nowMs: now.getTime(),
-			targetHorizonHours: 24,
-			spotPriceUsd: 65_000,
-		});
-		expect(selected?.ticker).toBe("KXBTCD-26JUN16-T65000");
-	});
-
-	it("prefers liquid rungs, skipping a zero-liquidity at-the-money strike", () => {
-		// Spot sits on the illiquid 70k rung; the liquid 65k rung is chosen instead.
-		const selected = selectAtmMarket(ladder, {
-			nowMs: now.getTime(),
-			targetHorizonHours: 24,
-			spotPriceUsd: 70_000,
-		});
-		expect(selected?.ticker).toBe("KXBTCD-26JUN16-T65000");
-	});
-
-	it("returns null when no market falls within the horizon window", () => {
-		const selected = selectAtmMarket(ladder, {
-			nowMs: now.getTime(),
-			targetHorizonHours: 24,
-			spotPriceUsd: 65_000,
-			maxHorizonHours: 1, // ladder closes in ~24h, outside the 1h window
-		});
-		expect(selected).toBeNull();
-	});
-});
-
-describe("fetchKalshiSignal with spot (ATM path)", () => {
-	it("normalizes the at-the-money rung into a signal", async () => {
-		const ladderResponse = {
-			cursor: "",
-			markets: [
-				{
-					ticker: "KXBTCD-26JUN16-T60000",
-					status: "active",
-					close_time: "2026-06-16T12:00:00.000Z",
-					yes_bid_dollars: "0.90",
-					yes_ask_dollars: "0.92",
-					last_price_dollars: "0.91",
-					volume_24h_fp: "1000.00",
-					notional_value_dollars: "1.0000",
-					floor_strike: 60_000,
-				},
-				{
-					ticker: "KXBTCD-26JUN16-T65000",
-					status: "active",
-					close_time: "2026-06-16T12:00:00.000Z",
-					yes_bid_dollars: "0.49",
-					yes_ask_dollars: "0.53",
-					last_price_dollars: "0.51",
-					volume_24h_fp: "5000.00",
-					notional_value_dollars: "1.0000",
-					floor_strike: 65_000,
-				},
-			],
-		};
-		const fetchImpl = vi.fn(async () => jsonResponse(ladderResponse));
-
-		const signal = await fetchKalshiSignal(
-			{ baseUrl, fetchImpl },
-			{
-				asset: "BTC",
-				seriesTicker: "KXBTCD",
-				targetHorizonHours: 24,
-				spotPriceUsd: 65_000,
-				now,
-			},
-		);
-
-		expect(signal).toEqual({
-			asset: "BTC",
-			source: "kalshi",
-			impliedUpProbability: 0.51, // mid of the ~spot (65k) rung
-			horizonHours: 24,
+describe("kalshiMarketToLadderRung", () => {
+	it("maps a market to a normalized ladder rung", () => {
+		expect(kalshiMarketToLadderRung(ladder[1] as KalshiMarket)).toEqual({
+			strikeUsd: 65_000,
+			probabilityAbove: 0.51,
 			liquidityUsd: 5_000,
-			asOf: now.toISOString(),
 			marketRef: "KXBTCD-26JUN16-T65000",
 		});
 	});
 });
 
-describe("selectMarketNearestHorizon", () => {
-	it("ignores markets that already closed", () => {
-		const selected = selectMarketNearestHorizon(
-			[
-				{
-					...numericMarket,
-					close_time: "2026-06-15T11:00:00.000Z", // already past `now`
-				},
-			],
-			now.getTime(),
-			24,
+describe("selectMarketsAtHorizon", () => {
+	it("returns all ladder rungs at the expiry nearest the target horizon", () => {
+		const selected = selectMarketsAtHorizon(ladder, {
+			nowMs: now.getTime(),
+			targetHorizonHours: 24,
+		});
+		expect(selected).toHaveLength(3);
+		expect(selected.every((m) => m.close_time === ladder[0]?.close_time)).toBe(
+			true,
 		);
-		expect(selected).toBeNull();
+	});
+
+	it("returns an empty array when nothing falls within the horizon window", () => {
+		const selected = selectMarketsAtHorizon(ladder, {
+			nowMs: now.getTime(),
+			targetHorizonHours: 24,
+			maxHorizonHours: 1,
+		});
+		expect(selected).toEqual([]);
+	});
+});
+
+describe("buildKalshiLadderRungs", () => {
+	it("drops markets without a usable strike or price", () => {
+		const rungs = buildKalshiLadderRungs([
+			ladder[1] as KalshiMarket,
+			{
+				...numericMarket,
+				floor_strike: null,
+				cap_strike: null,
+				ticker: "KXBTCD-26JUN16-NOSTRIKE",
+			},
+		]);
+		expect(rungs).toHaveLength(1);
 	});
 });

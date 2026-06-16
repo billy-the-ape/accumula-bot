@@ -75,6 +75,7 @@ describe("collectPredictionSignals", () => {
 			fetchKalshiSignal,
 			fetchPolymarketSignal,
 			now,
+			spotPrices: { BTC: 64_000, ETH: 3_000, SOL: 150 },
 		});
 
 		// BTC from both venues; ETH kalshi threw (→ dropped), ETH poly null; SOL unmapped
@@ -91,7 +92,7 @@ describe("collectPredictionSignals", () => {
 		expect(fetchPolymarketSignal.mock.calls[0]?.[1].now).toBe(now);
 	});
 
-	it("threads per-asset spot price into both venues for ATM selection", async () => {
+	it("threads per-asset spot price and scoring config into both venues", async () => {
 		const fetchKalshiSignal = vi.fn(
 			async (
 				_options: KalshiClientOptions,
@@ -105,7 +106,8 @@ describe("collectPredictionSignals", () => {
 			): Promise<PredictionSignal | null> => null,
 		);
 
-		await collectPredictionSignals(makeConfig(), [getCryptocurrency("BTC")], {
+		const config = makeConfig();
+		await collectPredictionSignals(config, [getCryptocurrency("BTC")], {
 			fetchKalshiSignal,
 			fetchPolymarketSignal,
 			now,
@@ -113,11 +115,31 @@ describe("collectPredictionSignals", () => {
 		});
 
 		expect(fetchKalshiSignal.mock.calls[0]?.[1].spotPriceUsd).toBe(64_000);
+		expect(fetchKalshiSignal.mock.calls[0]?.[1].scoring).toEqual(
+			config.predictionMarkets.scoring,
+		);
 		expect(fetchPolymarketSignal.mock.calls[0]?.[1].spotPriceUsd).toBe(64_000);
+		expect(fetchPolymarketSignal.mock.calls[0]?.[1].scoring).toEqual(
+			config.predictionMarkets.scoring,
+		);
 		expect(fetchPolymarketSignal.mock.calls[0]?.[1].event).toEqual({
 			tagSlug: "crypto",
 			titlePrefix: "bitcoin above",
 		});
+	});
+
+	it("skips mapped assets when spot is unavailable", async () => {
+		const fetchKalshiSignal = vi.fn();
+		const fetchPolymarketSignal = vi.fn();
+
+		await collectPredictionSignals(makeConfig(), [getCryptocurrency("BTC")], {
+			fetchKalshiSignal,
+			fetchPolymarketSignal,
+			now,
+		});
+
+		expect(fetchKalshiSignal).not.toHaveBeenCalled();
+		expect(fetchPolymarketSignal).not.toHaveBeenCalled();
 	});
 
 	it("returns an empty array when no assets are mapped", async () => {

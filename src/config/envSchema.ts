@@ -17,6 +17,10 @@ const DEFAULT_KALSHI_BASE_URL = "https://external-api.kalshi.com/trade-api/v2";
 const DEFAULT_POLYMARKET_GAMMA_BASE_URL = "https://gamma-api.polymarket.com";
 const DEFAULT_POLYMARKET_CLOB_BASE_URL = "https://clob.polymarket.com";
 const DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS = 24;
+const DEFAULT_PREDICTION_MARKETS_NORMALIZATION_BAND_PCT = 0.05;
+const DEFAULT_PREDICTION_MARKETS_MAX_RUNGS = 6;
+const DEFAULT_PREDICTION_MARKETS_MIN_RUNGS = 3;
+const DEFAULT_PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD = 1_000;
 
 const DEFAULT_BUY_MIN_DIRECTION_SCORE = 7.2;
 const DEFAULT_SELL_MAX_DIRECTION_SCORE = 3.6;
@@ -97,6 +101,25 @@ export const RawEnvSchema = z
 			.number()
 			.positive()
 			.default(DEFAULT_PREDICTION_MARKETS_HORIZON_HOURS),
+		PREDICTION_MARKETS_NORMALIZATION_BAND_PCT: z.coerce
+			.number()
+			.positive()
+			.max(1)
+			.default(DEFAULT_PREDICTION_MARKETS_NORMALIZATION_BAND_PCT),
+		PREDICTION_MARKETS_MAX_RUNGS: z.coerce
+			.number()
+			.int()
+			.min(2)
+			.default(DEFAULT_PREDICTION_MARKETS_MAX_RUNGS),
+		PREDICTION_MARKETS_MIN_RUNGS: z.coerce
+			.number()
+			.int()
+			.min(2)
+			.default(DEFAULT_PREDICTION_MARKETS_MIN_RUNGS),
+		PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD: z.coerce
+			.number()
+			.nonnegative()
+			.default(DEFAULT_PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD),
 
 		SOCIAL_MEDIA_ENABLED: z
 			.string()
@@ -162,6 +185,12 @@ export const RawEnvSchema = z
 			polymarketGammaBaseUrl: env.POLYMARKET_GAMMA_BASE_URL,
 			polymarketClobBaseUrl: env.POLYMARKET_CLOB_BASE_URL,
 			targetHorizonHours: env.PREDICTION_MARKETS_HORIZON_HOURS,
+			scoring: {
+				normalizationBandPct: env.PREDICTION_MARKETS_NORMALIZATION_BAND_PCT,
+				maxRungs: env.PREDICTION_MARKETS_MAX_RUNGS,
+				minRungs: env.PREDICTION_MARKETS_MIN_RUNGS,
+				minRungLiquidityUsd: env.PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD,
+			},
 		},
 		outlookThresholds: {
 			buyMinDirectionScore: env.BUY_MIN_DIRECTION_SCORE,

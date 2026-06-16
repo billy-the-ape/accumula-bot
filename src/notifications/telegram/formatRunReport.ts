@@ -3,6 +3,7 @@ import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
+import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/formatPredictionSignals.js";
 
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
 
@@ -107,23 +108,12 @@ function truncate(value: string): string {
 
 function formatOutlookBlock(
 	outlook: AssetOutlook,
-	predictionSignals: readonly PredictionSignal[],
 	outlookThresholds: OutlookThresholds,
 ): string[] {
 	const asset = escapeHtml(outlook.asset);
 	const lines = [
 		`<b>· ${asset}:</b> ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} (${outlook.direction_score}/10 · Confidence ${formatPercent(outlook.confidence)})`,
 	];
-
-	const predictions = predictionSignals
-		.filter((signal) => signal.asset === outlook.asset)
-		.map(
-			(signal) =>
-				`${escapeHtml(signal.source)} ${signal.impliedUpProbability.toFixed(2)}`,
-		);
-	if (predictions.length > 0) {
-		lines.push(`  Pred markets: ${predictions.join(" · ")}`);
-	}
 
 	if (outlook.reason) {
 		lines.push(`  Reasoning: ${escapeHtml(truncate(outlook.reason))}`);
@@ -163,7 +153,7 @@ export function formatRunReport(input: RunReportInput): string {
 		input.predictionSignals.length > 0
 			? input.predictionSignals
 					.map((signal) => {
-						return `  ${signal.asset}|${signal.source.toUpperCase().slice(0, 5)}: ${signal.impliedUpProbability.toFixed(2)} ${signal.impliedUpProbability >= 0.5 ? "📈" : "📉"}`;
+						return `  ${signal.asset}|${signal.source.toUpperCase().slice(0, 5)}: ${formatPredictionSignalDisplay(signal)}`;
 					})
 					.join("\n")
 			: "<i>None</i>";
@@ -186,11 +176,7 @@ export function formatRunReport(input: RunReportInput): string {
 		"",
 		"<u>Outlooks:</u>",
 		...input.outlooks.flatMap((outlook) =>
-			formatOutlookBlock(
-				outlook,
-				input.predictionSignals,
-				input.outlookThresholds,
-			),
+			formatOutlookBlock(outlook, input.outlookThresholds),
 		),
 	];
 

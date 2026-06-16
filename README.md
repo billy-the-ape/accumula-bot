@@ -624,10 +624,10 @@ Possible additions:
 
 ## Prediction Markets — **implemented** (off by default)
 
-* Polymarket (Gamma + CLOB public APIs, no auth)
+* Polymarket (Gamma public API for discovery + bulk prices, no auth)
 * Kalshi (`trade-api/v2` public market data, no auth)
 
-Read-only — implied up-probabilities used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets. See [Prediction Markets](#prediction-markets) for config and the at-the-money selection it uses.
+Read-only — directional scores from implied price distributions used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets. See [Prediction Markets](#prediction-markets) for config and how the score is derived.
 
 ## Sentiment
 
@@ -690,19 +690,25 @@ New sources slot in via `DEFAULT_ANALYSIS_DATA_SOURCES` without changing the pro
 
 # Prediction Markets
 
-A read-only data source (`src/sources/prediction_markets/`, surfaced via `predictionMarketSource` in `DEFAULT_ANALYSIS_DATA_SOURCES`) that adds an **implied up-probability** per asset to the LLM context from [Kalshi](https://kalshi.com) and [Polymarket](https://polymarket.com). The bot does **not** trade on these markets — it is signal only, and the deterministic risk engine still has final authority.
+A read-only data source (`src/sources/prediction_markets/`, surfaced via `predictionMarketSource` in `DEFAULT_ANALYSIS_DATA_SOURCES`) that adds a **directional score** per asset to the LLM context from [Kalshi](https://kalshi.com) and [Polymarket](https://polymarket.com). The score is stored in `impliedUpProbability` (historical field name) but represents a normalized bullish/bearish read in `[0,1]` with **0.5 = neutral**, not a literal P(up). The bot does **not** trade on these markets — it is signal only, and the deterministic risk engine still has final authority.
 
 **Off by default.** Set `PREDICTION_MARKETS_ENABLED=true` to include the section.
 
-## At-the-money selection
+## Implied-distribution scoring
 
-Both venues list **"≥ strike" threshold ladders** (e.g. *"Will Bitcoin be above $66,000 on June 16?"*), not direct up/down markets. Reading an arbitrary rung gives a probability pinned near 1¢/99¢, which is meaningless as a direction signal. Instead, for each asset the source:
+Both venues list **"≥ strike" threshold ladders** (e.g. *"Will Bitcoin be above $66,000 on June 16?"*), not direct up/down markets. Each rung is a cumulative probability `P(price > strike)`. Reading a single rung pins near 1¢/99¢ when spot sits just off a coarse strike — useless as a direction signal.
 
-1. Fetches the live spot price (CoinGecko — uses `COINGECKO_BASE_URL`).
-2. Picks the rung whose **strike is closest to spot** (the at-the-money rung), within the target horizon window.
-3. Uses that rung's YES price as `impliedUpProbability` ≈ P(price ends higher than now).
+Instead, for each asset the source (`src/sources/prediction_markets/impliedDistribution.ts`):
 
-Spot is used **only** for rung selection — it is never fed to the model, so it does not editorialize the context. If spot can't be fetched, selection degrades gracefully to the market nearest the target horizon.
+1. Fetches the live **spot price** (CoinGecko — uses `COINGECKO_BASE_URL`). **Spot is required**; without it the venue emits no signal.
+2. Selects the expiry nearest the target horizon (`PREDICTION_MARKETS_HORIZON_HOURS`), then takes up to **6 rungs closest to spot** (above and below) that pass a liquidity floor.
+3. Converts the ladder into bucket masses: `P(price ∈ [Xᵢ, Xᵢ₊₁]) ≈ P(>Xᵢ) − P(>Xᵢ₊₁)` (negative masses from bid/ask noise are clamped to 0).
+4. Finds the **mode bucket** — the interval with the highest mass (the market's most likely landing zone).
+5. Maps the mode bucket's **midpoint** vs spot to a directional score: `(modeMidpoint − spot) / spot` linearly scaled so **±5%** maps to **0.0 / 1.0**, clamped, with **0.5 at spot**.
+
+Requires at least **3 rungs** with usable strikes and probabilities; otherwise no signal. Kalshi prices come from YES bid/ask midpoints; Polymarket uses bulk Gamma `outcomePrices` (one API call per event, no per-rung CLOB calls).
+
+The LLM prompt and Telegram report include the score plus optional debug fields when available: mode strike, spot, and mode-bucket probability (`directional_score`, `mode_strike_usd`, `spot_usd`, `mode_bucket_probability`).
 
 Discovery: Kalshi daily series (`KXBTCD` / `KXETHD` / `KXSOLD`); Polymarket via Gamma `/events` (tag `crypto`, ordered by 24h volume) matching the daily ladder title `"<Asset> above ___ on <date>?"`. Assets without a mapping (`marketMap.ts`) — or venues that return no open market — are reported as *"no signal available"* rather than blocking the run.
 
@@ -711,10 +717,14 @@ Discovery: Kalshi daily series (`KXBTCD` / `KXETHD` / `KXSOLD`); Polymarket via 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PREDICTION_MARKETS_ENABLED` | No | `false` | Set `true`/`1` to add the prediction-market section |
-| `PREDICTION_MARKETS_HORIZON_HOURS` | No | `24` | Target signal horizon used for rung/expiry selection |
+| `PREDICTION_MARKETS_HORIZON_HOURS` | No | `24` | Target signal horizon used for expiry selection |
+| `PREDICTION_MARKETS_NORMALIZATION_BAND_PCT` | No | `0.05` | Spot-relative band (±5%) mapped to score 0.0 / 1.0 |
+| `PREDICTION_MARKETS_MAX_RUNGS` | No | `6` | Max ladder rungs nearest spot used to build the distribution |
+| `PREDICTION_MARKETS_MIN_RUNGS` | No | `3` | Minimum rungs required to emit a signal |
+| `PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD` | No | `1000` | Liquidity floor per rung (USD); falls back to all usable rungs if too few clear it |
 | `KALSHI_BASE_URL` | No | `https://external-api.kalshi.com/trade-api/v2` | Kalshi public market-data base URL |
-| `POLYMARKET_GAMMA_BASE_URL` | No | `https://gamma-api.polymarket.com` | Polymarket Gamma (discovery) base URL |
-| `POLYMARKET_CLOB_BASE_URL` | No | `https://clob.polymarket.com` | Polymarket CLOB (live midpoint) base URL |
+| `POLYMARKET_GAMMA_BASE_URL` | No | `https://gamma-api.polymarket.com` | Polymarket Gamma (discovery + bulk prices) base URL |
+| `POLYMARKET_CLOB_BASE_URL` | No | `https://clob.polymarket.com` | Retained in config; scoring uses Gamma bulk prices, not CLOB midpoints |
 
 ---
 
