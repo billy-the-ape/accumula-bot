@@ -6,6 +6,7 @@ import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/formatPredictionSignals.js";
 import { resolveSocialMediaSignalForTopPost } from "@/sources/social_media/resolveSocialMediaSignal.js";
+import type { StoredPortfolio } from "@/storage";
 
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
 
@@ -27,7 +28,8 @@ export type RunReportInput = {
 	/** Stage 1 social analysis when available (undefined on fallback/disabled). */
 	socialMediaAnalysis?: SocialMediaAnalysis;
 	accumulateSymbol: string;
-	portfolio?: {
+	portfolio?: StoredPortfolio;
+	portfolioReport?: {
 		btcValue: number;
 		returnPct: number;
 	};
@@ -59,7 +61,9 @@ function formatUsd(value: number): string {
 }
 
 function formatQuantity(value: number): string {
-	return value.toLocaleString("en-US", { maximumFractionDigits: 8 });
+	return value
+		.toLocaleString("en-US", { maximumFractionDigits: 8 })
+		.replace(/0+$/, "");
 }
 
 function formatPercent(fraction: number): string {
@@ -164,7 +168,7 @@ function formatSocialMediaAnalysisSection(
 	);
 
 	if (sortedTopPosts.length > 0) {
-		lines.push("  <u>Top posts:</u>");
+		lines.push("  <u>Most Relevant Posts:</u>");
 		for (const topPost of sortedTopPosts) {
 			const signal = resolveSocialMediaSignalForTopPost(topPost, signals);
 			const username = signal?.username ?? topPost.username;
@@ -263,11 +267,24 @@ export function formatRunReport(input: RunReportInput): string {
 	);
 
 	if (input.portfolio) {
-		const { btcValue, returnPct } = input.portfolio;
+		const { holdings } = input.portfolio;
 		lines.push(
 			"",
-			`<u><b>Accumulated:</b></u>`,
-			`${btcValue.toFixed(8).replace(/0+$/, "")} ${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
+			`<u><b>Current Portfolio:</b></u>`,
+			`${Object.entries(holdings)
+				.sort(([left], [right]) => left.localeCompare(right))
+				.map(([symbol, quantity]) => `${symbol}: ${formatQuantity(quantity)}`)
+				.join("\n")}`,
+		);
+	}
+
+	if (input.portfolioReport) {
+		const { btcValue, returnPct } = input.portfolioReport;
+		lines.push(
+			"",
+			`<u><b>Accumulated Value:</b></u>`,
+			`${btcValue.toFixed(8).replace(/0+$/, "")} ${input.accumulateSymbol} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial ${input.accumulateSymbol} baseline)`,
+			`<i>In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnPct.toFixed(2)} ${returnPct >= 0 ? "less" : "more"} ${input.accumulateSymbol} than you do now</i>`,
 		);
 	}
 

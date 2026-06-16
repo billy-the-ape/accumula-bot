@@ -9,14 +9,14 @@ module.exports = {
 			args: "--env-file=.env src/index.ts",
 			interpreter: "bash",
 			autorestart: false,
-			// 06:00, 14:00, and 22:00 in the server's local timezone
-			cron_restart: "0 6,14,22 * * *",
+			// run every hour
+			cron_restart: "0 * * * *",
 			time: true,
 			out_file: "logs/accumula-out.log",
 			error_file: "logs/accumula-error.log",
 			merge_logs: true,
 		},
-		{
+		/* {
 			name: "accumula-bot-telegram",
 			cwd: __dirname,
 			script: "node_modules/.bin/tsx",
@@ -28,6 +28,6 @@ module.exports = {
 			out_file: "logs/accumula-telegram-out.log",
 			error_file: "logs/accumula-telegram-error.log",
 			merge_logs: true,
-		},
+		}, */
 	],
 };

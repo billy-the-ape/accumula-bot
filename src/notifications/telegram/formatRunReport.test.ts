@@ -120,7 +120,7 @@ function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 		predictionSignals: [],
 		socialMediaSignals: [],
 		accumulateSymbol: "BTC",
-		portfolio: { btcValue: 0.105, returnPct: 2.5 },
+		portfolioReport: { btcValue: 0.105, returnPct: 2.5 },
 		outlookThresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 		...overrides,
 	};
@@ -137,10 +137,11 @@ describe("formatRunReport", () => {
 		expect(message).toContain("8/10");
 		expect(message).toContain("72%");
 		expect(message).toContain("Strong relative momentum");
-		expect(message).toContain("<u>Trades:</u>");
+		expect(message).toContain("Trades:");
 		expect(message).toContain("BUY 0.01 BTC");
-		expect(message).toContain("0.105");
-		expect(message).toContain("BTC (+2.50% all-time vs initial baseline)");
+		expect(message).toContain(
+			"0.105 BTC (+2.50% all-time vs initial BTC baseline)",
+		);
 	});
 
 	it("renders a hold run with no trades section", () => {
@@ -196,7 +197,7 @@ describe("formatRunReport", () => {
 
 	it("omits the portfolio line when no portfolio is provided", () => {
 		const input = baseInput();
-		delete input.portfolio;
+		delete input.portfolioReport;
 		const message = formatRunReport(input);
 
 		expect(message).not.toContain("Accumulated:");
@@ -221,9 +222,9 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("Retrieved: 12 · Relevant: 2");
+		expect(message).toContain("Analyzed 12 posts, 2 relevant");
 		expect(message).toContain("whale flow, macro");
-		expect(message).toContain("Top posts:");
+		expect(message).toContain("Most Relevant Posts:");
 		expect(message).toContain(
 			'1. <b><a href="https://x.com/whale_alert/status/111">From whale_alert</a></b> — Exchange inflow is the clearest near-term sell-pressure signal.',
 		);
@@ -231,10 +232,10 @@ describe("formatRunReport", () => {
 			'2. <b><a href="https://x.com/macro_news/status/222">From macro_news</a></b> — Macro tone may cap upside.',
 		);
 		expect(message).toContain(
-			"BTC: mixed — Whale deposit offset by steady ETF inflows.",
+			"<b>BTC:</b> mixed — Whale deposit offset by steady ETF inflows.",
 		);
 		expect(message).toContain(
-			"ETH: bullish — Layer-2 activity picked up overnight.",
+			"<b>ETH:</b> bullish — Layer-2 activity picked up overnight.",
 		);
 	});
 
@@ -250,7 +251,7 @@ describe("formatRunReport", () => {
 	it("shows None when social media is absent", () => {
 		const message = formatRunReport(baseInput());
 
-		expect(message).toContain("<u>News & social signals:</u>");
+		expect(message).toContain("News & Social Media:");
 		expect(message).toContain("<i>None</i>");
 	});
 });

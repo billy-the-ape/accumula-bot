@@ -221,10 +221,11 @@ async function main() {
 			}
 
 			// Always notify on a completed run — executed, blocked, or hold.
-			if (config.telegram) {
+			if (portfolio && config.telegram) {
 				try {
 					await notifyRun(config.telegram, {
 						outcome,
+						portfolio,
 						headline: recommendationSummary.headline,
 						averageConfidence: recommendationSummary.averageConfidence,
 						outlooks: recommendation.outlooks,
@@ -236,7 +237,7 @@ async function main() {
 						...(socialMediaAnalysis ? { socialMediaAnalysis } : {}),
 						accumulateSymbol: config.assetToAccumulate.symbol,
 						outlookThresholds: config.outlookThresholds,
-						...(portfolioReport ? { portfolio: portfolioReport } : {}),
+						...(portfolioReport ? { portfolioResults: portfolioReport } : {}),
 					});
 
 					console.info("Telegram run report sent");

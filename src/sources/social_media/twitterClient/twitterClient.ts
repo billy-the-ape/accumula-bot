@@ -2,7 +2,7 @@ import { promises } from "node:fs";
 import { loadConfig } from "@/config";
 import { sendAndConsumeAmqp } from "@/sources/social_media/twitterClient/amqpProducer.js";
 import type { TweetForDb } from "@/sources/social_media/twitterClient/types.js";
-import { sleep } from "@/utils";
+import { DAY_MS, sleep } from "@/utils";
 
 export interface GetSearchScrapeResult {
 	success: boolean;
@@ -24,21 +24,49 @@ export const getSearchScrape = async (
 	});
 };
 
+const BUSINESS_NEWS_ACCOUNTS = [
+	"DeItaone",
+	"financialjuice",
+	"ReutersBiz",
+	"CNBC",
+	"WSJ",
+	"FT",
+	"NYTimes",
+];
+
+const CRYPTO_ACCOUNTS = [
+	"unusual_whales",
+	"whale_alert",
+	"MessariCrypto",
+	"WatcherGuru",
+	"BloombergCrypto",
+	"CoinDesk",
+	"Cointelegraph",
+	"coinbureau",
+	"tier10k",
+	"TheBlockCo",
+	"DefiIgnas",
+];
+
+const MACRO_ACCOUNTS = ["LynAldenContact", "TheMarketEar", "KobeissiLetter"];
+
+const GOVERNMENT_ACCOUNTS = ["SECGov", "federalreserve", "CFTC"];
+
+export const TWITTER_ACCOUNTS_TAG_MAP = {
+	business: BUSINESS_NEWS_ACCOUNTS,
+	crypto: CRYPTO_ACCOUNTS,
+	macro: MACRO_ACCOUNTS,
+	government: GOVERNMENT_ACCOUNTS,
+};
+
 // Ideally these accounts are posting market news without any bias
 const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
-	"from:unusual_whales",
-	"from:whale_alert",
-	"from:MessariCrypto",
-	"from:WatcherGuru",
-	"from:CoinDesk",
-	"from:Cointelegraph",
-	"from:coinbureau",
-	"from:CNBC",
-	"from:BloombergCrypto",
-	"from:WSJ",
-	"from:FT",
-	"from:NYTimes",
-	"from:TheBlockCo",
+	...[
+		...BUSINESS_NEWS_ACCOUNTS,
+		...CRYPTO_ACCOUNTS,
+		...MACRO_ACCOUNTS,
+		...GOVERNMENT_ACCOUNTS,
+	].map((account) => `from:${account}`),
 ].join(" OR ")})`;
 
 const DEFAULT_SEARCH_STRING = [
@@ -77,8 +105,7 @@ export const getTwitterSearchResult = async ({
 		return [];
 	}
 
-	const earliestDateMs =
-		earliestDate?.getTime() ?? Date.now() - 1000 * 60 * 60 * 24; // 24 hours ago
+	const earliestDateMs = earliestDate?.getTime() ?? Date.now() - DAY_MS; // 24 hours ago
 
 	let searchString = searchStringFromProps;
 	let pagesToScrape = pagesToScrapeFromProps;
