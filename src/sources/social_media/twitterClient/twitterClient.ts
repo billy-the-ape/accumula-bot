@@ -69,6 +69,19 @@ export const getTwitterSearchResult = async ({
 			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages;
 	}
 
+	console.info(
+		"Social media - Twitter search: ",
+		`${searchString?.slice(0, 20)}...`,
+	);
+	console.info(
+		"Social media - Twitter search: ",
+		`pagesToScrape: ${pagesToScrape}`,
+	);
+	console.info(
+		"Social media - Twitter search: ",
+		`earliestDate: ${new Date(earliestDateMs).toISOString()}`,
+	);
+
 	const result = await getSearchScrape(
 		searchString || DEFAULT_SEARCH_STRING,
 		pagesToScrape || 10,
@@ -79,9 +92,18 @@ export const getTwitterSearchResult = async ({
 		JSON.stringify(result, null, 2),
 	);
 
-	return (
+	const filteredResult =
 		result.data?.results?.filter(
 			(tweet) => tweet.tweetedDate >= earliestDateMs,
-		) ?? []
+		) ?? [];
+
+	console.info(
+		"Social media - Twitter search: ",
+		result.success
+			? "Success"
+			: `Failure - ${result.message ?? "Unknown reason"}`,
+		`Result count: ${filteredResult.length}`,
 	);
+
+	return filteredResult;
 };

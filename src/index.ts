@@ -79,12 +79,6 @@ async function main() {
 
 	if (config.socialMedia.enabled) {
 		console.info("Social media: enabled");
-		console.info(
-			`Social media: Twitter search string: ${config.socialMedia.twitterConfig.searchString}`,
-		);
-		console.info(
-			`Social media: Twitter search max pages: ${config.socialMedia.twitterConfig.searchMaxPages}`,
-		);
 	} else {
 		console.info("Social media: disabled");
 	}
