@@ -147,12 +147,16 @@ function formatSocialMediaAnalysisSection(
 	signals: readonly SocialMediaSignal[],
 ): string {
 	const lines: string[] = [
-		`  Retrieved: ${analysis.total_retrieved} · Relevant: ${analysis.relevant_count}`,
+		`  Posts: ${analysis.total_retrieved} · Relevant: ${analysis.relevant_count}`,
 		"",
 	];
 
 	if (analysis.themes.length > 0) {
-		lines.push(`  <b>Themes:</b>`, escapeHtml(analysis.themes.join(", ")), "");
+		lines.push(
+			`  <u>Themes:</u>`,
+			`    ${escapeHtml(analysis.themes.join(", "))}`,
+			"",
+		);
 	}
 
 	const sortedTopPosts = [...analysis.top_posts].sort(
@@ -179,7 +183,7 @@ function formatSocialMediaAnalysisSection(
 		lines.push("  <u>Sentiments:</u>");
 		for (const entry of analysis.by_asset) {
 			lines.push(
-				`  <b>${escapeHtml(entry.asset)}:</b> ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
+				`    <b>${escapeHtml(entry.asset)}:</b> ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
 			);
 		}
 		lines.push("");
