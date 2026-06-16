@@ -5,9 +5,15 @@ import {
 } from "@/domain/allocation.js";
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
 import {
+	computeBuyScore,
+	passesStableTierGate,
+	purchaseFractionFromScore,
+} from "@/execution/buySizing.js";
+import {
 	deriveAssetActions,
 	type OutlookThresholds,
 } from "@/execution/outlookActions.js";
+import type { RiskLimits } from "@/risk/riskLimits.js";
 import type { TradeSide } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
@@ -26,6 +32,7 @@ export type PlanTradesInput = {
 	maxPurchaseFraction: number;
 	maxPositionFraction: number;
 	thresholds: OutlookThresholds;
+	riskLimits: RiskLimits;
 };
 
 export type PlanTradesResult = {
@@ -93,26 +100,47 @@ function planAssetBuy(
 	prices: PriceMap,
 	symbol: string,
 	cashSymbol: string,
+	outlook: AssetOutlook,
+	thresholds: OutlookThresholds,
 	maxPurchaseFraction: number,
 	maxPositionFraction: number,
-): PlannedFill | undefined {
+	riskLimits: RiskLimits,
+): PlannedFill | { continue: boolean; reason: string } {
 	const totalValue = getTotalPortfolioQuoteValue(holdings, prices);
 	if (totalValue <= 0) {
-		return undefined;
+		return { continue: false, reason: "No portfolio value" };
 	}
 
+	const cashAvailable = holdings[cashSymbol] ?? 0;
+	if (cashAvailable <= 0) {
+		return { continue: false, reason: "No cash available" };
+	}
+
+	const stablePct = cashAvailable / totalValue;
+	if (!passesStableTierGate(outlook, stablePct, riskLimits.confidenceTiers)) {
+		return { continue: true, reason: "Stable allocation too low" };
+	}
+
+	const score = computeBuyScore(outlook, thresholds);
+	if (score <= 0) {
+		return { continue: true, reason: "Buy score too low" };
+	}
+
+	const purchaseFraction = purchaseFractionFromScore(score, riskLimits);
 	const currentValue = getHoldingQuoteValue(holdings, symbol, prices);
 	const roomToCap = totalValue * maxPositionFraction - currentValue;
 	const maxPurchaseValue = totalValue * maxPurchaseFraction;
-	const cashAvailable = holdings[cashSymbol] ?? 0;
 	const buyValue = Math.min(
 		Math.max(0, roomToCap),
 		maxPurchaseValue,
+		cashAvailable * purchaseFraction,
 		cashAvailable,
+		riskLimits.minUsdPurchase,
 	);
 
-	if (buyValue <= 0) {
-		return undefined;
+	if (buyValue <= cashAvailable) {
+		// not enough cash to buy even the minimum purchase value. do nothing.
+		return { continue: false, reason: "Not enough cash to buy" };
 	}
 
 	const priceUsd = requirePrice(prices, symbol);
@@ -161,9 +189,11 @@ export function planTrades(input: PlanTradesInput): PlanTradesResult {
 		maxPurchaseFraction,
 		maxPositionFraction,
 		thresholds,
+		riskLimits,
 	} = input;
 
 	const actions = deriveAssetActions(outlooks, thresholds);
+	const outlookByAsset = new Map(outlooks.map((item) => [item.asset, item]));
 	const fills: PlannedFill[] = [];
 	let simulated = holdings;
 
@@ -195,14 +225,35 @@ export function planTrades(input: PlanTradesInput): PlanTradesResult {
 			simulated = applyFillToHoldings(simulated, trimOverCap, cashSymbol);
 		}
 
+		const assetOutlook = outlookByAsset.get(symbol);
+		if (!assetOutlook) {
+			continue;
+		}
+
 		const buy = planAssetBuy(
 			simulated,
 			prices,
 			symbol,
 			cashSymbol,
+			assetOutlook,
+			thresholds,
 			maxPurchaseFraction,
 			maxPositionFraction,
+			riskLimits,
 		);
+
+		if ("continue" in buy) {
+			if (buy.continue === false) {
+				// out of money to buy even the minimum purchase value. do nothing.
+				return {
+					fills,
+					holdReason: buy.reason,
+				};
+			} else {
+				continue;
+			}
+		}
+
 		if (buy) {
 			fills.push(buy);
 			simulated = applyFillToHoldings(simulated, buy, cashSymbol);

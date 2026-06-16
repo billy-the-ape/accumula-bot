@@ -16,9 +16,11 @@ const DEFAULT_OUTLOOK_THRESHOLDS = {
 	minConfidence: 0.6,
 } as const;
 
-const defaultLimits = {
+const defaultPlanInput = {
 	maxPurchaseFraction: DEFAULT_RISK_LIMITS.maxAllocationPerPurchase,
 	maxPositionFraction: DEFAULT_RISK_LIMITS.maxAllocationPerAsset,
+	thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
+	riskLimits: DEFAULT_RISK_LIMITS,
 };
 
 function outlook(
@@ -33,6 +35,24 @@ function outlook(
 	};
 }
 
+function expectedBuyQuantity(
+	cashAvailable: number,
+	directionScore: number,
+	confidence: number,
+	priceUsd: number,
+): number {
+	const directionStrength =
+		(directionScore - DEFAULT_OUTLOOK_THRESHOLDS.buyMinDirectionScore) /
+		(10 - DEFAULT_OUTLOOK_THRESHOLDS.buyMinDirectionScore);
+	const score = confidence * directionStrength;
+	const purchaseFraction =
+		DEFAULT_RISK_LIMITS.minPurchaseFractionOfCash +
+		score *
+			(DEFAULT_RISK_LIMITS.maxPurchaseFractionOfCash -
+				DEFAULT_RISK_LIMITS.minPurchaseFractionOfCash);
+	return (cashAvailable * purchaseFraction) / priceUsd;
+}
+
 describe("planTrades", () => {
 	it("sells bearish-held assets without touching unrelated positions", () => {
 		const result = planTrades({
@@ -44,8 +64,7 @@ describe("planTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills).toEqual([
@@ -53,7 +72,7 @@ describe("planTrades", () => {
 		]);
 	});
 
-	it("buys bullish assets up to the per-purchase cap", () => {
+	it("buys bullish assets using a conviction-scaled fraction of remaining cash", () => {
 		const result = planTrades({
 			holdings: { USDC: 10_000 },
 			prices,
@@ -63,15 +82,14 @@ describe("planTrades", () => {
 				outlook("SOL", 4, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills).toEqual([
 			{
 				side: "buy",
 				symbol: "BTC",
-				quantity: 1500 / 100_000,
+				quantity: expectedBuyQuantity(10_000, 8, 0.75, 100_000),
 				priceUsd: 100_000,
 			},
 		]);
@@ -87,8 +105,7 @@ describe("planTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills[0]).toEqual({
@@ -100,7 +117,7 @@ describe("planTrades", () => {
 		expect(result.fills[1]).toEqual({
 			side: "buy",
 			symbol: "SOL",
-			quantity: 1500 / 150,
+			quantity: expectedBuyQuantity(8_500, 8, 0.75, 150),
 			priceUsd: 150,
 		});
 	});
@@ -115,8 +132,7 @@ describe("planTrades", () => {
 				outlook("BTC", 5, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills).toEqual([]);
@@ -133,15 +149,14 @@ describe("planTrades", () => {
 				outlook("SOL", 5, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills).toEqual([
 			{
 				side: "buy",
 				symbol: "ETH",
-				quantity: 1500 / 3_000,
+				quantity: expectedBuyQuantity(8_500, 8, 0.75, 3_000),
 				priceUsd: 3_000,
 			},
 		]);
@@ -157,11 +172,81 @@ describe("planTrades", () => {
 				outlook("SOL", 5, 0.9),
 			],
 			cashSymbol: "USDC",
-			thresholds: DEFAULT_OUTLOOK_THRESHOLDS,
-			...defaultLimits,
+			...defaultPlanInput,
 		});
 
 		expect(result.fills).toEqual([]);
 		expect(result.holdReason).toMatch(/no outlook-driven trades/i);
+	});
+
+	it("sizes larger buys for stronger conviction than weaker conviction", () => {
+		const strong = planTrades({
+			holdings: { USDC: 10_000 },
+			prices,
+			outlooks: [
+				outlook("BTC", 10, 1),
+				outlook("ETH", 5, 0.9),
+				outlook("SOL", 5, 0.9),
+			],
+			cashSymbol: "USDC",
+			...defaultPlanInput,
+		});
+		const weak = planTrades({
+			holdings: { USDC: 10_000 },
+			prices,
+			outlooks: [
+				outlook("BTC", 8, 0.75),
+				outlook("ETH", 5, 0.9),
+				outlook("SOL", 5, 0.9),
+			],
+			cashSymbol: "USDC",
+			...defaultPlanInput,
+		});
+
+		const strongBuy = strong.fills.find((fill) => fill.symbol === "BTC");
+		const weakBuy = weak.fills.find((fill) => fill.symbol === "BTC");
+		expect(strongBuy).toBeDefined();
+		expect(weakBuy).toBeDefined();
+		expect(strongBuy?.quantity ?? 0).toBeGreaterThan(weakBuy?.quantity ?? 0);
+	});
+
+	it("blocks buys when stable allocation is low and conviction is insufficient", () => {
+		const result = planTrades({
+			holdings: { USDC: 1_500, ETH: 7000 / 3_000, SOL: 10 },
+			prices,
+			outlooks: [
+				outlook("ETH", 8, 0.75),
+				outlook("SOL", 5, 0.9),
+				outlook("BTC", 5, 0.9),
+			],
+			cashSymbol: "USDC",
+			...defaultPlanInput,
+		});
+
+		expect(result.fills).toEqual([]);
+		expect(result.holdReason).toMatch(/no outlook-driven trades/i);
+	});
+
+	it("allows buys when stable allocation is low but conviction meets the tier", () => {
+		const result = planTrades({
+			holdings: { USDC: 1_500, ETH: 4000 / 3_000, SOL: 10 },
+			prices,
+			outlooks: [
+				outlook("ETH", 9, 0.95),
+				outlook("SOL", 5, 0.9),
+				outlook("BTC", 5, 0.9),
+			],
+			cashSymbol: "USDC",
+			...defaultPlanInput,
+		});
+
+		expect(result.fills).toEqual([
+			{
+				side: "buy",
+				symbol: "ETH",
+				quantity: expectedBuyQuantity(1_500, 9, 0.95, 3_000),
+				priceUsd: 3_000,
+			},
+		]);
 	});
 });

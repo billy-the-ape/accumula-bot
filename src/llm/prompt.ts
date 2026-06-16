@@ -55,7 +55,7 @@ function buildJsonOutputContract(outlookAssets: readonly string[]): string {
 		"",
 		"Required top-level fields:",
 		'- "outlooks": array with exactly one object per asset',
-		'- "summary": optional string',
+		'- "summary": string describing the overall outlook for the portfolio',
 		"",
 		"Required outlook object fields:",
 		'- "asset": one of the requested symbols',

@@ -155,7 +155,7 @@ export function formatRunReport(input: RunReportInput): string {
 	const socialMediaSignalsLines =
 		Object.entries(socialMediaSignalsMap)
 			.map(([source, count]) => {
-				return `  ${source}: ${count}`;
+				return `  ${source.toUpperCase().slice(0, 5)}: ${count} posts`;
 			})
 			.join("\n") || "<i>None</i>";
 
@@ -163,7 +163,7 @@ export function formatRunReport(input: RunReportInput): string {
 		input.predictionSignals.length > 0
 			? input.predictionSignals
 					.map((signal) => {
-						return `  ${signal.source}: ${signal.impliedUpProbability.toFixed(2)} ${signal.impliedUpProbability >= 0.5 ? "📈" : "📉"}`;
+						return `  ${signal.asset}|${signal.source.toUpperCase().slice(0, 5)}: ${signal.impliedUpProbability.toFixed(2)} ${signal.impliedUpProbability >= 0.5 ? "📈" : "📉"}`;
 					})
 					.join("\n")
 			: "<i>None</i>";
@@ -178,10 +178,10 @@ export function formatRunReport(input: RunReportInput): string {
 			)
 			.join(", ")} · avg confidence ${formatPercent(input.averageConfidence)}`,
 		"",
-		"<u>Social media signals:</u>",
+		"<u>News & social signals:</u>",
 		socialMediaSignalsLines,
 		"",
-		"<u>Prediction signals:</u>",
+		"<u>Prediction Market signals:</u>",
 		predictionSignalsLines,
 		"",
 		"<u>Outlooks:</u>",

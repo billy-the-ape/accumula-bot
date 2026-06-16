@@ -2,9 +2,14 @@ import type { Client } from "@libsql/client";
 import { afterEach, describe, expect, it } from "vitest";
 import { loadTestConfig } from "@/config/loadTestConfig.js";
 import {
+	computeBuyScore,
+	purchaseFractionFromScore,
+} from "@/execution/buySizing.js";
+import {
 	createPaperExecutionConfig,
 	PaperExecution,
 } from "@/execution/paperExecution.js";
+import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
 import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
 import { type AppDatabase, createDatabase } from "@/storage/db.js";
 import { findPortfolioById } from "@/storage/repositories/portfolioRepository.js";
@@ -128,9 +133,21 @@ describe("PaperExecution", () => {
 
 		expect(result.executed).toBe(true);
 
+		const ethOutlook = {
+			asset: "ETH",
+			direction_score: 8,
+			confidence: 0.75,
+		};
+		const buyScore = computeBuyScore(ethOutlook, appConfig.outlookThresholds);
+		const purchaseFraction = purchaseFractionFromScore(
+			buyScore,
+			DEFAULT_RISK_LIMITS,
+		);
+		const buyValue = 10_000 * purchaseFraction;
+
 		const portfolio = await findPortfolioById(db, 1);
-		expect(portfolio?.holdings.USDC).toBeCloseTo(8_500, 5);
-		expect(portfolio?.holdings.ETH).toBeCloseTo(1500 / 3_000, 5);
+		expect(portfolio?.holdings.USDC).toBeCloseTo(10_000 - buyValue, 5);
+		expect(portfolio?.holdings.ETH).toBeCloseTo(buyValue / 3_000, 5);
 	});
 
 	it("holds when outlooks do not trigger trades", async () => {

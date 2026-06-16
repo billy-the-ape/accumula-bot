@@ -71,6 +71,7 @@ export class PaperExecution implements ExecutionEngine {
 			maxPurchaseFraction,
 			maxPositionFraction,
 			thresholds: this.config.outlookThresholds,
+			riskLimits: DEFAULT_RISK_LIMITS,
 		});
 
 		if (plan.fills.length === 0) {
