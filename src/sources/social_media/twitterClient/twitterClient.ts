@@ -26,6 +26,7 @@ export const getSearchScrape = async (
 // Ideally these accounts are posting market news without any bias
 const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
 	"from:unusual_whales",
+	"from:whale_alert",
 	"from:MessariCrypto",
 	"from:WatcherGuru",
 	"from:CoinDesk",
@@ -36,6 +37,7 @@ const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
 	"from:WSJ",
 	"from:FT",
 	"from:NYTimes",
+	"from:TheBlockCo",
 ].join(" OR ")})`;
 
 const DEFAULT_SEARCH_STRING = [
