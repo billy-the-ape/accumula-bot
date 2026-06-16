@@ -18,6 +18,12 @@ export {
 	runAnalysis,
 } from "@/llm/analyze.js";
 export {
+	type AnalyzeSocialMediaOptions,
+	type AnalyzeSocialMediaResult,
+	analyzeSocialMedia,
+	type SocialMediaAnalysisMetadata,
+} from "@/llm/analyzeSocialMedia.js";
+export {
 	anthropicProvider,
 	type CompleteJsonChatOptions,
 	completeJsonChat,
@@ -37,9 +43,14 @@ export {
 	ParseResponseError,
 	parseTradeRecommendationJson,
 } from "@/llm/parseResponse.js";
+export { parseSocialMediaAnalysisJson } from "@/llm/parseSocialMediaAnalysis.js";
 export {
 	buildAnalysisPrompt,
 	buildAnalysisPromptParts,
 	buildRepairPromptParts,
 	getAnalyzableAssets,
 } from "@/llm/prompt.js";
+export {
+	buildSocialMediaAnalysisPromptParts,
+	buildSocialMediaRepairPromptParts,
+} from "@/llm/socialMediaPrompt.js";

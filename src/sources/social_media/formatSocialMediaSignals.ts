@@ -6,7 +6,7 @@ export function formatSocialMediaSignals(
 	return signals
 		.map(
 			(signal) =>
-				`Posted by ${signal.source} user @${signal.username} at ${signal.asOf}: ${signal.text}`,
+				`[index=${signal.index}] Posted by @${signal.username} at ${signal.asOf}: ${signal.text}`,
 		)
 		.join("\n");
 }

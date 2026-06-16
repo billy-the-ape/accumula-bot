@@ -1,8 +1,9 @@
-import { getSocialMediaSignalsFromContext } from "@/analysis/getSocialMediaSignals";
 import {
 	buildAnalysisContext,
 	getMarketSnapshotsFromContext,
 	getPredictionSignalsFromContext,
+	getSocialMediaAnalysisFromContext,
+	getSocialMediaSignalsFromContext,
 } from "@/analysis/index.js";
 import { loadConfig } from "@/config/index.js";
 import {
@@ -103,9 +104,29 @@ async function main() {
 		const predictionSignals = getPredictionSignalsFromContext(analysisContext);
 		const socialMediaSignals =
 			getSocialMediaSignalsFromContext(analysisContext);
+		const socialMediaAnalysis =
+			getSocialMediaAnalysisFromContext(analysisContext);
+
+		if (config.socialMedia.enabled) {
+			if (socialMediaAnalysis) {
+				console.info(
+					`Social media: retrieved=${socialMediaAnalysis.total_retrieved} relevant=${socialMediaAnalysis.relevant_count}`,
+				);
+				if (socialMediaAnalysis.themes.length > 0) {
+					console.info(
+						`Social media themes: ${socialMediaAnalysis.themes.join(", ")}`,
+					);
+				}
+			} else if (socialMediaSignals.length > 0) {
+				console.info(
+					`Social media: retrieved=${socialMediaSignals.length} (analysis unavailable)`,
+				);
+			} else {
+				console.info("Social media: no posts retrieved");
+			}
+		}
 
 		const llmStart = Date.now();
-		console.info("Running LLM analysis...");
 
 		const analysis = await runAnalysis(config, analysisContext);
 
@@ -212,6 +233,7 @@ async function main() {
 						executionReason: execution.reason,
 						predictionSignals,
 						socialMediaSignals,
+						...(socialMediaAnalysis ? { socialMediaAnalysis } : {}),
 						accumulateSymbol: config.assetToAccumulate.symbol,
 						outlookThresholds: config.outlookThresholds,
 						...(portfolioReport ? { portfolio: portfolioReport } : {}),

@@ -44,7 +44,7 @@ describe("formatCompactUsd", () => {
 	it("formats large values in k/m suffixes", () => {
 		expect(formatCompactUsd(102_500)).toBe("$102.5k");
 		expect(formatCompactUsd(1_000_000)).toBe("$1.0m");
-		expect(formatCompactUsd(75)).toBe("$75.00");
+		expect(formatCompactUsd(75)).toBe("$75");
 		expect(formatCompactUsd(150)).toBe("$150");
 	});
 });
@@ -52,7 +52,7 @@ describe("formatCompactUsd", () => {
 describe("formatPredictionSignalDisplay", () => {
 	it("includes mode and spot when debug fields are present", () => {
 		expect(formatPredictionSignalDisplay(btcKalshi)).toBe(
-			"0.75 📈 (mode $102.5k vs spot $100.0k)",
+			"0.75 📈 (expects $102.5k vs current $100.0k)",
 		);
 	});
 

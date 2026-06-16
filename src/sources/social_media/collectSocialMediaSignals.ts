@@ -10,13 +10,13 @@ export async function collectSocialMediaSignals(
 		pagesToScrape: config.socialMedia.twitterConfig.searchMaxPages,
 	});
 
-	const signals = tweets.map<SocialMediaSignal>((tweet) => ({
+	return tweets.map<SocialMediaSignal>((tweet) => ({
+		index: tweet.index,
+		id: tweet.id,
 		source: "twitter",
-		username: tweet.user,
+		username: tweet.username,
 		text: tweet.fullText,
 		asOf: new Date(tweet.tweetedDate).toISOString(),
 		impressions: Number(tweet.views?.count ?? 0),
 	}));
-
-	return signals;
 }

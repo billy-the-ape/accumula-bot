@@ -81,6 +81,9 @@ export async function runAnalysis(
 		outlookAssets,
 	};
 	const prompt = buildAnalysisPromptParts(config, context, outlookAssets);
+
+	console.info(`Trade LLM Analysis:  prompt=${prompt.user.length} chars...`);
+
 	const chatOptions = {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	};

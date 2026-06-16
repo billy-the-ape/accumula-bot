@@ -5,6 +5,8 @@ import {
 	type RunReportInput,
 } from "@/notifications/telegram/formatRunReport.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
+import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
@@ -53,9 +55,63 @@ const btcPrediction: PredictionSignal = {
 	modeBucketProbability: 0.42,
 };
 
+const sampleSocialSignal: SocialMediaSignal = {
+	index: 0,
+	id: "111",
+	source: "twitter",
+	username: "whale_alert",
+	text: "Large BTC transfer detected",
+	asOf: "2026-06-16T12:00:00.000Z",
+	impressions: 42_000,
+};
+
+const sampleSocialAnalysis: SocialMediaAnalysis = {
+	total_retrieved: 12,
+	relevant_count: 2,
+	summary: "Whale alert amid macro noise.",
+	themes: ["whale flow", "macro"],
+	by_asset: [
+		{
+			asset: "BTC",
+			sentiment: "mixed",
+			note: "Whale deposit offset by steady ETF inflows.",
+		},
+		{
+			asset: "ETH",
+			sentiment: "bullish",
+			note: "Layer-2 activity picked up overnight.",
+		},
+	],
+	top_posts: [
+		{
+			post_index: 0,
+			id: "twitter:111",
+			username: "whale_alert",
+			rank: 1,
+			relevance: "high",
+			assets: ["BTC"],
+			signal_type: "whale_alert",
+			summary: "Large BTC transfer detected",
+			why: "Exchange inflow is the clearest near-term sell-pressure signal.",
+		},
+		{
+			post_index: 1,
+			id: "twitter:222",
+			username: "macro_news",
+			rank: 2,
+			relevance: "medium",
+			assets: ["MARKET"],
+			signal_type: "macro",
+			summary: "Fed speaker struck a cautious tone",
+			why: "Macro tone may cap upside.",
+		},
+	],
+};
+
 function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 	return {
 		outcome: "executed",
+		summary: "BTC is going up",
 		headline: "BTC:BUY",
 		averageConfidence: 0.72,
 		outlooks: [btcOutlook],
@@ -75,7 +131,7 @@ describe("formatRunReport", () => {
 		const message = formatRunReport(baseInput());
 
 		expect(message).toContain("Trade Executed");
-		expect(message).toContain("<u>Actions:</u> BTC:BUY · avg confidence 72%");
+		expect(message).toContain("BTC:BUY");
 		expect(message).toContain("BTC");
 		expect(message).toContain(" BUY ");
 		expect(message).toContain("8/10");
@@ -83,9 +139,8 @@ describe("formatRunReport", () => {
 		expect(message).toContain("Strong relative momentum");
 		expect(message).toContain("<u>Trades:</u>");
 		expect(message).toContain("BUY 0.01 BTC");
-		expect(message).toContain(
-			"0.10500000 BTC (+2.50% all-time vs initial baseline)",
-		);
+		expect(message).toContain("0.105");
+		expect(message).toContain("BTC (+2.50% all-time vs initial baseline)");
 	});
 
 	it("renders a hold run with no trades section", () => {
@@ -99,7 +154,7 @@ describe("formatRunReport", () => {
 		);
 
 		expect(message).toContain("No Trades (Hold)");
-		expect(message).toContain("<u>Status:</u> No trades planned");
+		expect(message).toContain("No trades planned");
 		expect(message).not.toContain("<u>Trades:</u>");
 	});
 
@@ -113,7 +168,7 @@ describe("formatRunReport", () => {
 		);
 
 		expect(message).toContain("Trade Blocked (Risk)");
-		expect(message).toContain("<u>Status:</u> Allocation cap exceeded for BTC");
+		expect(message).toContain("Allocation cap exceeded for BTC");
 	});
 
 	it("includes prediction-market scores with mode vs spot when available", () => {
@@ -121,9 +176,8 @@ describe("formatRunReport", () => {
 			baseInput({ predictionSignals: [btcPrediction] }),
 		);
 
-		expect(message).toContain("polymarket 0.79");
-		expect(message).toContain("mode $68.5k vs spot $66.0k");
-		expect(message).toContain("BTC|POLYM:");
+		expect(message).toContain("expects $68.5k vs current $66.0k");
+		expect(message).toContain("BTC|POLYM: 0.79");
 	});
 
 	it("labels SELL outlooks and escapes HTML in reasons", () => {
@@ -146,6 +200,58 @@ describe("formatRunReport", () => {
 		const message = formatRunReport(input);
 
 		expect(message).not.toContain("Accumulated:");
+	});
+
+	it("renders structured social analysis when Stage 1 succeeded", () => {
+		const message = formatRunReport(
+			baseInput({
+				socialMediaAnalysis: sampleSocialAnalysis,
+				socialMediaSignals: [
+					sampleSocialSignal,
+					{
+						index: 1,
+						id: "222",
+						source: "twitter",
+						username: "macro_news",
+						text: "Fed speaker struck a cautious tone",
+						asOf: "2026-06-16T12:00:00.000Z",
+						impressions: 12_000,
+					},
+				],
+			}),
+		);
+
+		expect(message).toContain("Retrieved: 12 · Relevant: 2");
+		expect(message).toContain("whale flow, macro");
+		expect(message).toContain("Top posts:");
+		expect(message).toContain(
+			'1. <b><a href="https://x.com/whale_alert/status/111">From whale_alert</a></b> — Exchange inflow is the clearest near-term sell-pressure signal.',
+		);
+		expect(message).toContain(
+			'2. <b><a href="https://x.com/macro_news/status/222">From macro_news</a></b> — Macro tone may cap upside.',
+		);
+		expect(message).toContain(
+			"BTC: mixed — Whale deposit offset by steady ETF inflows.",
+		);
+		expect(message).toContain(
+			"ETH: bullish — Layer-2 activity picked up overnight.",
+		);
+	});
+
+	it("shows fallback counts when signals exist without analysis", () => {
+		const message = formatRunReport(
+			baseInput({ socialMediaSignals: [sampleSocialSignal] }),
+		);
+
+		expect(message).toContain("Retrieved: 1 · Analysis unavailable");
+		expect(message).not.toContain("Top signals:");
+	});
+
+	it("shows None when social media is absent", () => {
+		const message = formatRunReport(baseInput());
+
+		expect(message).toContain("<u>News & social signals:</u>");
+		expect(message).toContain("<i>None</i>");
 	});
 });
 

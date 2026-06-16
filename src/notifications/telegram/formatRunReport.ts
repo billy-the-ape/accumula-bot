@@ -1,9 +1,11 @@
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
+import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/formatPredictionSignals.js";
+import { resolveSocialMediaSignalForTopPost } from "@/sources/social_media/resolveSocialMediaSignal.js";
 
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
 
@@ -22,6 +24,8 @@ export type RunReportInput = {
 	predictionSignals: readonly PredictionSignal[];
 	/** Social media signals to surface (may be empty). */
 	socialMediaSignals: readonly SocialMediaSignal[];
+	/** Stage 1 social analysis when available (undefined on fallback/disabled). */
+	socialMediaAnalysis?: SocialMediaAnalysis;
 	accumulateSymbol: string;
 	portfolio?: {
 		btcValue: number;
@@ -113,7 +117,9 @@ function formatOutlookBlock(
 ): string[] {
 	const asset = escapeHtml(outlook.asset);
 	const lines = [
-		`<b>· ${asset}:</b> ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} (${outlook.direction_score}/10 · Confidence ${formatPercent(outlook.confidence)})`,
+		`<b>· ${asset}:</b> ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} · Outlook: ${outlook.direction_score}/10 · Confidence: ${formatPercent(outlook.confidence)} ${
+			outlook.confidence >= outlookThresholds.minConfidence ? "🟢" : "🔴"
+		}`,
 	];
 
 	if (outlook.reason) {
@@ -128,6 +134,75 @@ function formatTradeLine(trade: StoredTrade): string {
 	return `${action} ${formatQuantity(trade.quantity)} ${escapeHtml(trade.symbol)} @ ${formatUsd(trade.priceUsd)} (${formatUsd(trade.quoteValueUsd)})`;
 }
 
+function formatSocialMediaFallbackSection(
+	signals: readonly SocialMediaSignal[],
+): string {
+	return [`  Retrieved: ${signals.length} · Analysis unavailable`, ""].join(
+		"\n",
+	);
+}
+
+function formatSocialMediaAnalysisSection(
+	analysis: SocialMediaAnalysis,
+	signals: readonly SocialMediaSignal[],
+): string {
+	const lines: string[] = [
+		`  Retrieved: ${analysis.total_retrieved} · Relevant: ${analysis.relevant_count}`,
+		"",
+	];
+
+	if (analysis.themes.length > 0) {
+		lines.push(`  <b>Themes:</b>`, escapeHtml(analysis.themes.join(", ")), "");
+	}
+
+	const sortedTopPosts = [...analysis.top_posts].sort(
+		(a, b) => a.rank - b.rank,
+	);
+
+	if (sortedTopPosts.length > 0) {
+		lines.push("  <u>Top posts:</u>");
+		for (const topPost of sortedTopPosts) {
+			const signal = resolveSocialMediaSignalForTopPost(topPost, signals);
+			const username = signal?.username ?? topPost.username;
+			const externalId = signal?.id ?? topPost.id.replace(/^twitter:/, "");
+			const text =
+				/* signal
+				? truncateSocialMediaPostText(signal.text)
+				:  */ topPost.why;
+			const headline = `<b><a href="https://x.com/${escapeHtml(username)}/status/${escapeHtml(externalId)}">From ${escapeHtml(username)}</a></b> — ${escapeHtml(truncate(text))}`;
+			lines.push(`    ${topPost.rank}. ${headline}`);
+		}
+		lines.push("");
+	}
+
+	if (analysis.by_asset.length > 0) {
+		lines.push("  <u>Sentiments:</u>");
+		for (const entry of analysis.by_asset) {
+			lines.push(
+				`  ${escapeHtml(entry.asset)}: ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
+			);
+		}
+		lines.push("");
+	}
+
+	return lines.join("\n");
+}
+
+function formatSocialMediaSection(input: RunReportInput): string {
+	if (input.socialMediaAnalysis) {
+		return formatSocialMediaAnalysisSection(
+			input.socialMediaAnalysis,
+			input.socialMediaSignals,
+		);
+	}
+
+	if (input.socialMediaSignals.length > 0) {
+		return formatSocialMediaFallbackSection(input.socialMediaSignals);
+	}
+
+	return "<i>None</i>";
+}
+
 /**
  * Build the verbose, always-sent run report. Adapts to the three run outcomes
  * (executed / risk-blocked / hold) and includes the derived actions, per-asset
@@ -135,21 +210,7 @@ function formatTradeLine(trade: StoredTrade): string {
  * the execution status, and the portfolio's accumulated value + return.
  */
 export function formatRunReport(input: RunReportInput): string {
-	const socialMediaSignalsMap = input.socialMediaSignals.reduce(
-		(acc, signal) => {
-			acc[signal.source] = (acc[signal.source] || 0) + 1;
-			return acc;
-		},
-		{} as Record<string, number>,
-	);
-
-	const socialMediaSignalsLines =
-		Object.entries(socialMediaSignalsMap)
-			.map(([source, count]) => {
-				return `  ${source.toUpperCase().slice(0, 5)}: ${count} posts`;
-			})
-			.join("\n") || "<i>None</i>";
-
+	const socialMediaSignalsLines = formatSocialMediaSection(input);
 	const predictionSignalsLines =
 		input.predictionSignals.length > 0
 			? input.predictionSignals
@@ -172,7 +233,6 @@ export function formatRunReport(input: RunReportInput): string {
 		"",
 		"<u>News & social signals:</u>",
 		socialMediaSignalsLines,
-		"",
 		"<u>Prediction Market signals:</u>",
 		predictionSignalsLines,
 		"",
@@ -200,8 +260,8 @@ export function formatRunReport(input: RunReportInput): string {
 		const { btcValue, returnPct } = input.portfolio;
 		lines.push(
 			"",
-			`<u>Accumulated:</u> ${btcValue.toFixed(8)}`,
-			`${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
+			`<u>Accumulated:</u>`,
+			`${btcValue.toFixed(8).replace(/0+$/, "")} ${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
 		);
 	}
 

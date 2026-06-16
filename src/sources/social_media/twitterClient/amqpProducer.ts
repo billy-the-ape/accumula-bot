@@ -2,9 +2,7 @@ import crypto from "node:crypto";
 import EventEmitter from "node:events";
 import amqp from "amqplib/callback_api";
 import { loadConfig } from "@/config";
-
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
-const noop = () => {};
+import { noop, sleep } from "@/utils";
 
 const REPLY_QUEUE = "amq.rabbitmq.reply-to";
 const TIMEOUT_LENGTH = 1000 * 60 * 2; // Two minutes

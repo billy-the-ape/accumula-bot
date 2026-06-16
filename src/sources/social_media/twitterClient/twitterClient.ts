@@ -2,6 +2,7 @@ import { promises } from "node:fs";
 import { loadConfig } from "@/config";
 import { sendAndConsumeAmqp } from "@/sources/social_media/twitterClient/amqpProducer.js";
 import type { TweetForDb } from "@/sources/social_media/twitterClient/types.js";
+import { sleep } from "@/utils";
 
 export interface GetSearchScrapeResult {
 	success: boolean;
@@ -50,13 +51,32 @@ interface TwitterSearchOptions {
 	earliestDate?: Date | undefined;
 	pagesToScrape?: number | undefined;
 	searchString?: string | undefined;
+	depth?: number | undefined;
+}
+
+interface TweetWithDataWeCareAbout {
+	index: number;
+	id: string;
+	username: string;
+	tweetedDate: number;
+	fullText: string;
+	views: {
+		count: string;
+		state: string;
+	};
 }
 
 export const getTwitterSearchResult = async ({
 	earliestDate,
 	pagesToScrape: pagesToScrapeFromProps,
 	searchString: searchStringFromProps,
-}: TwitterSearchOptions) => {
+	depth = 0,
+}: TwitterSearchOptions): Promise<TweetWithDataWeCareAbout[]> => {
+	if (depth > 4) {
+		console.info("Social media - Twitter search: ", `Failure - depth_exceeded`);
+		return [];
+	}
+
 	const earliestDateMs =
 		earliestDate?.getTime() ?? Date.now() - 1000 * 60 * 60 * 24; // 24 hours ago
 
@@ -89,10 +109,15 @@ export const getTwitterSearchResult = async ({
 		pagesToScrape || 10,
 	);
 
-	await promises.writeFile(
-		"./temp/twitterSearchResult.json",
-		JSON.stringify(result, null, 2),
-	);
+	if (!result.success && result.message === "depth_exceeded") {
+		await sleep(1000 * (depth + 1));
+		return getTwitterSearchResult({
+			earliestDate,
+			pagesToScrape,
+			searchString,
+			depth: depth + 1,
+		});
+	}
 
 	const filteredResult =
 		result.data?.results?.filter(
@@ -107,5 +132,21 @@ export const getTwitterSearchResult = async ({
 		`Result count: ${filteredResult.length}`,
 	);
 
-	return filteredResult;
+	const finalResult = filteredResult.map((tweet, index) => ({
+		index,
+		id: tweet.id,
+		username: tweet.user,
+		tweetedDate: tweet.tweetedDate,
+		fullText: tweet.fullText,
+		views: tweet.views ?? { count: "0", state: "Disabled" },
+	}));
+
+	if (process.env.NODE_ENV !== "production") {
+		await promises.writeFile(
+			`./temp/twitterSearchResult_${new Date().toISOString().replace(/:/g, "-").split(".")[0]}.json`,
+			JSON.stringify(finalResult, null, 2),
+		);
+	}
+
+	return finalResult;
 };

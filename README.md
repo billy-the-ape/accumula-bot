@@ -213,7 +213,7 @@ Optional Telegram DM notifications: see [Notifications](#notifications) for `TEL
 
 ## Scheduling (3× daily)
 
-The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → LLM → paper execution → exit). Schedule it **three times per day** so decisions can accumulate without keeping a Node process running 24/7.
+The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **two LLM calls** (social filter/digest, then trade recommendation) using the same `LLM_*` settings. Schedule it **three times per day** so decisions can accumulate without keeping a Node process running 24/7.
 
 Default schedule (server **local timezone**):
 
@@ -629,10 +629,15 @@ Possible additions:
 
 Read-only — directional scores from implied price distributions used as a **signal** that informs the 24h direction score. The bot does **not** trade on these markets. See [Prediction Markets](#prediction-markets) for config and how the score is derived.
 
-## Sentiment
+## Sentiment — **implemented** (Twitter/X, off by default)
+
+* X/Twitter via search AMQP (`CLOUDAMQP_URL`)
+
+Read-only — a **two-stage** pipeline filters raw posts in a dedicated LLM pass, then feeds a compact digest (not the full post dump) into the portfolio-outlook prompt. See [Social Media](#social-media) for config and output shape.
+
+## Sentiment (future)
 
 * Reddit
-* X/Twitter
 
 ## Macro
 
@@ -679,7 +684,7 @@ New sources slot in via `DEFAULT_ANALYSIS_DATA_SOURCES` without changing the pro
 
 1. **Deterministic risk layer keeps final authority** — whitelist, per-asset allocation caps, kill switch, and loss limits bound the outcome no matter what the model infers. The LLM is advisory only.
 2. **Schema-constrained output** — Zod validation rejects malformed decisions before execution, regardless of how messy the input was.
-3. **Trust boundaries for untrusted sources** — social/news content is wrapped in clearly delimited, tagged blocks and treated as *data to analyze, never instructions to follow*; markup is stripped. Untrusted text may be summarized in a separate pass so it never touches the decision prompt directly.
+3. **Trust boundaries for untrusted sources** — social/news content is wrapped in clearly delimited, tagged blocks and treated as *data to analyze, never instructions to follow*; markup is stripped. **Social media implements this today:** Stage 1 analyzes raw posts inside a trust boundary; Stage 2 sees only the structured digest (plus full text for the top three ranked posts), still wrapped as untrusted-derived data.
 4. **Per-source token budget** — each section's size is capped and logged so silent truncation is caught; `num_ctx` is set deliberately.
 5. **Provenance, freshness, and audit** — every datum carries its source and `as_of` timestamp, and the full context `payload` is persisted with each decision for replay.
 6. **Graceful per-source degradation** — a failing or junk source is tagged "unavailable" rather than poisoning or blocking the run; the model is told when a source is missing so absence is not mistaken for a signal.
@@ -725,6 +730,44 @@ Discovery: Kalshi daily series (`KXBTCD` / `KXETHD` / `KXSOLD`); Polymarket via 
 | `KALSHI_BASE_URL` | No | `https://external-api.kalshi.com/trade-api/v2` | Kalshi public market-data base URL |
 | `POLYMARKET_GAMMA_BASE_URL` | No | `https://gamma-api.polymarket.com` | Polymarket Gamma (discovery + bulk prices) base URL |
 | `POLYMARKET_CLOB_BASE_URL` | No | `https://clob.polymarket.com` | Retained in config; scoring uses Gamma bulk prices, not CLOB midpoints |
+
+---
+
+# Social Media
+
+A read-only data source (`src/sources/social_media/`, surfaced via `socialMediaSource` in `DEFAULT_ANALYSIS_DATA_SOURCES`) that collects Twitter/X posts via AMQP search and adds a **structured social digest** to the portfolio-outlook LLM context. The bot does **not** post or trade on social signals — they inform the 24h direction score only.
+
+**Off by default.** Set `SOCIAL_MEDIA_ENABLED=true` to enable the source.
+
+## Two-stage LLM pipeline
+
+Each run with social media enabled performs **two LLM calls** (same `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, etc.):
+
+1. **Stage 1 — `analyzeSocialMedia`** — Raw posts (with composite ids `source:externalId`, e.g. `twitter:1234567890`) are analyzed inside a trust boundary. The model returns structured `SocialMediaAnalysis` JSON: retrieved/relevant counts, themes, per-asset sentiment, ranked top posts, and one-line summaries for each relevant post.
+2. **Stage 2 — `runAnalysis`** — The portfolio-outlook prompt receives a **compact digest** (`formatSocialMediaAnalysis`) instead of every post. The digest includes full text for the **top three** ranked posts for grounding. The section is still wrapped as untrusted-derived data.
+
+If Stage 1 fails (parse error after retry), the run **continues**: the social section falls back to raw post formatting and the Telegram report shows `Analysis unavailable`. Trading is never blocked on social analysis failure.
+
+When zero posts are retrieved, Stage 1 is skipped (no extra LLM call).
+
+## Console and Telegram output
+
+After building the analysis context, the run logs:
+
+* `Social media: retrieved=N relevant=M` (and themes when present)
+* Or `Social media: retrieved=N (analysis unavailable)` on fallback
+* Or `Social media: no posts retrieved`
+
+The per-run Telegram report (see [Notifications](#notifications)) includes the same structured social block when Stage 1 succeeded: retrieved/relevant counts, themes, top signals, and per-asset sentiment notes.
+
+## Environment variables
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `SOCIAL_MEDIA_ENABLED` | No | `false` | Set `true`/`1` to enable Twitter collection + two-stage social analysis |
+| `CLOUDAMQP_URL` | Yes (when enabled) | — | AMQP URL for the Twitter search worker |
+| `TWITTER_SEARCH_STRING` | Yes (when enabled) | — | Search query passed to the Twitter worker |
+| `TWITTER_SEARCH_MAX_PAGES` | No | `10` | Max result pages to scrape per run |
 
 ---
 
@@ -787,13 +830,14 @@ You should receive a **Daily Summary** message. Trade notifications are sent aut
 
 ## What gets sent
 
-### Trade notifications
+Sent on every completed run (executed, risk-blocked, or hold). Includes:
 
-Sent when a paper trade executes during a bot run. Includes:
+* Derived actions and per-asset outlooks (direction score, confidence, reason)
+* **Social media** — retrieved/relevant counts, themes, top signals, per-asset sentiment (when Stage 1 succeeded); fallback counts when analysis unavailable
+* Prediction-market directional scores (when enabled)
+* Trades (if any), execution status, portfolio summary in accumulate-asset terms
 
-* Each fill (buy/sell, quantity, price)
-* LLM `recommended_asset` and `reason`
-* Portfolio value in BTC and all-time BTC return
+Legacy note: an older doc version described notifications as trade-only; the run report is always sent when Telegram is configured.
 
 ### Daily summary
 
@@ -917,7 +961,8 @@ Advanced Signals
 Potential additions:
 
 * Prediction-market signals (Polymarket, Kalshi) — **implemented**, see [Prediction Markets](#prediction-markets)
-* Sentiment analysis
+* Twitter/X social sentiment — **implemented**, see [Social Media](#social-media)
+* Reddit / additional sentiment sources
 * Narrative detection
 * On-chain analytics
 * Event-driven trading

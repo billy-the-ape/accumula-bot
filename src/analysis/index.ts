@@ -6,6 +6,15 @@ export {
 export { formatMarketData } from "@/analysis/formatMarketData.js";
 export { getMarketSnapshotsFromContext } from "@/analysis/getMarketSnapshots.js";
 export { getPredictionSignalsFromContext } from "@/analysis/getPredictionSignals.js";
+export {
+	getSocialMediaAnalysisFromContext,
+	getSocialMediaSectionFromContext,
+	getSocialMediaSignalsFromContext,
+} from "@/analysis/getSocialMediaSignals.js";
+export {
+	type SocialMediaSectionPayload,
+	SocialMediaSectionPayloadSchema,
+} from "@/analysis/socialMediaSectionPayload.js";
 export { marketDataSource } from "@/analysis/sources/marketDataSource.js";
 export { predictionMarketSource } from "@/analysis/sources/predictionMarketSource.js";
 export {

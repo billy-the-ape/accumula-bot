@@ -13,7 +13,7 @@ export function formatCompactUsd(value: number): string {
 	if (abs >= 1_000) {
 		return `$${(value / 1_000).toFixed(abs >= 10_000 ? 1 : 2)}k`;
 	}
-	return `$${value.toFixed(2)}`;
+	return `$${value.toFixed(2).replace(/\.00$/, "")}`;
 }
 
 /** Human-readable one-liner for Telegram / logs (score, icon, mode vs spot). */
@@ -23,7 +23,7 @@ export function formatPredictionSignalDisplay(
 	const score = signal.impliedUpProbability.toFixed(2);
 	const icon = signal.impliedUpProbability >= 0.5 ? "📈" : "📉";
 	if (signal.modeStrikeUsd !== undefined && signal.spotUsd !== undefined) {
-		return `${score} ${icon} (mode ${formatCompactUsd(signal.modeStrikeUsd)} vs spot ${formatCompactUsd(signal.spotUsd)})`;
+		return `${score} ${icon} (expects ${formatCompactUsd(signal.modeStrikeUsd)} vs current ${formatCompactUsd(signal.spotUsd)})`;
 	}
 	return `${score} ${icon}`;
 }
