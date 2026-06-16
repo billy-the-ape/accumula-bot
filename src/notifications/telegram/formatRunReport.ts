@@ -147,14 +147,14 @@ function formatSocialMediaAnalysisSection(
 	signals: readonly SocialMediaSignal[],
 ): string {
 	const lines: string[] = [
-		`  Posts: ${analysis.total_retrieved} · Relevant: ${analysis.relevant_count}`,
+		`  Analyzed ${analysis.total_retrieved} posts, ${analysis.relevant_count} relevant`,
 		"",
 	];
 
 	if (analysis.themes.length > 0) {
 		lines.push(
 			`  <u>Themes:</u>`,
-			`    ${escapeHtml(analysis.themes.join(", "))}`,
+			`    ${escapeHtml(analysis.themes.join(", ").replace(/_/g, " "))}`,
 			"",
 		);
 	}
@@ -233,28 +233,32 @@ export function formatRunReport(input: RunReportInput): string {
 				`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
 		),
 		"",
-		"<u><b>News & social signals:</b></u>",
+		"<u><b>News & Social Media:</b></u>",
 		socialMediaSignalsLines,
-		"<u><b>Prediction Market signals:</b></u>",
+		"<u><b>Prediction Markets:</b></u>",
 		predictionSignalsLines,
 		"",
-		"<u><b>Outlooks:</b></u>",
+		"<u><b>Plans:</b></u>",
 		...input.outlooks.flatMap((outlook) =>
 			formatOutlookBlock(outlook, input.outlookThresholds),
 		),
 	];
 
 	if (input.trades.length > 0) {
-		lines.push("", "<u>Trades:</u>", ...input.trades.map(formatTradeLine));
+		lines.push(
+			"",
+			"<u><b>Trades:</b></u>",
+			...input.trades.map(formatTradeLine),
+		);
 	} else {
-		lines.push("", "<u>No trades executed</u>");
+		lines.push("", "<u><b>No trades executed</b></u>");
 	}
 
-	lines.push("", `<u>Status:</u>`, escapeHtml(input.executionReason));
+	lines.push("", `<u><b>Status:</b></u>`, escapeHtml(input.executionReason));
 
 	lines.push(
 		"",
-		`<u>Summary:</u>`,
+		`<u><b>Summary:</b></u>`,
 		!input.summary ? "<i>None</i>" : escapeHtml(input.summary),
 	);
 
@@ -262,7 +266,7 @@ export function formatRunReport(input: RunReportInput): string {
 		const { btcValue, returnPct } = input.portfolio;
 		lines.push(
 			"",
-			`<u>Accumulated:</u>`,
+			`<u><b>Accumulated:</b></u>`,
 			`${btcValue.toFixed(8).replace(/0+$/, "")} ${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
 		);
 	}
