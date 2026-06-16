@@ -179,7 +179,7 @@ function formatSocialMediaAnalysisSection(
 		lines.push("  <u>Sentiments:</u>");
 		for (const entry of analysis.by_asset) {
 			lines.push(
-				`  ${escapeHtml(entry.asset)}: ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
+				`  <b>${escapeHtml(entry.asset)}:</b> ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
 			);
 		}
 		lines.push("");
@@ -223,20 +223,18 @@ export function formatRunReport(input: RunReportInput): string {
 	const lines: string[] = [
 		OUTCOME_HEADERS[input.outcome],
 		"",
-		`<u>Actions:</u>`,
-		input.outlooks
-			.flatMap(
-				(outlook) =>
-					`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
-			)
-			.join(", "),
+		`<u><b>Actions:</b></u>`,
+		...input.outlooks.flatMap(
+			(outlook) =>
+				`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
+		),
 		"",
-		"<u>News & social signals:</u>",
+		"<u><b>News & social signals:</b></u>",
 		socialMediaSignalsLines,
-		"<u>Prediction Market signals:</u>",
+		"<u><b>Prediction Market signals:</b></u>",
 		predictionSignalsLines,
 		"",
-		"<u>Outlooks:</u>",
+		"<u><b>Outlooks:</b></u>",
 		...input.outlooks.flatMap((outlook) =>
 			formatOutlookBlock(outlook, input.outlookThresholds),
 		),
