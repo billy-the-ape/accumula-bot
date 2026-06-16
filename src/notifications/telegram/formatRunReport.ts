@@ -162,12 +162,13 @@ export function formatRunReport(input: RunReportInput): string {
 	const lines: string[] = [
 		OUTCOME_HEADERS[input.outcome],
 		"",
-		`<u>Actions:</u> ${input.outlooks
+		`<u>Actions:</u>`,
+		input.outlooks
 			.flatMap(
 				(outlook) =>
 					`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
 			)
-			.join(", ")} · avg confidence ${formatPercent(input.averageConfidence)}`,
+			.join(", "),
 		"",
 		"<u>News & social signals:</u>",
 		socialMediaSignalsLines,
@@ -187,18 +188,20 @@ export function formatRunReport(input: RunReportInput): string {
 		lines.push("", "<u>No trades executed</u>");
 	}
 
-	lines.push("", `<u>Status:</u> ${escapeHtml(input.executionReason)}`);
+	lines.push("", `<u>Status:</u>`, escapeHtml(input.executionReason));
 
 	lines.push(
 		"",
-		`<u>Summary:</u> ${!input.summary ? "<i>None</i>" : escapeHtml(input.summary)}`,
+		`<u>Summary:</u>`,
+		!input.summary ? "<i>None</i>" : escapeHtml(input.summary),
 	);
 
 	if (input.portfolio) {
 		const { btcValue, returnPct } = input.portfolio;
 		lines.push(
 			"",
-			`<u>Accumulated:</u> ${btcValue.toFixed(8)} ${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
+			`<u>Accumulated:</u> ${btcValue.toFixed(8)}`,
+			`${escapeHtml(input.accumulateSymbol)} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial baseline)`,
 		);
 	}
 
