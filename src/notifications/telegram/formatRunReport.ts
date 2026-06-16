@@ -17,6 +17,7 @@ export type RunReportInput = {
 	trades: readonly StoredTrade[];
 	/** Execution engine reason (why trades ran / were blocked / skipped). */
 	executionReason: string;
+	summary: string | undefined;
 	/** Prediction-market signals to surface per asset (may be empty). */
 	predictionSignals: readonly PredictionSignal[];
 	/** Social media signals to surface (may be empty). */
@@ -187,6 +188,11 @@ export function formatRunReport(input: RunReportInput): string {
 	}
 
 	lines.push("", `<u>Status:</u> ${escapeHtml(input.executionReason)}`);
+
+	lines.push(
+		"",
+		`<u>Summary:</u> ${!input.summary ? "<i>None</i>" : escapeHtml(input.summary)}`,
+	);
 
 	if (input.portfolio) {
 		const { btcValue, returnPct } = input.portfolio;

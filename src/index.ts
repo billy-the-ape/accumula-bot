@@ -207,6 +207,7 @@ async function main() {
 						headline: recommendationSummary.headline,
 						averageConfidence: recommendationSummary.averageConfidence,
 						outlooks: recommendation.outlooks,
+						summary: recommendation.summary,
 						trades: execution.trades,
 						executionReason: execution.reason,
 						predictionSignals,

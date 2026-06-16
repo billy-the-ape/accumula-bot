@@ -11,9 +11,9 @@ export function formatCompactUsd(value: number): string {
 		return `$${(value / 1_000_000).toFixed(1)}m`;
 	}
 	if (abs >= 1_000) {
-		return `$${(value / 1_000).toFixed(1)}k`;
+		return `$${(value / 1_000).toFixed(abs >= 10_000 ? 1 : 2)}k`;
 	}
-	return `$${value.toFixed(abs >= 100 ? 0 : 2)}`;
+	return `$${value.toFixed(2)}`;
 }
 
 /** Human-readable one-liner for Telegram / logs (score, icon, mode vs spot). */
