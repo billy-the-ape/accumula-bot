@@ -51,14 +51,32 @@ export type StoredDecision = {
 	};
 };
 
+function resolveDecisionReason(recommendation: TradeRecommendation): string {
+	const summary = recommendation.summary?.trim();
+	if (summary) {
+		return summary;
+	}
+
+	const fromOutlooks = recommendation.outlooks
+		.map((outlook) => outlook.reason?.trim())
+		.filter((reason): reason is string => Boolean(reason))
+		.join(" | ");
+	if (fromOutlooks) {
+		return fromOutlooks;
+	}
+
+	return "No summary provided by model.";
+}
+
 function mapRowToStoredDecision(row: DecisionRow): StoredDecision {
 	const outlooks = StoredOutlooksSchema.parse(JSON.parse(row.rankingsJson));
 	const marketSnapshots = MarketSnapshotListSchema.parse(
 		JSON.parse(row.marketSnapshotsJson),
 	);
+	const storedSummary = row.reason.trim() || undefined;
 	const recommendation = TradeRecommendationSchema.parse({
 		outlooks,
-		summary: row.reason,
+		...(storedSummary ? { summary: storedSummary } : {}),
 	});
 	const analysisContext = row.analysisContextJson
 		? AnalysisContextSchema.parse(JSON.parse(row.analysisContextJson))
@@ -96,13 +114,7 @@ export async function saveDecision(
 					(total, outlook) => total + outlook.confidence,
 					0,
 				) / input.recommendation.outlooks.length,
-			reason:
-				input.recommendation.summary ??
-				input.recommendation.outlooks
-					.map((outlook) => outlook.reason)
-					.filter((reason): reason is string => Boolean(reason))
-					.join(" | ") ??
-				"No summary provided by model.",
+			reason: resolveDecisionReason(input.recommendation),
 			rankingsJson: JSON.stringify(input.recommendation.outlooks),
 			analysisContextJson: input.analysisContext
 				? JSON.stringify(input.analysisContext)

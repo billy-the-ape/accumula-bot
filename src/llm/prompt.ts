@@ -37,7 +37,7 @@ function buildExampleOutlooks(outlookAssets: readonly string[]): string {
 				confidence: 0.72,
 				reason: "One short sentence.",
 			})),
-			summary: "Optional one-line summary.",
+			summary: "One-line portfolio outlook summary.",
 		},
 		null,
 		2,

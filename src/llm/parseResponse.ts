@@ -330,6 +330,25 @@ function synthesizeOutlooks(
 	}));
 }
 
+function synthesizeSummaryFromOutlooks(outlooks: unknown): string | undefined {
+	if (!Array.isArray(outlooks)) {
+		return undefined;
+	}
+
+	const reasons = outlooks
+		.filter(isRecord)
+		.map((outlook) =>
+			typeof outlook.reason === "string" ? outlook.reason.trim() : "",
+		)
+		.filter((reason) => reason.length > 0);
+
+	if (reasons.length === 0) {
+		return undefined;
+	}
+
+	return reasons.join(" | ");
+}
+
 export type NormalizeTradeRecommendationOptions = {
 	outlookAssets?: string[];
 };
@@ -351,13 +370,22 @@ export function normalizeTradeRecommendationPayload(
 		normalized.summary.trim().length === 0
 	) {
 		if (typeof parsed.reason === "string" && parsed.reason.trim().length > 0) {
-			normalized.summary = parsed.reason;
+			normalized.summary = parsed.reason.trim();
 		} else if (
 			typeof parsed.reasoning === "string" &&
 			parsed.reasoning.trim().length > 0
 		) {
-			normalized.summary = parsed.reasoning;
+			normalized.summary = parsed.reasoning.trim();
+		} else {
+			const synthesized = synthesizeSummaryFromOutlooks(normalized.outlooks);
+			if (synthesized) {
+				normalized.summary = synthesized;
+			} else {
+				delete normalized.summary;
+			}
 		}
+	} else {
+		normalized.summary = normalized.summary.trim();
 	}
 
 	const outlooks = normalized.outlooks;

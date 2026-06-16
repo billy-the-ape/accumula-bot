@@ -15,9 +15,15 @@ export const AssetOutlookSchema = z.object({
 	reason: z.string().min(1).optional(),
 });
 
+const optionalNonEmptyString = z.preprocess(
+	(value) =>
+		typeof value === "string" && value.trim().length === 0 ? undefined : value,
+	z.string().min(1).optional(),
+);
+
 export const TradeRecommendationSchema = z.object({
 	outlooks: z.array(AssetOutlookSchema).min(1),
-	summary: z.string().min(1).optional(),
+	summary: optionalNonEmptyString,
 });
 
 export type AssetOutlook = z.infer<typeof AssetOutlookSchema>;

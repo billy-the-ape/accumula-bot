@@ -135,12 +135,10 @@ function planAssetBuy(
 		maxPurchaseValue,
 		cashAvailable * purchaseFraction,
 		cashAvailable,
-		riskLimits.minUsdPurchase,
 	);
 
-	if (buyValue <= cashAvailable) {
-		// not enough cash to buy even the minimum purchase value. do nothing.
-		return { continue: false, reason: "Not enough cash to buy" };
+	if (buyValue < riskLimits.minUsdPurchase) {
+		return { continue: true, reason: "Below minimum purchase size" };
 	}
 
 	const priceUsd = requirePrice(prices, symbol);

@@ -195,6 +195,38 @@ describe("parseTradeRecommendationJson", () => {
 		]);
 	});
 
+	it("treats an empty summary string as absent when no reasons exist", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				outlooks: validPayload.outlooks.map(
+					({ asset, direction_score, confidence }) => ({
+						asset,
+						direction_score,
+						confidence,
+					}),
+				),
+				summary: "",
+			}),
+			validation,
+		);
+
+		expect(result.summary).toBeUndefined();
+	});
+
+	it("synthesizes summary from outlook reasons when summary is blank", () => {
+		const result = parseTradeRecommendationJson(
+			JSON.stringify({
+				outlooks: validPayload.outlooks,
+				summary: "   ",
+			}),
+			validation,
+		);
+
+		expect(result.summary).toBe(
+			"BTC currently exhibits the strongest near-term setup. | ETH likely stays range-bound. | SOL momentum is fading.",
+		);
+	});
+
 	it("rejects invalid JSON", () => {
 		expect(() => parseTradeRecommendationJson("not-json", validation)).toThrow(
 			/not valid JSON/i,

@@ -107,6 +107,34 @@ describe("decisionRepository", () => {
 		expect(loaded?.llm.thinking).toBe("Model reasoning about SOL momentum.");
 	});
 
+	it("persists a recommendation without summary or outlook reasons", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const saved = await saveDecision(db, {
+			assetToAccumulate: "BTC",
+			recommendation: {
+				outlooks: sampleRecommendation.outlooks.map(
+					({ asset, direction_score, confidence }) => ({
+						asset,
+						direction_score,
+						confidence,
+					}),
+				),
+			},
+			marketSnapshots: sampleMarketSnapshots,
+			llm: { provider: "openai_compatible", model: "qwen3:8b" },
+		});
+
+		expect(saved.recommendation.summary).toBe("No summary provided by model.");
+
+		const loaded = await findDecisionById(db, saved.id);
+		expect(loaded?.recommendation.summary).toBe(
+			"No summary provided by model.",
+		);
+	});
+
 	it("lists recent decisions newest first", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
