@@ -1,4 +1,5 @@
-import type { AnalysisContext } from "@/analysis/types.js";
+import { wrapUntrustedContent } from "@/analysis";
+import type { AnalysisContext, AnalysisSection } from "@/analysis/types.js";
 import type { AppConfig } from "@/config/index.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
@@ -16,10 +17,15 @@ export function getAnalyzableAssets(config: AppConfig): Cryptocurrency[] {
 	return assets;
 }
 
+const addTrustBoundaryIfNecessary = (section: AnalysisSection) => {
+	if (section.sourceId === "social_media") {
+		return wrapUntrustedContent(section.label, section.promptText);
+	}
+	return [`${section.label}:`, section.promptText].join("\n");
+};
+
 function formatAnalysisSections(context: AnalysisContext): string {
-	return context.sections
-		.map((section) => [`${section.label}:`, section.promptText].join("\n"))
-		.join("\n\n");
+	return context.sections.map(addTrustBoundaryIfNecessary).join("\n\n");
 }
 
 function buildExampleOutlooks(outlookAssets: readonly string[]): string {
@@ -98,8 +104,9 @@ export function buildAnalysisPromptParts(
 		"",
 		`Outlook assets: ${assetList}`,
 		"",
-		"Analysis inputs:",
+		"--- Start of analysis inputs ---",
 		formatAnalysisSections(context),
+		"--- End of analysis inputs ---",
 		"",
 		"Return only the JSON object described in the system instructions.",
 	].join("\n");
