@@ -78,7 +78,7 @@ function formatReturnPct(value: number): string {
 function formatQuantity(value: number): string {
 	return value
 		.toLocaleString("en-US", { maximumFractionDigits: 8 })
-		.replace(/0+$/, "");
+		.replace(/\.0+$/, "");
 }
 
 function formatPercent(fraction: number): string {
@@ -167,7 +167,7 @@ function formatSocialMediaAnalysisSection(
 ): string {
 	const lines: string[] = [
 		escapeMarkdownV2(
-			`  Analyzed ${analysis.total_retrieved} posts, ${analysis.relevant_count} relevant`,
+			`  Analyzed **${analysis.total_retrieved}** posts from the last **24h**, **${analysis.relevant_count}** were relevant for near-term market impact`,
 		),
 		"",
 	];
