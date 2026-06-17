@@ -252,7 +252,7 @@ export const AppConfigSchema = z
 				twitterConfig: {
 					cloudamqpUrl: env.socialMedia.twitterConfig.cloudamqpUrl,
 					searchString: env.socialMedia.twitterConfig.searchString ?? "",
-					searchMaxPages: env.socialMedia.twitterConfig.searchMaxPages ?? 10,
+					searchMaxPages: env.socialMedia.twitterConfig.searchMaxPages || 5,
 				},
 			},
 			predictionMarkets: env.predictionMarkets,

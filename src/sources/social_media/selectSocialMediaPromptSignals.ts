@@ -11,7 +11,13 @@ export function selectSocialMediaPromptSignals(
 		return [...signals];
 	}
 
-	return [...signals]
-		.sort((left, right) => right.impressions - left.impressions)
-		.slice(0, maxPosts);
+	return (
+		[...signals]
+			// change this sort to newest first
+			.sort(
+				(left, right) =>
+					new Date(right.asOf).getTime() - new Date(left.asOf).getTime(),
+			)
+			.slice(0, maxPosts)
+	);
 }

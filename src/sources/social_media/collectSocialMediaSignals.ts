@@ -1,12 +1,14 @@
 import type { AppConfig } from "@/config";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
-import { getTwitterSearchResult } from "@/sources/social_media/twitterClient/twitterClient";
+import { getTwitterSearchMultipleResults } from "@/sources/social_media/twitterClient/twitterClient";
 
 export async function collectSocialMediaSignals(
 	config: AppConfig,
 ): Promise<SocialMediaSignal[]> {
-	const tweets = await getTwitterSearchResult({
-		searchString: config.socialMedia.twitterConfig.searchString,
+	const tweets = await getTwitterSearchMultipleResults({
+		searchStrings: config.socialMedia.twitterConfig.searchString
+			? [config.socialMedia.twitterConfig.searchString]
+			: [],
 		pagesToScrape: config.socialMedia.twitterConfig.searchMaxPages,
 	});
 

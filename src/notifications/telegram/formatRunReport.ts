@@ -151,7 +151,9 @@ function formatSocialMediaAnalysisSection(
 	signals: readonly SocialMediaSignal[],
 ): string {
 	const lines: string[] = [
-		`  Analyzed ${analysis.total_retrieved} posts, ${analysis.relevant_count} relevant`,
+		escapeMarkdownV2(
+			`  Analyzed ${analysis.total_retrieved} posts, ${analysis.relevant_count} relevant`,
+		),
 		"",
 	];
 
@@ -297,8 +299,10 @@ export function formatRunReport(input: RunReportInput): string {
 			"",
 			boldUnderline("Accumulated Value:"),
 			`${escapeMarkdownV2(btcValueStr)} ${escapeMarkdownV2(input.accumulateSymbol)} \\(${returnSign}${escapeMarkdownV2(returnStr)}% all\\-time vs initial ${escapeMarkdownV2(input.accumulateSymbol)} baseline\\)`,
-			italic(
-				`In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnStr} ${lessOrMore} ${input.accumulateSymbol} than you do now`,
+			escapeMarkdownV2(
+				italic(
+					`In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnStr} ${lessOrMore} ${input.accumulateSymbol} than you do now`,
+				),
 			),
 		);
 	}

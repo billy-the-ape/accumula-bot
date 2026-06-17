@@ -14,14 +14,25 @@ export async function notifyRun(
 	input: RunReportInput,
 	options: NotifyOptions = {},
 ): Promise<void> {
-	await sendTelegramMessage(
-		{
-			botToken: telegram.botToken,
-			chatId: telegram.chatId,
-			...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-		},
-		formatRunReport(input),
-	);
+	const fullReportText = formatRunReport(input);
+
+	try {
+		await sendTelegramMessage(
+			{
+				botToken: telegram.botToken,
+				chatId: telegram.chatId,
+				...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+			},
+			fullReportText,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "unknown error";
+		console.error(`Failed to notify run in Telegram: ${message}`);
+
+		console.error("=========== BEGIN FULL REPORT TEXT ============");
+		console.error(fullReportText);
+		console.error("=========== END FULL REPORT TEXT ============");
+	}
 }
 
 /** Send a failure alert when the run throws before a report can be built. */

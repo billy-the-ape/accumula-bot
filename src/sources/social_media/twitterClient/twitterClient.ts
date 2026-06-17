@@ -55,6 +55,13 @@ const MACRO_ACCOUNTS = ["LynAldenContact", "TheMarketEar", "KobeissiLetter"];
 
 const GOVERNMENT_ACCOUNTS = ["SECGov", "federalreserve", "CFTC"];
 
+const ALL_ACCOUNTS = [
+	...BUSINESS_NEWS_ACCOUNTS,
+	...CRYPTO_ACCOUNTS,
+	...MACRO_ACCOUNTS,
+	...GOVERNMENT_ACCOUNTS,
+];
+
 export const TWITTER_ACCOUNTS_TAG_MAP = {
 	business: BUSINESS_NEWS_ACCOUNTS,
 	crypto: CRYPTO_ACCOUNTS,
@@ -62,27 +69,18 @@ export const TWITTER_ACCOUNTS_TAG_MAP = {
 	government: GOVERNMENT_ACCOUNTS,
 };
 
-// Ideally these accounts are posting market news without any bias
-const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
-	...[
-		...BUSINESS_NEWS_ACCOUNTS,
-		...CRYPTO_ACCOUNTS,
-		...MACRO_ACCOUNTS,
-		...GOVERNMENT_ACCOUNTS,
-	].map((account) => `from:${account}`),
-].join(" OR ")})`;
+const makeDefaultSearchString = (accounts: string[]) => {
+	return `(${[...accounts.map((account) => `from:${account}`)].join(" OR ")}) exclude:replies exclude:retweets`;
+};
 
-const DEFAULT_SEARCH_STRING = [
-	DEFAULT_ACCOUNTS_SEARCH_STRING,
-	"exclude:replies",
-	"exclude:retweets",
-].join(" ");
+const DEFAULT_SEARCH_STRING = makeDefaultSearchString(ALL_ACCOUNTS);
 
 interface TwitterSearchOptions {
 	earliestDate?: Date | undefined;
 	pagesToScrape?: number | undefined;
 	searchString?: string | undefined;
 	depth?: number | undefined;
+	retryCount?: number | undefined;
 }
 
 interface TweetWithDataWeCareAbout {
@@ -97,13 +95,56 @@ interface TweetWithDataWeCareAbout {
 	};
 }
 
+export const getTwitterSearchMultipleResults = async ({
+	searchStrings = [],
+	...searchOptions
+}: Omit<TwitterSearchOptions, "searchString" | "depth"> & {
+	searchStrings?: string[];
+}): Promise<TweetWithDataWeCareAbout[]> => {
+	if (!searchStrings.length) {
+		// slice ALL_ACCOUNTS to batches of 5
+		const batches = ALL_ACCOUNTS.reduce((acc, account, index) => {
+			const batchIndex = Math.floor(index / 5);
+			if (!acc[batchIndex]) {
+				acc[batchIndex] = [];
+			}
+			acc[batchIndex].push(account);
+			return acc;
+		}, [] as string[][]);
+		searchStrings.push(
+			...batches.map((batch) => makeDefaultSearchString(batch)),
+		);
+		console.info(
+			"Social media - Twitter search: ",
+			`Using ${searchStrings.length} search strings`,
+		);
+		console.info("Social media - Twitter search: ", searchStrings);
+	}
+
+	const results = await Promise.all(
+		searchStrings.map(async (searchString) => {
+			return await getTwitterSearchResult({
+				...searchOptions,
+				searchString,
+			});
+		}),
+	);
+	const flattenedResults = results.flat();
+	console.info(
+		"Social media - Twitter search: ",
+		`Found ${flattenedResults.length} tweets`,
+	);
+	return flattenedResults;
+};
+
 export const getTwitterSearchResult = async ({
 	earliestDate,
 	pagesToScrape: pagesToScrapeFromProps,
 	searchString: searchStringFromProps,
 	depth = 0,
+	retryCount = 5,
 }: TwitterSearchOptions): Promise<TweetWithDataWeCareAbout[]> => {
-	if (depth > 4) {
+	if (depth > retryCount) {
 		console.info("Social media - Twitter search: ", `Failure - depth_exceeded`);
 		return [];
 	}
@@ -120,29 +161,19 @@ export const getTwitterSearchResult = async ({
 			config.socialMedia.twitterConfig.searchString ||
 			DEFAULT_SEARCH_STRING;
 		pagesToScrape =
-			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages || 10;
+			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages || 5;
 	}
 
 	if (!searchString || !pagesToScrape) {
 		throw new Error("Search string and pages to scrape are required");
 	}
 
-	console.info(
-		"Social media - Twitter search: ",
-		`${searchString?.slice(0, 20)}...`,
-	);
-	console.info(
-		"Social media - Twitter search: ",
-		`pagesToScrape: ${pagesToScrape}`,
-	);
-	console.info(
-		"Social media - Twitter search: ",
-		`earliestDate: ${new Date(earliestDateMs).toISOString()}`,
-	);
-
 	const result = await getSearchScrape(searchString, pagesToScrape);
 
-	if (!result.success && result.message === "depth_exceeded") {
+	if (
+		(!result.success && result.message === "depth_exceeded") ||
+		!result.data?.results?.length
+	) {
 		await sleep(1000 * (depth + 1));
 		return getTwitterSearchResult({
 			earliestDate,
@@ -157,13 +188,13 @@ export const getTwitterSearchResult = async ({
 			(tweet) => tweet.tweetedDate >= earliestDateMs,
 		) ?? [];
 
-	console.info(
-		"Social media - Twitter search: ",
-		result.success
-			? "Success"
-			: `Failure - ${result.message ?? "Unknown reason"}`,
-		`Result count: ${filteredResult.length}`,
-	);
+	if (!result.success) {
+		console.info(
+			"Social media - Twitter search: ",
+			`Failure - ${result.message ?? "Unknown reason"}`,
+			searchString,
+		);
+	}
 
 	const finalResult = filteredResult.map((tweet, index) => ({
 		index,

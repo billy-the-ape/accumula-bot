@@ -22,6 +22,8 @@ const DEFAULT_PREDICTION_MARKETS_MAX_RUNGS = 6;
 const DEFAULT_PREDICTION_MARKETS_MIN_RUNGS = 3;
 const DEFAULT_PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD = 1_000;
 
+const DEFAULT_TWITTER_SEARCH_MAX_PAGES = 5;
+
 const DEFAULT_BUY_MIN_DIRECTION_SCORE = 6.9;
 const DEFAULT_SELL_MAX_DIRECTION_SCORE = 3.9;
 const DEFAULT_MIN_CONFIDENCE = 0.67;
@@ -86,7 +88,11 @@ export const RawEnvSchema = z
 		TELEGRAM_CHAT_ID: z.string().trim().min(1).optional(),
 		CLOUDAMQP_URL: z.string().trim().min(1),
 		TWITTER_SEARCH_STRING: z.string().trim().min(1).optional(),
-		TWITTER_SEARCH_MAX_PAGES: z.coerce.number().int().positive().optional(),
+		TWITTER_SEARCH_MAX_PAGES: z.coerce
+			.number()
+			.int()
+			.positive()
+			.default(DEFAULT_TWITTER_SEARCH_MAX_PAGES),
 		PREDICTION_MARKETS_ENABLED: z
 			.string()
 			.trim()

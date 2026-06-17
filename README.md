@@ -840,7 +840,7 @@ The per-run Telegram report (see [Notifications](#notifications)) includes the s
 | `SOCIAL_MEDIA_ENABLED` | No | `false` | Set `true`/`1` to enable Twitter collection + two-stage social analysis |
 | `CLOUDAMQP_URL` | Yes (when enabled) | — | AMQP URL for the Twitter search worker |
 | `TWITTER_SEARCH_STRING` | Yes (when enabled) | — | Search query passed to the Twitter worker |
-| `TWITTER_SEARCH_MAX_PAGES` | No | `10` | Max result pages to scrape per run |
+| `TWITTER_SEARCH_MAX_PAGES` | No | `5` | Max result pages to scrape per run |
 
 ---
 

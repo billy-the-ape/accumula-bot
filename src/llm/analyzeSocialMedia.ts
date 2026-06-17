@@ -112,6 +112,20 @@ async function completeJsonChatWithEmptyRetry(
 	}
 }
 
+async function findRelevantSocialMediaSignalsInBatches(
+	signals: readonly SocialMediaSignal[],
+	batchSize = 20,
+): Promise<readonly SocialMediaSignal[]> {
+	const batches = signals.reduce((acc, signal, index) => {
+		const batchIndex = Math.floor(index / batchSize);
+		if (!acc[batchIndex]) {
+			acc[batchIndex] = [];
+		}
+		acc[batchIndex].push(signal);
+		return acc;
+	}, [] as SocialMediaSignal[][]);
+}
+
 export async function analyzeSocialMedia(
 	config: AppConfig,
 	signals: readonly SocialMediaSignal[],
@@ -143,7 +157,7 @@ export async function analyzeSocialMedia(
 
 	if (promptSignals.length < signals.length) {
 		console.info(
-			`Social media: Stage 1 prompt includes ${promptSignals.length} of ${signals.length} posts (highest impressions first)`,
+			`Social media: Stage 1 prompt includes ${promptSignals.length} of ${signals.length} posts (newest first)`,
 		);
 	}
 

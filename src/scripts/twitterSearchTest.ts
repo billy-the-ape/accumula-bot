@@ -1,8 +1,7 @@
-import { getTwitterSearchResult } from "@/sources/social_media/twitterClient/twitterClient";
+import { getTwitterSearchMultipleResults } from "@/sources/social_media/twitterClient/twitterClient";
 
 async function twitterSearchTest() {
-	const result = await getTwitterSearchResult({
-		searchString: "(from:unusual_whales OR from:FT) -is:reply -is:retweet",
+	const result = await getTwitterSearchMultipleResults({
 		pagesToScrape: 1,
 	});
 	console.info({
