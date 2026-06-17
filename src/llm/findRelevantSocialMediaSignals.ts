@@ -183,31 +183,6 @@ async function parseBatchOrRepair(
 	}
 }
 
-function resolveRelevantSignals(
-	signals: readonly SocialMediaSignal[],
-	relevantIndices: readonly number[],
-): SocialMediaSignal[] {
-	const signalsByIndex = new Map(
-		signals.map((signal) => [signal.index, signal]),
-	);
-	const seenIndices = new Set<number>();
-	const relevantSignals: SocialMediaSignal[] = [];
-
-	for (const index of relevantIndices) {
-		if (seenIndices.has(index)) {
-			continue;
-		}
-
-		const signal = signalsByIndex.get(index);
-		if (signal) {
-			relevantSignals.push(signal);
-			seenIndices.add(index);
-		}
-	}
-
-	return relevantSignals;
-}
-
 export async function findRelevantSocialMediaSignals(
 	config: AppConfig,
 	signals: readonly SocialMediaSignal[],
@@ -259,7 +234,7 @@ export async function findRelevantSocialMediaSignals(
 		`Social media: relevance filter — ${batchCount} batches × ${batchSize} posts (sequential)`,
 	);
 
-	const allRelevantIndices: number[] = [];
+	const relevantSignals: SocialMediaSignal[] = [];
 
 	for (const [batchIndex, batchSignals] of batches.entries()) {
 		const batchNumber = batchIndex + 1;
@@ -284,14 +259,19 @@ export async function findRelevantSocialMediaSignals(
 			chatOptions,
 		);
 
-		allRelevantIndices.push(...relevantIndices);
+		for (const signal of relevantIndices.map((index) =>
+			signals.find((signal) => signal.index === index),
+		)) {
+			if (signal) {
+				relevantSignals.push(signal);
+			}
+		}
+
 		console.info(
 			`Social media relevance ${batchLabel} — ${relevantIndices.length} relevant of ${batchSignals.length}`,
 			`${formatDuration(Date.now() - batchStart)}`,
 		);
 	}
-
-	const relevantSignals = resolveRelevantSignals(signals, allRelevantIndices);
 	const durationMs = Date.now() - start;
 
 	console.info(

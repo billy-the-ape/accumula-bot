@@ -47,7 +47,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.user).toContain(
 			"Posts shown: 1 (all pre-filtered as relevant)",
 		);
-		expect(prompt.user).toContain("Valid post indices (use post_id exactly");
+		expect(prompt.user).toContain("Valid post ids (use post_id exactly");
 		expect(prompt.user).toContain("0");
 	});
 

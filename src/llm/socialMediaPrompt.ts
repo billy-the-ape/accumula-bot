@@ -153,7 +153,7 @@ function buildJsonOutputContract(
 
 		"- NEVER invent post_id values.",
 
-		'- Copy each top_posts[].post_id EXACTLY from the "Valid post indices" list.',
+		'- Copy each top_posts[].post_id EXACTLY from the "Valid post ids" list.',
 
 		"- top_posts must use relevance=high only; never put medium-relevance posts in top_posts.",
 
@@ -163,7 +163,7 @@ function buildJsonOutputContract(
 
 		'- "post_id": integer matching the [post_id=N] label on that post (NOT list position)',
 
-		'- "rank": positive integer, 1 = most useful (no duplicate ranks or indices)',
+		'- "rank": positive integer, 1 = most useful (no duplicate ranks or ids)',
 
 		'- "relevance": must be "high" (medium is not allowed in top_posts)',
 
@@ -267,7 +267,7 @@ export function buildSocialMediaAnalysisPromptParts({
 
 		"",
 
-		"Valid post indices (use post_id exactly — not list position):",
+		"Valid post ids (use post_id exactly — not list position):",
 
 		buildPostIndexCatalog(promptSignals),
 
@@ -327,7 +327,7 @@ export function buildSocialMediaRepairPromptParts(
 
 			"",
 
-			"Reminder — valid post indices for this batch (copy exactly):",
+			"Reminder — valid post ids for this batch (copy exactly):",
 
 			buildPostIndexCatalog(promptSignals),
 
