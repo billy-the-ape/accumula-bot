@@ -13,14 +13,16 @@ export interface GetSearchScrapeResult {
 export const getSearchScrape = async (
 	searchString: string,
 	pagesToScrape = 1,
-	force = true,
+	maxAge = 0,
+	// force = true,
 ): Promise<GetSearchScrapeResult> => {
 	return await sendAndConsumeAmqp<GetSearchScrapeResult>({
 		type: "twitter-search",
 		subtype: "search",
 		userName: searchString,
 		count: pagesToScrape,
-		force,
+		// force,
+		...(!!maxAge && { maxAge }),
 	});
 };
 
@@ -102,24 +104,14 @@ export const getTwitterSearchMultipleResults = async ({
 	searchStrings?: string[];
 }): Promise<TweetWithDataWeCareAbout[]> => {
 	if (!searchStrings.length) {
-		// slice ALL_ACCOUNTS to batches of 5
-		const batches = ALL_ACCOUNTS.reduce((acc, account, index) => {
-			const batchIndex = Math.floor(index / 5);
-			if (!acc[batchIndex]) {
-				acc[batchIndex] = [];
-			}
-			acc[batchIndex].push(account);
-			return acc;
-		}, [] as string[][]);
 		searchStrings.push(
-			...batches.map((batch) => makeDefaultSearchString(batch)),
+			...ALL_ACCOUNTS.map((account) => makeDefaultSearchString([account])),
 		);
-		console.info(
-			"Social media - Twitter search: ",
-			`Using ${searchStrings.length} search strings`,
-		);
-		console.info("Social media - Twitter search: ", searchStrings);
 	}
+	console.info(
+		"Social media - Twitter search: ",
+		`Using ${searchStrings.length} search strings`,
+	);
 
 	const results = await Promise.all(
 		searchStrings.map(async (searchString) => {
@@ -168,7 +160,8 @@ export const getTwitterSearchResult = async ({
 		throw new Error("Search string and pages to scrape are required");
 	}
 
-	const result = await getSearchScrape(searchString, pagesToScrape);
+	const maxAge = Date.now() - earliestDateMs;
+	const result = await getSearchScrape(searchString, pagesToScrape, maxAge);
 
 	if (
 		(!result.success && result.message === "depth_exceeded") ||
@@ -183,10 +176,7 @@ export const getTwitterSearchResult = async ({
 		});
 	}
 
-	const filteredResult =
-		result.data?.results?.filter(
-			(tweet) => tweet.tweetedDate >= earliestDateMs,
-		) ?? [];
+	const filteredResult = result.data?.results ?? [];
 
 	if (!result.success) {
 		console.info(

@@ -70,7 +70,11 @@ async function completeJsonChatWithEmptyRetry(
 	chatOptions: { fetchImpl?: typeof fetch },
 ): Promise<string> {
 	try {
-		return await completeJsonChat(config, prompt, chatOptions);
+		return await completeJsonChat(config, prompt, {
+			...chatOptions,
+			fast: true,
+			reasoningEffort: "minimal",
+		});
 	} catch (error) {
 		if (!isEmptyLlmResponseError(error)) {
 			throw error;

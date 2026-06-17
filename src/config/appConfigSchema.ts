@@ -17,6 +17,7 @@ const LlmConfigSchema = z.object({
 	provider: z.enum(["ollama", "openai_compatible", "anthropic"]),
 	baseUrl: z.url(),
 	model: z.string().min(1),
+	fastModel: z.string().min(1),
 	requestTimeoutMs: z.number().int().positive(),
 	temperature: z.number().min(0).max(2),
 	contextTokens: z.number().int().min(2048),
@@ -38,6 +39,7 @@ export type LlmConfig = {
 	provider: LlmProviderId;
 	baseUrl: string;
 	model: string;
+	fastModel: string;
 	requestTimeoutMs: number;
 	temperature: number;
 	contextTokens: number;
@@ -215,6 +217,7 @@ export const AppConfigSchema = z
 			provider: llmPayload.provider,
 			baseUrl: llmPayload.baseUrl,
 			model: llmPayload.model,
+			fastModel: llmPayload.fastModel,
 			requestTimeoutMs: llmPayload.requestTimeoutMs,
 			temperature: llmPayload.temperature,
 			contextTokens: llmPayload.contextTokens,

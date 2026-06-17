@@ -33,6 +33,7 @@ export type CompleteJsonChatOptions = {
 	/** When true, omit max_tokens / max_completion_tokens from the request. */
 	omitMaxOutputTokens?: boolean;
 	reasoningEffort?: ReasoningEffort;
+	fast?: boolean;
 };
 
 export async function completeJsonChat(
@@ -42,7 +43,7 @@ export async function completeJsonChat(
 ): Promise<string> {
 	const context: LlmRequestContext = {
 		baseUrl: config.baseUrl,
-		model: config.model,
+		model: options.fast ? config.fastModel : config.model,
 		requestTimeoutMs: config.requestTimeoutMs,
 		temperature: config.temperature,
 		contextTokens: config.contextTokens,

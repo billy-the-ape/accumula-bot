@@ -22,7 +22,7 @@ const DEFAULT_PREDICTION_MARKETS_MAX_RUNGS = 6;
 const DEFAULT_PREDICTION_MARKETS_MIN_RUNGS = 3;
 const DEFAULT_PREDICTION_MARKETS_MIN_RUNG_LIQUIDITY_USD = 1_000;
 
-const DEFAULT_TWITTER_SEARCH_MAX_PAGES = 5;
+const DEFAULT_TWITTER_SEARCH_MAX_PAGES = 1;
 
 const DEFAULT_BUY_MIN_DIRECTION_SCORE = 6.9;
 const DEFAULT_SELL_MAX_DIRECTION_SCORE = 3.9;
@@ -58,6 +58,7 @@ export const RawEnvSchema = z
 		LLM_PROVIDER: LlmProviderIdSchema.default(DEFAULT_LLM_PROVIDER),
 		LLM_BASE_URL: z.url({ message: "LLM_BASE_URL must be a valid URL" }),
 		LLM_MODEL: z.string().trim().min(1).default(DEFAULT_LLM_MODEL),
+		LLM_FAST_MODEL: z.string().trim().min(1).optional(),
 		LLM_REQUEST_TIMEOUT_MS: z.coerce
 			.number()
 			.int()
@@ -157,6 +158,7 @@ export const RawEnvSchema = z
 			provider: env.LLM_PROVIDER,
 			baseUrl: env.LLM_BASE_URL,
 			model: env.LLM_MODEL,
+			fastModel: env.LLM_FAST_MODEL || env.LLM_MODEL,
 			requestTimeoutMs: env.LLM_REQUEST_TIMEOUT_MS,
 			temperature: env.LLM_TEMPERATURE,
 			contextTokens: env.LLM_CONTEXT_TOKENS,
