@@ -15,9 +15,12 @@ const sampleSignal: SocialMediaSignal = {
 	impressions: 42_000,
 };
 
-const validAnalysis = JSON.stringify({
+const validRelevanceBatch = JSON.stringify({
+	relevant_post_indices: [0],
+});
+
+const validSynthesis = JSON.stringify({
 	total_retrieved: 1,
-	relevant_count: 1,
 	summary: "One actionable whale alert.",
 	themes: ["whale flow"],
 	by_asset: [
@@ -58,6 +61,16 @@ function chatCompletionResponse(content: string): Response {
 	);
 }
 
+function mockFilterThenSynthesize(
+	relevanceContent: string,
+	synthesisContent: string,
+) {
+	return vi
+		.fn()
+		.mockResolvedValueOnce(chatCompletionResponse(relevanceContent))
+		.mockResolvedValueOnce(chatCompletionResponse(synthesisContent));
+}
+
 describe("analyzeSocialMedia", () => {
 	it("skips the LLM when no posts were retrieved", async () => {
 		const config = loadTestConfig({
@@ -80,15 +93,16 @@ describe("analyzeSocialMedia", () => {
 		infoSpy.mockRestore();
 	});
 
-	it("calls the LLM provider and returns a validated analysis", async () => {
+	it("runs relevance filter then synthesis and returns a validated analysis", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
 		});
 		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
-		const fetchImpl = vi
-			.fn()
-			.mockResolvedValue(chatCompletionResponse(validAnalysis));
+		const fetchImpl = mockFilterThenSynthesize(
+			validRelevanceBatch,
+			validSynthesis,
+		);
 
 		const result = await analyzeSocialMedia(config, [sampleSignal], {
 			fetchImpl,
@@ -98,24 +112,38 @@ describe("analyzeSocialMedia", () => {
 		expect(result.analysis.relevant_count).toBe(1);
 		expect(result.analysis.top_posts[0]?.id).toBe("twitter:111");
 		expect(result.llm.attempt).toBe("initial");
-		expect(fetchImpl).toHaveBeenCalledOnce();
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(infoSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/relevance filter — 1 batches/),
+		);
 		expect(infoSpy).toHaveBeenCalledWith(
 			expect.stringMatching(
-				/Social media analysis completed in \d+ms \(attempt=initial, relevant=1\/1\)/,
+				/Social media analysis completed in \d+ms \(filter=\d+ms, synthesize=\d+ms, relevant=1\/1\)/,
 			),
 		);
 
-		const [, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
-		const body = JSON.parse(request.body as string) as {
+		const [, filterRequest] = fetchImpl.mock.calls[0] as [URL, RequestInit];
+		const filterBody = JSON.parse(filterRequest.body as string) as {
 			messages: Array<{ role: string; content: string }>;
 		};
-		expect(body.messages[0]?.role).toBe("system");
-		expect(body.messages[1]?.content).toContain("[index=0]");
+		expect(filterBody.messages[0]?.content).toContain("relevant_post_indices");
+		expect(filterBody.messages[1]?.content).toContain(
+			"Return post_index values",
+		);
+
+		const [, synthesisRequest] = fetchImpl.mock.calls[1] as [URL, RequestInit];
+		const synthesisBody = JSON.parse(synthesisRequest.body as string) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		expect(synthesisBody.messages[1]?.content).toContain(
+			"pre-filtered relevant posts",
+		);
+		expect(synthesisBody.messages[1]?.content).toContain("[index=0]");
 
 		infoSpy.mockRestore();
 	});
 
-	it("injects macro briefing market context into the Stage 1 prompt", async () => {
+	it("skips synthesis when relevance filter finds no posts", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
@@ -123,7 +151,39 @@ describe("analyzeSocialMedia", () => {
 		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 		const fetchImpl = vi
 			.fn()
-			.mockResolvedValue(chatCompletionResponse(validAnalysis));
+			.mockResolvedValue(
+				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [] })),
+			);
+
+		const result = await analyzeSocialMedia(config, [sampleSignal], {
+			fetchImpl,
+			outlookAssets: ["BTC"],
+		});
+
+		expect(result.analysis.total_retrieved).toBe(1);
+		expect(result.analysis.relevant_count).toBe(0);
+		expect(result.analysis.top_posts).toEqual([]);
+		expect(result.llm.attempt).toBe("skipped");
+		expect(fetchImpl).toHaveBeenCalledOnce();
+		expect(infoSpy).toHaveBeenCalledWith(
+			expect.stringMatching(
+				/Social media analysis completed in \d+ms \(filter=\d+ms, synthesize=0ms, relevant=0\/1\)/,
+			),
+		);
+
+		infoSpy.mockRestore();
+	});
+
+	it("injects macro briefing market context into both filter and synthesis prompts", async () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+		const fetchImpl = mockFilterThenSynthesize(
+			validRelevanceBatch,
+			validSynthesis,
+		);
 		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
 
 		await analyzeSocialMedia(config, [sampleSignal], {
@@ -135,19 +195,21 @@ describe("analyzeSocialMedia", () => {
 			},
 		});
 
-		const [, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
-		const body = JSON.parse(request.body as string) as {
-			messages: Array<{ role: string; content: string }>;
-		};
-		expect(body.messages[1]?.content).toContain("Risk-off ahead of CPI.");
-		expect(body.messages[1]?.content).toContain(
-			"Market context (desk briefing generated 2026-06-16T07:00:00.000Z;):",
-		);
+		for (const call of fetchImpl.mock.calls) {
+			const [, request] = call as [URL, RequestInit];
+			const body = JSON.parse(request.body as string) as {
+				messages: Array<{ role: string; content: string }>;
+			};
+			expect(body.messages[1]?.content).toContain("Risk-off ahead of CPI.");
+			expect(body.messages[1]?.content).toContain(
+				"Market context (desk briefing generated 2026-06-16T07:00:00.000Z;):",
+			);
+		}
 
 		infoSpy.mockRestore();
 	});
 
-	it("retries once with a repair prompt when the initial response is invalid JSON", async () => {
+	it("retries synthesis with a repair prompt when the initial response is invalid JSON", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
@@ -157,8 +219,9 @@ describe("analyzeSocialMedia", () => {
 
 		const fetchImpl = vi
 			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse(validRelevanceBatch))
 			.mockResolvedValueOnce(chatCompletionResponse("not-json"))
-			.mockResolvedValueOnce(chatCompletionResponse(validAnalysis));
+			.mockResolvedValueOnce(chatCompletionResponse(validSynthesis));
 
 		const result = await analyzeSocialMedia(config, [sampleSignal], {
 			fetchImpl,
@@ -167,19 +230,26 @@ describe("analyzeSocialMedia", () => {
 
 		expect(result.analysis.relevant_count).toBe(1);
 		expect(result.llm.attempt).toBe("retry");
-		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
 		expect(infoSpy).toHaveBeenCalledWith(
-			"Retrying social media analysis with a JSON repair prompt...",
+			"Retrying social media synthesis with a JSON repair prompt...",
 		);
 		expect(errorSpy).toHaveBeenCalledWith(
-			expect.stringMatching(/Social media initial response parse failed/i),
+			expect.stringMatching(
+				/Social media synthesis initial response parse failed/i,
+			),
 		);
 
-		const [, retryRequest] = fetchImpl.mock.calls[1] as [URL, RequestInit];
-		const retryBody = JSON.parse(retryRequest.body as string) as {
+		const [, synthesisRetryRequest] = fetchImpl.mock.calls[2] as [
+			URL,
+			RequestInit,
+		];
+		const synthesisRetryBody = JSON.parse(
+			synthesisRetryRequest.body as string,
+		) as {
 			messages: Array<{ role: string; content: string }>;
 		};
-		expect(retryBody.messages[1]?.content).toContain(
+		expect(synthesisRetryBody.messages[1]?.content).toContain(
 			"Your previous response could not be parsed as valid JSON.",
 		);
 
@@ -187,7 +257,7 @@ describe("analyzeSocialMedia", () => {
 		infoSpy.mockRestore();
 	});
 
-	it("retries once when the LLM returns an empty response", async () => {
+	it("retries once when the synthesis LLM returns an empty response", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
@@ -196,8 +266,9 @@ describe("analyzeSocialMedia", () => {
 
 		const fetchImpl = vi
 			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse(validRelevanceBatch))
 			.mockResolvedValueOnce(chatCompletionResponse(""))
-			.mockResolvedValueOnce(chatCompletionResponse(validAnalysis));
+			.mockResolvedValueOnce(chatCompletionResponse(validSynthesis));
 
 		const result = await analyzeSocialMedia(config, [sampleSignal], {
 			fetchImpl,
@@ -206,15 +277,15 @@ describe("analyzeSocialMedia", () => {
 
 		expect(result.analysis.relevant_count).toBe(1);
 		expect(result.llm.attempt).toBe("retry");
-		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
 		expect(infoSpy).toHaveBeenCalledWith(
-			"Social media: LLM returned an empty response; retrying once...",
+			"Social media synthesis: LLM returned an empty response; retrying once...",
 		);
 
 		infoSpy.mockRestore();
 	});
 
-	it("rethrows when empty-response retries are exhausted", async () => {
+	it("rethrows when synthesis empty-response retries are exhausted", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
@@ -223,6 +294,7 @@ describe("analyzeSocialMedia", () => {
 
 		const fetchImpl = vi
 			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse(validRelevanceBatch))
 			.mockResolvedValueOnce(chatCompletionResponse(""))
 			.mockResolvedValueOnce(chatCompletionResponse(""));
 
@@ -233,10 +305,10 @@ describe("analyzeSocialMedia", () => {
 			}),
 		).rejects.toThrow(LlmError);
 
-		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
 	});
 
-	it("rethrows when both parse attempts fail", async () => {
+	it("rethrows when both synthesis parse attempts fail", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
 			LLM_BASE_URL: "http://127.0.0.1:11434",
@@ -246,6 +318,7 @@ describe("analyzeSocialMedia", () => {
 
 		const fetchImpl = vi
 			.fn()
+			.mockResolvedValueOnce(chatCompletionResponse(validRelevanceBatch))
 			.mockResolvedValueOnce(chatCompletionResponse("still-not-json"))
 			.mockResolvedValueOnce(chatCompletionResponse("also-not-json"));
 
@@ -256,6 +329,6 @@ describe("analyzeSocialMedia", () => {
 			}),
 		).rejects.toThrow(ParseResponseError);
 
-		expect(fetchImpl).toHaveBeenCalledTimes(2);
+		expect(fetchImpl).toHaveBeenCalledTimes(3);
 	});
 });

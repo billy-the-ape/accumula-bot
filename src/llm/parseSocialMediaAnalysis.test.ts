@@ -6,22 +6,22 @@ import { createSocialMediaAnalysisValidation } from "@/schemas/SocialMediaAnalys
 const thinkOpenTag = ["<", "think", ">"].join("");
 const thinkCloseTag = ["<", "/", "think", ">"].join("");
 
+const promptSignal = {
+	source: "twitter" as const,
+	id: "111",
+	username: "whale_alert",
+	index: 0,
+	text: "Large BTC moved to an exchange.",
+};
+
 const validation = createSocialMediaAnalysisValidation(
 	[{ source: "twitter", id: "111", username: "whale_alert" }],
-	[
-		{
-			source: "twitter",
-			id: "111",
-			username: "whale_alert",
-			index: 0,
-			text: "Large BTC moved to an exchange.",
-		},
-	],
+	[promptSignal],
+	3,
 );
 
 const validLlmPayload = {
 	total_retrieved: 1,
-	relevant_count: 1,
 	summary: "One actionable whale alert.",
 	themes: ["whale flow"],
 	by_asset: [
@@ -58,13 +58,22 @@ describe("parseSocialMediaAnalysisJson", () => {
 		);
 	});
 
+	it("injects relevant_count from validation rather than LLM output", () => {
+		const result = parseSocialMediaAnalysisJson(
+			JSON.stringify(validLlmPayload),
+			validation,
+		);
+
+		expect(result.relevant_count).toBe(3);
+	});
+
 	it("parses JSON wrapped in markdown fences", () => {
 		const result = parseSocialMediaAnalysisJson(
 			`\`\`\`json\n${JSON.stringify(validLlmPayload)}\n\`\`\``,
 			validation,
 		);
 
-		expect(result.relevant_count).toBe(1);
+		expect(result.relevant_count).toBe(3);
 	});
 
 	it("parses JSON after a thinking block", () => {

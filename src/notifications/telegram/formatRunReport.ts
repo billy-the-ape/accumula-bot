@@ -182,7 +182,7 @@ function formatSocialMediaAnalysisSection(
 			const linkText = `From ${username}`;
 			const url = `https://x.com/${username}/status/${externalId}`;
 			const headline = `${boldLink(linkText, url)} — ${escapeMarkdownV2(truncate(text))}`;
-			lines.push(`    ${topPost.rank}. ${headline}`);
+			lines.push(`    ${topPost.rank}\\. ${headline}`);
 		}
 		lines.push("");
 	}

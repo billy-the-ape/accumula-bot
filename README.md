@@ -214,7 +214,7 @@ Optional Telegram DM notifications: see [Notifications](#notifications) for `TEL
 
 ## Scheduling (3× daily)
 
-The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **two LLM calls** on the trading model (social filter/digest, then trade recommendation) using `.env` / Ollama. A **separate daily job** (`pnpm macro:briefing`, `.env.macro` / OpenAI) writes macro context to the DB for Stage 1 — see [Macro Briefing](#macro-briefing). Schedule trading **three times per day** (or hourly via PM2) so decisions can accumulate without keeping a Node process running 24/7.
+The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **many LLM calls** on the trading model (batched relevance filter + synthesis digest, then trade recommendation) using `.env` / Ollama — see [Social Media](#social-media) for call counts. A **separate daily job** (`pnpm macro:briefing`, `.env.macro` / OpenAI) writes macro context to the DB for Stage 1 — see [Macro Briefing](#macro-briefing). Schedule trading **three times per day** (or hourly via PM2) so decisions can accumulate without keeping a Node process running 24/7.
 
 Default schedule (server **local timezone**):
 
@@ -636,7 +636,7 @@ Read-only — directional scores from implied price distributions used as a **si
 
 * X/Twitter via search AMQP (`CLOUDAMQP_URL`)
 
-Read-only — a **two-stage** pipeline filters raw posts in a dedicated LLM pass, then feeds a compact digest (not the full post dump) into the portfolio-outlook prompt. See [Social Media](#social-media) for config and output shape.
+Read-only — a **batched relevance filter + synthesis** pipeline filters raw posts in small LLM batches, then feeds a compact digest (not the full post dump) into the portfolio-outlook prompt. See [Social Media](#social-media) for config and output shape.
 
 ## Sentiment (future)
 
@@ -688,7 +688,7 @@ New sources slot in via `DEFAULT_ANALYSIS_DATA_SOURCES` without changing the pro
 
 1. **Deterministic risk layer keeps final authority** — whitelist, per-asset allocation caps, kill switch, and loss limits bound the outcome no matter what the model infers. The LLM is advisory only.
 2. **Schema-constrained output** — Zod validation rejects malformed decisions before execution, regardless of how messy the input was.
-3. **Trust boundaries for untrusted sources** — social/news content is wrapped in clearly delimited, tagged blocks and treated as *data to analyze, never instructions to follow*; markup is stripped. **Social media implements this today:** Stage 1 analyzes raw posts inside a trust boundary; Stage 2 sees only the structured digest (plus full text for the top three ranked posts), still wrapped as untrusted-derived data.
+3. **Trust boundaries for untrusted sources** — social/news content is wrapped in clearly delimited, tagged blocks and treated as *data to analyze, never instructions to follow*; markup is stripped. **Social media implements this today:** Stage 1a filters raw posts in small batches inside a trust boundary; Stage 1b synthesizes the relevant subset; the portfolio-outlook prompt (Stage 2) sees only the structured digest (plus full text for the top three ranked posts), still wrapped as untrusted-derived data.
 4. **Per-source token budget** — each section's size is capped and logged so silent truncation is caught; `num_ctx` is set deliberately.
 5. **Provenance, freshness, and audit** — every datum carries its source and `as_of` timestamp, and the full context `payload` is persisted with each decision for replay.
 6. **Graceful per-source degradation** — a failing or junk source is tagged "unavailable" rather than poisoning or blocking the run; the model is told when a source is missing so absence is not mistaken for a signal.
@@ -766,7 +766,7 @@ The macro generator calls `POST /v1/responses` with `tools: [{ type: "web_search
 
 Each hourly run loads the latest row from `macro_briefings`. It is injected into the Stage 1 prompt only if **`createdAt` is ≤36 hours old** (`MACRO_BRIEFING_MAX_AGE_MS` in code). Otherwise the social prompt runs unchanged (no preamble).
 
-When injected, the briefing appears **before** relevance guidance as trusted desk context. Raw tweets remain untrusted; if a post contradicts the briefing with a concrete new fact, the prompt tells the model to prefer the post.
+When injected, the briefing appears **before** relevance guidance (Stage 1a batch filter) and synthesis instructions (Stage 1b) as trusted desk context. Raw tweets remain untrusted; if a post contradicts the briefing with a concrete new fact, the prompt tells the model to prefer the post.
 
 Console logs during social fetch:
 
@@ -811,22 +811,29 @@ A read-only data source (`src/sources/social_media/`, surfaced via `socialMediaS
 
 **Off by default.** Set `SOCIAL_MEDIA_ENABLED=true` to enable the source.
 
-## Two-stage LLM pipeline
+## Batched relevance + synthesis pipeline
 
-Each run with social media enabled performs **two LLM calls** on the **trading** LLM (`.env` — typically Ollama):
+Each run with social media enabled performs **multiple LLM calls** on the **trading** LLM (`.env` — typically Ollama), then one portfolio-outlook call:
 
-1. **Stage 1 — `analyzeSocialMedia`** — Raw posts (with composite ids `source:externalId`, e.g. `twitter:1234567890`) are analyzed inside a trust boundary. When a **fresh macro briefing** exists in the DB (≤36h old), a desk-context preamble is prepended before relevance guidance — see [Macro Briefing](#macro-briefing). The model returns structured `SocialMediaAnalysis` JSON: retrieved/relevant counts, themes, per-asset sentiment, ranked top posts, and one-line summaries for each relevant post.
-2. **Stage 2 — `runAnalysis`** — The portfolio-outlook prompt receives a **compact digest** (`formatSocialMediaAnalysis`) instead of every post. The digest includes full text for the **top three** ranked posts for grounding. The section is still wrapped as untrusted-derived data.
+1. **Stage 1a — batched relevance filter** (`findRelevantSocialMediaSignals`) — Up to **500 newest posts** are split into **20-post batches** and scanned **sequentially**. Each batch prompt includes the optional macro briefing preamble (see [Macro Briefing](#macro-briefing)) and returns `{ relevant_post_indices: [...] }`. Failed batch parses degrade to 0 relevant for that batch rather than failing the run.
+2. **Stage 1b — synthesis** (`analyzeSocialMedia` → `synthesizeRelevantSocialMediaSignals`) — Runs only when Stage 1a finds ≥1 relevant post. The **pre-filtered subset** is synthesized into structured `SocialMediaAnalysis` JSON (themes, per-asset sentiment, ranked `top_posts`). `relevant_count` is computed server-side from the filter — the synthesis model does not re-count relevance. Macro briefing preamble is included again.
+3. **Stage 2 — `runAnalysis`** — The portfolio-outlook prompt receives a **compact digest** (`formatSocialMediaAnalysis`) instead of every post. The digest includes full text for the **top three** ranked posts for grounding. The section is still wrapped as untrusted-derived data.
 
-If Stage 1 fails (parse error after retry), the run **continues**: the social section falls back to raw post formatting and the Telegram report shows `Analysis unavailable`. Trading is never blocked on social analysis failure.
+**LLM call count (worst case):** `ceil(min(fetch, 500) / 20)` batch calls + 1 synthesis call + 1 portfolio call. Example: 201 posts → **11 + 1 + 1 = 13** trading-LLM calls.
 
-When zero posts are retrieved, Stage 1 is skipped (no extra LLM call).
+If Stage 1b fails (parse error after retry), the run **continues**: the social section falls back to raw post formatting and the Telegram report shows `Analysis unavailable`. Trading is never blocked on social analysis failure.
+
+When zero posts are retrieved, all social LLM calls are skipped. When posts are retrieved but none pass the relevance bar, only the batch filter runs — synthesis is skipped.
 
 ## Console and Telegram output
 
 After building the analysis context, the run logs:
 
 * `Social media: using macro briefing from …` or `no fresh macro briefing available` (when social enabled)
+* `Social media: relevance filter — N batches × 20 posts (sequential)` and per-batch `batch X/Y — R relevant of 20`
+* `Social media: relevance filter done — R relevant of S scanned in Xms`
+* `Social media: running synthesis on R relevant posts …` (when R > 0)
+* `Social media analysis completed in Xms (filter=Yms, synthesize=Zms, relevant=R/T)`
 * `Social media: retrieved=N relevant=M` (and themes when present)
 * Or `Social media: retrieved=N (analysis unavailable)` on fallback
 * Or `Social media: no posts retrieved`
@@ -837,7 +844,7 @@ The per-run Telegram report (see [Notifications](#notifications)) includes the s
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `SOCIAL_MEDIA_ENABLED` | No | `false` | Set `true`/`1` to enable Twitter collection + two-stage social analysis |
+| `SOCIAL_MEDIA_ENABLED` | No | `false` | Set `true`/`1` to enable Twitter collection + batched social analysis |
 | `CLOUDAMQP_URL` | Yes (when enabled) | — | AMQP URL for the Twitter search worker |
 | `TWITTER_SEARCH_STRING` | Yes (when enabled) | — | Search query passed to the Twitter worker |
 | `TWITTER_SEARCH_MAX_PAGES` | No | `5` | Max result pages to scrape per run |

@@ -34,12 +34,19 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 
 		expect(prompt.system).toContain("parseable by JSON.parse()");
 		expect(prompt.system).toContain("top_posts must use relevance=high only");
-		expect(prompt.user).toContain("Be selective");
-		expect(prompt.user).toContain("When in doubt, exclude");
+		expect(prompt.system).not.toContain('"relevant_count":');
 		expect(prompt.system).not.toContain('"posts":');
 		expect(prompt.system).toContain('"post_index": 0');
+		expect(prompt.user).toContain("pre-filtered relevant posts");
+		expect(prompt.user).not.toContain(
+			"Relevance bar (24-hour trading horizon):",
+		);
+		expect(prompt.user).not.toContain("When in doubt, exclude");
 		expect(prompt.user).toContain("Outlook assets: BTC, ETH, SOL");
-		expect(prompt.user).toContain("Posts retrieved (full batch): 1");
+		expect(prompt.user).toContain("Posts retrieved (full fetch): 1");
+		expect(prompt.user).toContain(
+			"Posts shown: 1 (all pre-filtered as relevant)",
+		);
 		expect(prompt.user).toContain("Valid post indices (use post_index exactly");
 		expect(prompt.user).toContain("0");
 	});
@@ -56,7 +63,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.user).toContain("Large BTC transfer detected");
 	});
 
-	it("includes a macro briefing preamble before relevance guidance when marketContext is provided", () => {
+	it("includes a macro briefing preamble before synthesis guidance when marketContext is provided", () => {
 		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
 		const prompt = buildSocialMediaAnalysisPromptParts({
 			promptSignals: [sampleSignal()],
@@ -68,15 +75,13 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 			},
 		});
 
-		const relevanceIndex = prompt.user.indexOf(
-			"Relevance bar (24-hour trading horizon):",
-		);
+		const guidanceIndex = prompt.user.indexOf("top_posts selection rules:");
 		const preambleIndex = prompt.user.indexOf(
 			"Market context (desk briefing generated 2026-06-16T07:00:00.000Z;):",
 		);
 
 		expect(preambleIndex).toBeGreaterThan(-1);
-		expect(relevanceIndex).toBeGreaterThan(preambleIndex);
+		expect(guidanceIndex).toBeGreaterThan(preambleIndex);
 		expect(prompt.user).toContain("Risk-off ahead of CPI.");
 		expect(prompt.user).toContain("posts are the primary evidence");
 	});

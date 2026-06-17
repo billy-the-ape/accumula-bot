@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadTestConfig } from "@/config/loadTestConfig";
 import { collectSocialMediaSignals } from "@/sources/social_media/collectSocialMediaSignals";
-import { getTwitterSearchResult } from "@/sources/social_media/twitterClient/twitterClient";
+import { getTwitterSearchMultipleResults } from "@/sources/social_media/twitterClient/twitterClient";
 
 vi.mock("@/sources/social_media/twitterClient/twitterClient", () => ({
-	getTwitterSearchResult: vi.fn(),
+	getTwitterSearchMultipleResults: vi.fn(),
 }));
 
 describe("collectSocialMediaSignals", () => {
 	it("maps tweet index and id onto SocialMediaSignal", async () => {
-		vi.mocked(getTwitterSearchResult).mockResolvedValue([
+		vi.mocked(getTwitterSearchMultipleResults).mockResolvedValue([
 			{
 				index: 3,
 				id: "tweet-abc",

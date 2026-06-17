@@ -228,10 +228,10 @@ describe("formatRunReport", () => {
 		expect(message).toContain("whale flow, macro");
 		expect(message).toContain("Most Relevant Posts:");
 		expect(message).toContain(
-			"1. *[From whale\\_alert](https://x.com/whale_alert/status/111)* — Exchange inflow is the clearest near\\-term sell\\-pressure signal\\.",
+			"1\\. *[From whale\\_alert](https://x.com/whale_alert/status/111)* — Exchange inflow is the clearest near\\-term sell\\-pressure signal\\.",
 		);
 		expect(message).toContain(
-			"2. *[From macro\\_news](https://x.com/macro_news/status/222)* — Macro tone may cap upside\\.",
+			"2\\. *[From macro\\_news](https://x.com/macro_news/status/222)* — Macro tone may cap upside\\.",
 		);
 		expect(message).toContain(
 			"*BTC:* mixed — Whale deposit offset by steady ETF inflows\\.",

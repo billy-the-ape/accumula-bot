@@ -32,7 +32,11 @@ const allSignals = [
 	},
 ] as const;
 
-const validation = createSocialMediaAnalysisValidation(allSignals, allSignals);
+const validation = createSocialMediaAnalysisValidation(
+	allSignals,
+	allSignals,
+	2,
+);
 
 const validAnalysis = {
 	total_retrieved: 3,
@@ -74,7 +78,6 @@ const validAnalysis = {
 
 const validLlmAnalysis = {
 	total_retrieved: 3,
-	relevant_count: 2,
 	summary: validAnalysis.summary,
 	themes: validAnalysis.themes,
 	by_asset: validAnalysis.by_asset,
@@ -141,7 +144,6 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 	it("rejects unknown post_index values", () => {
 		const result = createSocialMediaAnalysisLlmSchema(validation).safeParse({
 			...validLlmAnalysis,
-			relevant_count: 1,
 			top_posts: [{ ...validLlmAnalysis.top_posts[0], post_index: 99 }],
 		});
 
@@ -151,7 +153,6 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 	it("rejects medium relevance in top_posts", () => {
 		const result = createSocialMediaAnalysisLlmSchema(validation).safeParse({
 			...validLlmAnalysis,
-			relevant_count: 1,
 			top_posts: [
 				{
 					...validLlmAnalysis.top_posts[0],
@@ -159,6 +160,20 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 				},
 			],
 		});
+
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects top_posts exceeding the prompt subset size", () => {
+		const singlePostValidation = createSocialMediaAnalysisValidation(
+			allSignals,
+			[allSignals[0]],
+			1,
+		);
+		const result =
+			createSocialMediaAnalysisLlmSchema(singlePostValidation).safeParse(
+				validLlmAnalysis,
+			);
 
 		expect(result.success).toBe(false);
 	});
@@ -172,10 +187,18 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		);
 	});
 
+	it("injects relevant_count from validation during remap", () => {
+		const parsed =
+			createSocialMediaAnalysisLlmSchema(validation).parse(validLlmAnalysis);
+
+		expect(
+			remapSocialMediaAnalysisFromLlm(parsed, validation).relevant_count,
+		).toBe(2);
+	});
+
 	it("ignores hallucinated LLM summaries during remap", () => {
 		const parsed = createSocialMediaAnalysisLlmSchema(validation).parse({
 			...validLlmAnalysis,
-			relevant_count: 1,
 			top_posts: [
 				{
 					...validLlmAnalysis.top_posts[0],
@@ -252,10 +275,11 @@ describe("createSocialMediaAnalysisSchema", () => {
 	});
 
 	it("allows total_retrieved to exceed prompt subset size", () => {
-		const subsetValidation = createSocialMediaAnalysisValidation(allSignals, [
-			allSignals[0],
-			allSignals[1],
-		]);
+		const subsetValidation = createSocialMediaAnalysisValidation(
+			allSignals,
+			[allSignals[0], allSignals[1]],
+			2,
+		);
 
 		const result =
 			createSocialMediaAnalysisSchema(subsetValidation).safeParse(
@@ -266,14 +290,14 @@ describe("createSocialMediaAnalysisSchema", () => {
 	});
 
 	it("rejects post ids outside the prompt subset", () => {
-		const subsetValidation = createSocialMediaAnalysisValidation(allSignals, [
-			allSignals[0],
-			allSignals[1],
-		]);
+		const subsetValidation = createSocialMediaAnalysisValidation(
+			allSignals,
+			[allSignals[0], allSignals[1]],
+			2,
+		);
 
 		const result = createSocialMediaAnalysisSchema(subsetValidation).safeParse({
 			...validAnalysis,
-			relevant_count: 1,
 			top_posts: [
 				{
 					post_index: 2,
@@ -308,6 +332,7 @@ describe("createSocialMediaAnalysisSchema", () => {
 			),
 		).toEqual({
 			totalRetrieved: 1,
+			relevantCount: 1,
 			promptSignals: [
 				{
 					source: "twitter",
