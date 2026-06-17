@@ -17,6 +17,7 @@ const openAiConfig: LlmConfig = {
 	provider: "openai_compatible",
 	baseUrl: "https://api.openai.com/v1",
 	model: "gpt-5.5",
+	fastModel: "gpt-5.5",
 	requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 	temperature: DEFAULT_LLM_TEMPERATURE,
 	contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,

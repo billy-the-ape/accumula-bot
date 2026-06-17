@@ -30,6 +30,7 @@ describe("loadConfig", () => {
 			provider: "ollama",
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
+			fastModel: "qwen3:8b",
 			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
 			temperature: DEFAULT_LLM_TEMPERATURE,
 			contextTokens: DEFAULT_LLM_CONTEXT_TOKENS,
