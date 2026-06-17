@@ -9,6 +9,7 @@ import { loadConfig } from "@/config/index.js";
 import {
 	computePortfolioBtcValue,
 	computeReturnFraction,
+	getTotalPortfolioQuoteValue,
 } from "@/domain/index.js";
 import {
 	createPaperExecutionConfig,
@@ -200,7 +201,14 @@ async function main() {
 					? "risk_blocked"
 					: "hold";
 
-			let portfolioReport: { btcValue: number; returnPct: number } | undefined;
+			let portfolioReport:
+				| {
+						btcValue: number;
+						usdValue: number;
+						returnPct: number;
+						usdAllTimeReturnPct: number;
+				  }
+				| undefined;
 			const portfolio = await getLatestPortfolio(connection.db);
 
 			if (portfolio) {
@@ -211,17 +219,31 @@ async function main() {
 					prices,
 					config.assetToAccumulate.symbol,
 				);
+				const usdValue = getTotalPortfolioQuoteValue(
+					portfolio.holdings,
+					prices,
+				);
 
 				const returnPct =
 					computeReturnFraction(btcValue, portfolio.initialBtcBaseline) * 100;
+				const usdAllTimeReturnPct =
+					computeReturnFraction(usdValue, portfolio.initialQuoteBaseline) * 100;
 
 				console.info("Portfolio holdings:", portfolio.holdings);
 				console.info(
 					`Portfolio ${config.assetToAccumulate.symbol} value: ${btcValue.toFixed(8)} ${config.assetToAccumulate.symbol}`,
 				);
 				console.info(`Return vs initial baseline: ${returnPct.toFixed(2)}%`);
+				console.info(
+					`Portfolio USD value: ${usdValue.toFixed(2)} (${usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+				);
 
-				portfolioReport = { btcValue, returnPct };
+				portfolioReport = {
+					btcValue,
+					usdValue,
+					returnPct,
+					usdAllTimeReturnPct,
+				};
 			}
 
 			// Always notify on a completed run — executed, blocked, or hold.
@@ -241,7 +263,7 @@ async function main() {
 						...(socialMediaAnalysis ? { socialMediaAnalysis } : {}),
 						accumulateSymbol: config.assetToAccumulate.symbol,
 						outlookThresholds: config.outlookThresholds,
-						...(portfolioReport ? { portfolioResults: portfolioReport } : {}),
+						...(portfolioReport ? { portfolioReport } : {}),
 					});
 
 					console.info("Telegram run report sent");

@@ -1,3 +1,4 @@
+import { computeReturnFraction } from "@/domain/btcBenchmark.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingContent.js";
 import {
@@ -86,8 +87,8 @@ export function formatDailySummary(input: DailySummaryInput): string {
 		`USD: ${bold(formatUsd(input.startingUsdValue))}`,
 		"",
 		underline("Current value:"),
-		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.btcValue.toFixed(8))}`,
-		`USD: ${bold(` ${formatUsd(input.usdValue)}`)}`,
+		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.btcValue.toFixed(8))} · ${bold(formatReturnPct(input.allTimeReturnPct))} all\\-time`,
+		`USD: ${bold(` ${formatUsd(input.usdValue)}`)} · ${bold(formatReturnPct(computeReturnFraction(input.usdValue, input.startingUsdValue) * 100))} all\\-time`,
 	];
 
 	return lines.join("\n");

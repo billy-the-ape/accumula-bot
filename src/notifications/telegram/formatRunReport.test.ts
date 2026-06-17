@@ -120,7 +120,12 @@ function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 		predictionSignals: [],
 		socialMediaSignals: [],
 		accumulateSymbol: "BTC",
-		portfolioReport: { btcValue: 0.105, returnPct: 2.5 },
+		portfolioReport: {
+			btcValue: 0.105,
+			usdValue: 9_975,
+			returnPct: 2.5,
+			usdAllTimeReturnPct: -0.25,
+		},
 		outlookThresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 		...overrides,
 	};
@@ -139,9 +144,9 @@ describe("formatRunReport", () => {
 		expect(message).toContain("Strong relative momentum");
 		expect(message).toContain("Trades:");
 		expect(message).toContain("BUY 0\\.01 BTC");
-		expect(message).toContain(
-			"0\\.105 BTC \\(\\+2\\.50% all\\-time vs initial BTC baseline\\)",
-		);
+		expect(message).toContain("__*Current value:*__");
+		expect(message).toContain("BTC: *0\\.10500000* · *\\+2\\.50%* all\\-time");
+		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
 	});
 
 	it("renders a hold run with no trades section", () => {
@@ -202,7 +207,7 @@ describe("formatRunReport", () => {
 		delete input.portfolioReport;
 		const message = formatRunReport(input);
 
-		expect(message).not.toContain("Accumulated:");
+		expect(message).not.toContain("Current value:");
 	});
 
 	it("renders structured social analysis when Stage 1 succeeded", () => {

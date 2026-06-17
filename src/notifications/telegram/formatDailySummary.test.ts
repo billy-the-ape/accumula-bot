@@ -39,8 +39,8 @@ describe("formatDailySummary", () => {
 		expect(message).toContain("BTC: *0\\.10000000*");
 		expect(message).toContain("USD: *10,000\\.00*");
 		expect(message).toContain("__Current value:__");
-		expect(message).toContain("BTC: *0\\.10500000*");
-		expect(message).toContain("USD: * 9,975\\.00*");
+		expect(message).toContain("BTC: *0\\.10500000* · *\\+4\\.80%* all\\-time");
+		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
 	});
 
 	it("includes the full macro briefing text when provided", () => {

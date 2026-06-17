@@ -39,7 +39,11 @@ export type RunReportInput = {
 	portfolio?: StoredPortfolio;
 	portfolioReport?: {
 		btcValue: number;
+		usdValue: number;
+		/** All-time return vs initial BTC baseline (%). */
 		returnPct: number;
+		/** All-time return vs initial USD baseline (%). */
+		usdAllTimeReturnPct: number;
 	};
 	outlookThresholds: OutlookThresholds;
 };
@@ -58,6 +62,17 @@ function formatUsd(value: number): string {
 		currency: "USD",
 		maximumFractionDigits: 2,
 	});
+}
+
+function formatUsdPlain(value: number): string {
+	return value.toLocaleString("en-US", {
+		maximumFractionDigits: 2,
+		minimumFractionDigits: 2,
+	});
+}
+
+function formatReturnPct(value: number): string {
+	return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
 function formatQuantity(value: number): string {
@@ -290,20 +305,13 @@ export function formatRunReport(input: RunReportInput): string {
 	}
 
 	if (input.portfolioReport) {
-		const { btcValue, returnPct } = input.portfolioReport;
-		const btcValueStr = btcValue.toFixed(8).replace(/0+$/, "");
-		const returnSign = returnPct >= 0 ? "\\+" : "";
-		const returnStr = returnPct.toFixed(2);
-		const lessOrMore = returnPct >= 0 ? "less" : "more";
+		const { btcValue, usdValue, returnPct, usdAllTimeReturnPct } =
+			input.portfolioReport;
 		lines.push(
 			"",
-			boldUnderline("Accumulated Value:"),
-			`${escapeMarkdownV2(btcValueStr)} ${escapeMarkdownV2(input.accumulateSymbol)} \\(${returnSign}${escapeMarkdownV2(returnStr)}% all\\-time vs initial ${escapeMarkdownV2(input.accumulateSymbol)} baseline\\)`,
-			escapeMarkdownV2(
-				italic(
-					`In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnStr} ${lessOrMore} ${input.accumulateSymbol} than you do now`,
-				),
-			),
+			boldUnderline("Current value:"),
+			`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(btcValue.toFixed(8))} · ${bold(formatReturnPct(returnPct))} all\\-time`,
+			`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
 		);
 	}
 
