@@ -39,16 +39,12 @@ const BUSINESS_NEWS_ACCOUNTS = [
 const CRYPTO_ACCOUNTS = [
 	"unusual_whales",
 	"whale_alert",
-	"MessariCrypto",
 	"WatcherGuru",
 	"BloombergCrypto",
 	"CoinDesk",
 	"Cointelegraph",
 	"coinbureau",
-	"tier10k",
 	"TheBlockCo",
-	"DefiIgnas",
-	"nikhileshde",
 	"bitcoinarchive",
 	"glassnode",
 ];
