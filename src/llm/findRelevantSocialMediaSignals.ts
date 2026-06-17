@@ -281,7 +281,10 @@ export async function findRelevantSocialMediaSignals(
 	);
 
 	return {
-		relevantSignals,
+		relevantSignals: relevantSignals.map((signal, index) => ({
+			...signal,
+			index,
+		})) as SocialMediaSignal[],
 		scannedCount: signals.length,
 		durationMs,
 	};
