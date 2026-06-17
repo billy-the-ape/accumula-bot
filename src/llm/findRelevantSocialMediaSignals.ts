@@ -11,7 +11,7 @@ import {
 import { createSocialMediaRelevanceBatchValidation } from "@/schemas/SocialMediaRelevanceBatch.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
-export const DEFAULT_SOCIAL_MEDIA_RELEVANCE_BATCH_SIZE = 20;
+export const DEFAULT_SOCIAL_MEDIA_RELEVANCE_BATCH_SIZE = 40;
 
 export type FindRelevantSocialMediaSignalsOptions = {
 	fetchImpl?: typeof fetch;
