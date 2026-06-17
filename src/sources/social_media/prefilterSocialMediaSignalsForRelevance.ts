@@ -9,7 +9,7 @@ import { TWITTER_ACCOUNTS_TAG_MAP } from "@/sources/social_media/twitterClient/t
 const PRIORITY_ACCOUNT_TAGS = ["government", "macro", "business"] as const;
 
 const CATALYST_KEYWORD_PATTERN =
-	/\b(etf|cpi|ppi|fomc|fed|rate cut|rate hike|sec|cftc|hack|exploit|insolv|bankrupt|delist|liquidat|inflow|outflow|treasury|sanction|regulat|enforcement|subpoena|approv|denied|outage|halt|suspend|whale|transfer|btc|eth|sol|bitcoin)\b/i;
+	/\b(etf|cpi|ppi|fomc|fed|rate|sec|cftc|hack|exploit|insolv|bankrupt|delist|liquidat|inflow|outflow|treasury|sanction|regulat|enforcement|subpoena|approv|denied|outage|halt|suspend|whale|transfer|btc|eth|sol|bitcoin|market|oil|war|peace)\b/i;
 
 const PRIORITY_ACCOUNTS = new Set(
 	PRIORITY_ACCOUNT_TAGS.flatMap((tag) =>
