@@ -16,7 +16,7 @@ const sampleSignal: SocialMediaSignal = {
 };
 
 const validRelevanceBatch = JSON.stringify({
-	relevant_post_indices: [0],
+	relevant_post_ids: [0],
 });
 
 const validSynthesis = JSON.stringify({
@@ -32,7 +32,7 @@ const validSynthesis = JSON.stringify({
 	],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			rank: 1,
 			relevance: "high",
 			assets: ["BTC"],
@@ -126,10 +126,8 @@ describe("analyzeSocialMedia", () => {
 		const filterBody = JSON.parse(filterRequest.body as string) as {
 			messages: Array<{ role: string; content: string }>;
 		};
-		expect(filterBody.messages[0]?.content).toContain("relevant_post_indices");
-		expect(filterBody.messages[1]?.content).toContain(
-			"Return post_index values",
-		);
+		expect(filterBody.messages[1]?.content).toContain("relevant_post_ids");
+		expect(filterBody.messages[1]?.content).toContain("Decision rule");
 
 		const [, synthesisRequest] = fetchImpl.mock.calls[1] as [URL, RequestInit];
 		const synthesisBody = JSON.parse(synthesisRequest.body as string) as {
@@ -138,7 +136,7 @@ describe("analyzeSocialMedia", () => {
 		expect(synthesisBody.messages[1]?.content).toContain(
 			"pre-filtered relevant posts",
 		);
-		expect(synthesisBody.messages[1]?.content).toContain("[index=0]");
+		expect(synthesisBody.messages[1]?.content).toContain("[post_id=0]");
 
 		infoSpy.mockRestore();
 	});
@@ -152,7 +150,7 @@ describe("analyzeSocialMedia", () => {
 		const fetchImpl = vi
 			.fn()
 			.mockResolvedValue(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [] })),
 			);
 
 		const result = await analyzeSocialMedia(config, [sampleSignal], {

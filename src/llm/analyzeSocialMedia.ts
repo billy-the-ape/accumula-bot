@@ -28,6 +28,7 @@ import {
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
 import { selectSocialMediaPromptSignals } from "@/sources/social_media/selectSocialMediaPromptSignals.js";
+import { formatDuration } from "@/utils";
 
 export type AnalyzeSocialMediaOptions = {
 	fetchImpl?: typeof fetch;
@@ -272,7 +273,7 @@ export async function analyzeSocialMedia(
 
 	if (signals.length === 0) {
 		console.info(
-			`Social media analysis skipped (0 posts) in ${Date.now() - start}ms`,
+			`Social media analysis skipped (0 posts) in ${formatDuration(Date.now() - start)}`,
 		);
 
 		return {
@@ -313,7 +314,7 @@ export async function analyzeSocialMedia(
 		const totalMs = Date.now() - start;
 
 		console.info(
-			`Social media analysis completed in ${totalMs}ms (filter=${filterDurationMs}ms, synthesize=0ms, relevant=0/${signals.length})`,
+			`Social media analysis completed in ${formatDuration(totalMs)} (filter=${formatDuration(filterDurationMs)}, synthesize=0ms, relevant=0/${signals.length})`,
 		);
 
 		return {
@@ -338,7 +339,13 @@ export async function analyzeSocialMedia(
 	const synthesizeDurationMs = Date.now() - synthesizeStart;
 
 	console.info(
-		`Social media analysis completed in ${Date.now() - start}ms (filter=${filterDurationMs}ms, synthesize=${synthesizeDurationMs}ms, relevant=${result.analysis.relevant_count}/${result.analysis.total_retrieved})`,
+		`Social media analysis completed in ${formatDuration(
+			Date.now() - start,
+		)} (filter=${formatDuration(
+			filterDurationMs,
+		)}, synthesize=${formatDuration(synthesizeDurationMs)}, relevant=${
+			result.analysis.relevant_count
+		}/${result.analysis.total_retrieved})`,
 	);
 
 	return result;

@@ -17,21 +17,19 @@ const sampleSignal: SocialMediaSignal = {
 };
 
 describe("resolveSocialMediaSignalForTopPost", () => {
-	it("resolves by post_index first", () => {
+	it("resolves by post_id first", () => {
 		expect(
-			resolveSocialMediaSignalForTopPost(
-				{ post_index: 42, id: "twitter:wrong" },
-				[sampleSignal],
-			),
+			resolveSocialMediaSignalForTopPost({ post_id: 42, id: "twitter:wrong" }, [
+				sampleSignal,
+			]),
 		).toEqual(sampleSignal);
 	});
 
 	it("falls back to tweet id when index lookup misses", () => {
 		expect(
-			resolveSocialMediaSignalForTopPost(
-				{ post_index: 99, id: "twitter:999" },
-				[sampleSignal],
-			),
+			resolveSocialMediaSignalForTopPost({ post_id: 99, id: "twitter:999" }, [
+				sampleSignal,
+			]),
 		).toEqual(sampleSignal);
 	});
 });

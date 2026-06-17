@@ -33,7 +33,7 @@ const validLlmPayload = {
 	],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			rank: 1,
 			relevance: "high",
 			assets: ["BTC"],
@@ -44,7 +44,7 @@ const validLlmPayload = {
 };
 
 describe("parseSocialMediaAnalysisJson", () => {
-	it("parses plain JSON and remaps post_index to composite ids", () => {
+	it("parses plain JSON and remaps post_id to composite ids", () => {
 		const result = parseSocialMediaAnalysisJson(
 			JSON.stringify(validLlmPayload),
 			validation,
@@ -100,12 +100,12 @@ describe("parseSocialMediaAnalysisJson", () => {
 		).toThrow(ParseResponseError);
 	});
 
-	it("throws ParseResponseError for unknown post_index", () => {
+	it("throws ParseResponseError for unknown post_id", () => {
 		expect(() =>
 			parseSocialMediaAnalysisJson(
 				JSON.stringify({
 					...validLlmPayload,
-					top_posts: [{ ...validLlmPayload.top_posts[0], post_index: 99 }],
+					top_posts: [{ ...validLlmPayload.top_posts[0], post_id: 99 }],
 				}),
 				validation,
 			),

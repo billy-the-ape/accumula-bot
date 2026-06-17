@@ -52,7 +52,7 @@ const sampleAnalysis: SocialMediaAnalysis = {
 	],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			id: "twitter:111",
 			username: "whale_alert",
 			rank: 1,
@@ -151,7 +151,7 @@ describe("socialMediaSource", () => {
 		const section = await socialMediaSource.fetch(config, assets);
 
 		expect(section.payload).toEqual({ signals: sampleSignals });
-		expect(section.promptText).toContain("[index=0]");
+		expect(section.promptText).toContain("[post_id=0]");
 		expect(warnSpy).toHaveBeenCalledWith(
 			"Social media analysis failed; falling back to raw posts: LLM down",
 		);

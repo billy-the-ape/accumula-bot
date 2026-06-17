@@ -3,6 +3,11 @@ import { completeJsonChat } from "@/llm/llmClient.js";
 import { ParseResponseError } from "@/llm/parseResponse.js";
 import { parseSocialMediaRelevanceBatchJson } from "@/llm/parseSocialMediaRelevanceBatch.js";
 import { LlmError } from "@/llm/providers/types.js";
+import {
+	createBatchLocalPostIdValidation,
+	mapBatchLocalPostIdsToGlobal,
+} from "@/llm/relevanceBatchPostIds.js";
+import { salvageRelevantPostIds } from "@/llm/salvageRelevantPostIds.js";
 import type { SocialMediaMarketContext } from "@/llm/socialMediaRelevancePrompt.js";
 import {
 	buildSocialMediaRelevancePromptParts,
@@ -10,6 +15,8 @@ import {
 } from "@/llm/socialMediaRelevancePrompt.js";
 import { createSocialMediaRelevanceBatchValidation } from "@/schemas/SocialMediaRelevanceBatch.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
+import { prefilterSocialMediaSignalsForRelevance } from "@/sources/social_media/prefilterSocialMediaSignalsForRelevance.js";
+import { formatDuration } from "@/utils";
 
 export const DEFAULT_SOCIAL_MEDIA_RELEVANCE_BATCH_SIZE = 40;
 
@@ -94,19 +101,32 @@ async function parseBatchOrRepair(
 	batchLabel: string,
 	chatOptions: { fetchImpl?: typeof fetch },
 ): Promise<number[]> {
-	const validation = createSocialMediaRelevanceBatchValidation(batchSignals);
+	const validation = createSocialMediaRelevanceBatchValidation(
+		createBatchLocalPostIdValidation(batchSignals.length),
+	);
 	const rawResponse = await completeJsonChatWithEmptyRetry(
 		config,
 		prompt,
 		chatOptions,
 	);
 
+	const toGlobalIds = (localIds: readonly number[]) =>
+		mapBatchLocalPostIdsToGlobal(localIds, batchSignals);
+
 	try {
 		const parsed = parseSocialMediaRelevanceBatchJson(rawResponse, validation);
-		return parsed.relevant_post_indices;
+		return toGlobalIds(parsed.relevant_post_ids);
 	} catch (error) {
 		if (!(error instanceof ParseResponseError)) {
 			throw error;
+		}
+
+		const salvagedLocalIds = salvageRelevantPostIds(rawResponse, validation);
+		if (salvagedLocalIds !== null) {
+			console.warn(
+				`Social media relevance ${batchLabel}: dropped hallucinated post_id values; kept ${salvagedLocalIds.length}`,
+			);
+			return toGlobalIds(salvagedLocalIds);
 		}
 
 		logBatchParseFailure(batchLabel, "initial", error, rawResponse);
@@ -122,18 +142,29 @@ async function parseBatchOrRepair(
 		);
 
 		try {
-			const retryResponse = await completeJsonChat(
-				config,
-				repairPrompt,
-				chatOptions,
-			);
+			const retryResponse = await completeJsonChat(config, repairPrompt, {
+				...chatOptions,
+				fast: true,
+				reasoningEffort: "minimal",
+			});
 			try {
 				const parsed = parseSocialMediaRelevanceBatchJson(
 					retryResponse,
 					validation,
 				);
-				return parsed.relevant_post_indices;
+				return toGlobalIds(parsed.relevant_post_ids);
 			} catch (retryError) {
+				const salvagedRetryIds = salvageRelevantPostIds(
+					retryResponse,
+					validation,
+				);
+				if (salvagedRetryIds !== null) {
+					console.warn(
+						`Social media relevance ${batchLabel}: salvage after repair dropped invalid post_id values; kept ${salvagedRetryIds.length}`,
+					);
+					return toGlobalIds(salvagedRetryIds);
+				}
+
 				if (retryError instanceof ParseResponseError) {
 					logBatchParseFailure(batchLabel, "retry", retryError, retryResponse);
 				}
@@ -188,7 +219,7 @@ export async function findRelevantSocialMediaSignals(
 
 	if (signals.length === 0) {
 		console.info(
-			`Social media relevance filter skipped (0 posts) in ${Date.now() - start}ms`,
+			`Social media relevance filter skipped (0 posts) in ${formatDuration(Date.now() - start)}`,
 		);
 		return {
 			relevantSignals: [],
@@ -197,7 +228,28 @@ export async function findRelevantSocialMediaSignals(
 		};
 	}
 
-	const batches = splitSocialMediaSignalsIntoBatches(signals, batchSize);
+	const { candidates: llmCandidates, excludedCount } =
+		prefilterSocialMediaSignalsForRelevance(signals, options.outlookAssets);
+
+	if (excludedCount > 0) {
+		console.info(
+			`Social media: heuristic pre-filter excluded ${excludedCount} of ${signals.length} posts before LLM`,
+		);
+	}
+
+	if (llmCandidates.length === 0) {
+		const durationMs = Date.now() - start;
+		console.info(
+			`Social media relevance filter skipped (0 LLM candidates after pre-filter) in ${formatDuration(durationMs)}`,
+		);
+		return {
+			relevantSignals: [],
+			scannedCount: signals.length,
+			durationMs,
+		};
+	}
+
+	const batches = splitSocialMediaSignalsIntoBatches(llmCandidates, batchSize);
 	const batchCount = batches.length;
 	const chatOptions = {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
@@ -235,7 +287,7 @@ export async function findRelevantSocialMediaSignals(
 		allRelevantIndices.push(...relevantIndices);
 		console.info(
 			`Social media relevance ${batchLabel} — ${relevantIndices.length} relevant of ${batchSignals.length}`,
-			`${(Date.now() - batchStart).toLocaleString()}ms`,
+			`${formatDuration(Date.now() - batchStart)}`,
 		);
 	}
 
@@ -243,7 +295,9 @@ export async function findRelevantSocialMediaSignals(
 	const durationMs = Date.now() - start;
 
 	console.info(
-		`Social media: relevance filter done — ${relevantSignals.length} relevant of ${signals.length} scanned in ${durationMs}ms`,
+		`Social media: relevance filter done — ${relevantSignals.length} relevant of ${
+			signals.length
+		} scanned in ${formatDuration(durationMs)}`,
 	);
 
 	return {

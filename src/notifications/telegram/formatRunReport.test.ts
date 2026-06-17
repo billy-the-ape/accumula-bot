@@ -84,7 +84,7 @@ const sampleSocialAnalysis: SocialMediaAnalysis = {
 	],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			id: "twitter:111",
 			username: "whale_alert",
 			rank: 1,
@@ -95,7 +95,7 @@ const sampleSocialAnalysis: SocialMediaAnalysis = {
 			why: "Exchange inflow is the clearest near-term sell-pressure signal.",
 		},
 		{
-			post_index: 1,
+			post_id: 1,
 			id: "twitter:222",
 			username: "macro_news",
 			rank: 2,

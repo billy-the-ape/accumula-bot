@@ -2,11 +2,11 @@ import z from "zod";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
 export const SocialMediaRelevanceBatchSchema = z.object({
-	relevant_post_indices: z.array(z.number().int().nonnegative()),
+	relevant_post_ids: z.array(z.number().int().nonnegative()),
 });
 
 export const SocialMediaRelevanceBatchLlmSchema = z.object({
-	relevant_post_indices: z.array(z.number().int().nonnegative()),
+	relevant_post_ids: z.array(z.number().int().nonnegative()),
 });
 
 export type SocialMediaRelevanceBatch = z.infer<
@@ -36,23 +36,20 @@ export function createSocialMediaRelevanceBatchLlmSchema(
 	return SocialMediaRelevanceBatchLlmSchema.superRefine((data, ctx) => {
 		const seenIndices = new Set<number>();
 
-		for (const [
-			arrayIndex,
-			postIndex,
-		] of data.relevant_post_indices.entries()) {
+		for (const [arrayIndex, postIndex] of data.relevant_post_ids.entries()) {
 			if (!allowedPostIndices.has(postIndex)) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["relevant_post_indices", arrayIndex],
-					message: `Unknown post_index: ${postIndex}`,
+					path: ["relevant_post_ids", arrayIndex],
+					message: `Unknown post_id: ${postIndex}`,
 				});
 			}
 
 			if (seenIndices.has(postIndex)) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["relevant_post_indices", arrayIndex],
-					message: `Duplicate post_index: ${postIndex}`,
+					path: ["relevant_post_ids", arrayIndex],
+					message: `Duplicate post_id: ${postIndex}`,
 				});
 			}
 

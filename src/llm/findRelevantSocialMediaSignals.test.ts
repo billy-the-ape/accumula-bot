@@ -1,7 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { loadTestConfig } from "@/config/loadTestConfig.js";
 import {
-	DEFAULT_SOCIAL_MEDIA_RELEVANCE_BATCH_SIZE,
 	findRelevantSocialMediaSignals,
 	splitSocialMediaSignalsIntoBatches,
 } from "@/llm/findRelevantSocialMediaSignals.js";
@@ -13,7 +12,7 @@ function makeSignal(index: number): SocialMediaSignal {
 		id: String(100 + index),
 		source: "twitter",
 		username: `user_${index}`,
-		text: `Post text ${index}`,
+		text: `BTC update ${index}`,
 		asOf: "2026-06-16T12:00:00.000Z",
 		impressions: index * 100,
 	};
@@ -88,9 +87,7 @@ describe("findRelevantSocialMediaSignals", () => {
 		const fetchImpl = vi
 			.fn()
 			.mockResolvedValue(
-				chatCompletionResponse(
-					JSON.stringify({ relevant_post_indices: [0, 2] }),
-				),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [0, 2] })),
 			);
 
 		const result = await findRelevantSocialMediaSignals(config, signals, {
@@ -125,10 +122,10 @@ describe("findRelevantSocialMediaSignals", () => {
 		const fetchImpl = vi
 			.fn()
 			.mockResolvedValueOnce(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [0] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [0] })),
 			)
 			.mockResolvedValueOnce(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [3] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [1] })),
 			);
 
 		const result = await findRelevantSocialMediaSignals(config, signals, {
@@ -154,7 +151,7 @@ describe("findRelevantSocialMediaSignals", () => {
 			.fn()
 			.mockResolvedValueOnce(chatCompletionResponse("not-json"))
 			.mockResolvedValueOnce(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [0] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [0] })),
 			);
 
 		const result = await findRelevantSocialMediaSignals(config, signals, {
@@ -187,7 +184,7 @@ describe("findRelevantSocialMediaSignals", () => {
 		const fetchImpl = vi
 			.fn()
 			.mockResolvedValueOnce(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [0] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [0] })),
 			)
 			.mockResolvedValueOnce(chatCompletionResponse("still-not-json"))
 			.mockResolvedValueOnce(chatCompletionResponse("also-not-json"));
@@ -210,6 +207,66 @@ describe("findRelevantSocialMediaSignals", () => {
 		warnSpy.mockRestore();
 	});
 
+	it("skips the LLM when heuristic pre-filter removes every candidate", async () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+		const fetchImpl = vi.fn();
+		const signals = [makeSignal(0), makeSignal(1)].map((signal) => ({
+			...signal,
+			text: "Have a great weekend!",
+		}));
+
+		const result = await findRelevantSocialMediaSignals(config, signals, {
+			outlookAssets: ["BTC"],
+			fetchImpl,
+		});
+
+		expect(result.relevantSignals).toEqual([]);
+		expect(result.scannedCount).toBe(2);
+		expect(fetchImpl).not.toHaveBeenCalled();
+		expect(infoSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/heuristic pre-filter excluded 2 of 2 posts/),
+		);
+		expect(infoSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/0 LLM candidates after pre-filter/),
+		);
+
+		infoSpy.mockRestore();
+	});
+
+	it("salvages valid batch-local post_ids when the model hallucinates extras", async () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+		vi.spyOn(console, "info").mockImplementation(() => {});
+		const signals = [makeSignal(47), makeSignal(92), makeSignal(103)];
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValue(
+				chatCompletionResponse(
+					JSON.stringify({ relevant_post_ids: [0, 99, 2] }),
+				),
+			);
+
+		const result = await findRelevantSocialMediaSignals(config, signals, {
+			outlookAssets: ["BTC"],
+			fetchImpl,
+		});
+
+		expect(result.relevantSignals).toEqual([makeSignal(47), makeSignal(103)]);
+		expect(fetchImpl).toHaveBeenCalledOnce();
+		expect(warnSpy).toHaveBeenCalledWith(
+			expect.stringMatching(/dropped hallucinated post_id values; kept 2/),
+		);
+
+		warnSpy.mockRestore();
+	});
+
 	it("injects market context into each batch prompt", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
@@ -219,7 +276,7 @@ describe("findRelevantSocialMediaSignals", () => {
 		const fetchImpl = vi
 			.fn()
 			.mockResolvedValue(
-				chatCompletionResponse(JSON.stringify({ relevant_post_indices: [] })),
+				chatCompletionResponse(JSON.stringify({ relevant_post_ids: [] })),
 			);
 
 		await findRelevantSocialMediaSignals(config, [makeSignal(0)], {
@@ -236,9 +293,5 @@ describe("findRelevantSocialMediaSignals", () => {
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.messages[1]?.content).toContain("Risk-off ahead of CPI.");
-	});
-
-	it("uses the default batch size constant", () => {
-		expect(DEFAULT_SOCIAL_MEDIA_RELEVANCE_BATCH_SIZE).toBe(20);
 	});
 });

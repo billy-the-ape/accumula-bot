@@ -5,6 +5,7 @@ import {
 	buildMacroBriefingResponsesRequest,
 	MACRO_BRIEFING_PROMPT_VERSION,
 } from "@/macro/macroBriefingPrompt.js";
+import { formatDuration } from "@/utils";
 
 export type GenerateMacroBriefingOptions = {
 	fetchImpl?: typeof fetch;
@@ -90,7 +91,7 @@ export async function generateMacroBriefing(
 	}
 
 	console.info(
-		`Macro briefing generated in ${Date.now() - start}ms (attempt=${attempt}, provider=${config.llm.provider}, model=${config.llm.model}, words≈${content.split(/\s+/).length})`,
+		`Macro briefing generated in ${formatDuration(Date.now() - start)} (attempt=${attempt}, provider=${config.llm.provider}, model=${config.llm.model}, words≈${content.split(/\s+/).length})`,
 	);
 
 	return {

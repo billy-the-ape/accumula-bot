@@ -1,13 +1,17 @@
 import { wrapUntrustedContent } from "@/analysis/trustBoundary.js";
 import type { AnalysisPromptParts } from "@/llm/prompt.js";
 import {
+	buildAllowedPostIdList,
+	createBatchLocalPostIdValidation,
+} from "@/llm/relevanceBatchPostIds.js";
+import {
 	buildMarketContextPreamble,
-	buildPostIndexCatalog,
 	buildRelevanceFilterGuidance,
+	buildValidPostIdReminder,
 	type SocialMediaMarketContext,
 } from "@/llm/socialMediaPromptShared.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
-import { formatSocialMediaSignals } from "@/sources/social_media/formatSocialMediaSignals.js";
+import { formatSocialMediaRelevancePosts } from "@/sources/social_media/formatSocialMediaRelevancePosts.js";
 
 export type { SocialMediaMarketContext };
 
@@ -19,10 +23,18 @@ export type BuildSocialMediaRelevancePromptParams = {
 	marketContext?: SocialMediaMarketContext;
 };
 
-function buildJsonOutputContract(
-	sampleIndex: number,
-	batchSignalCount: number,
-): string {
+function toBatchLocalSignals(
+	batchSignals: readonly SocialMediaSignal[],
+): SocialMediaSignal[] {
+	return batchSignals.map((signal, localId) => ({
+		...signal,
+		index: localId,
+	}));
+}
+
+function buildJsonOutputContract(batchSignalCount: number): string {
+	const allowedPostIds = buildAllowedPostIdList(batchSignalCount);
+
 	return [
 		"You are a JSON API that filters social media posts for trading relevance.",
 		"",
@@ -35,22 +47,23 @@ function buildJsonOutputContract(
 		"- Use double quotes for all strings.",
 		"",
 		"Required top-level field:",
-		'- "relevant_post_indices": array of integers (may be empty)',
+		'- "relevant_post_ids": array of integers (may be empty)',
 		"",
 		"Critical rules:",
-		"- ONLY return post_index values from posts shown in the user prompt.",
-		"- NEVER invent post_index values.",
-		'- Copy each index EXACTLY from the "Valid post indices" list.',
-		"- Do not include duplicate indices in the array.",
-		"- Do NOT return Twitter ids, usernames, or any other fields.",
+		"- ONLY return post_id integers from the allowed list below.",
+		"- NEVER invent post_id values.",
+		"- Copy each post_id EXACTLY from the [post_id=N] label on that post.",
+		"- post_id is the label number — NOT list position, NOT a Twitter id, NOT from examples.",
+		"- Do not include duplicate post_id values in the array.",
 		"",
+		`Allowed post_id values for this batch: ${allowedPostIds}`,
 		`This batch contains ${batchSignalCount} post(s).`,
 		"",
-		"Valid example when one post qualifies:",
-		JSON.stringify({ relevant_post_indices: [sampleIndex] }, null, 2),
+		"Valid example when post_id 0 qualifies:",
+		JSON.stringify({ relevant_post_ids: [0] }, null, 2),
 		"",
 		"Valid example when nothing qualifies:",
-		JSON.stringify({ relevant_post_indices: [] }, null, 2),
+		JSON.stringify({ relevant_post_ids: [] }, null, 2),
 	].join("\n");
 }
 
@@ -61,33 +74,24 @@ export function buildSocialMediaRelevancePromptParts({
 	outlookAssets,
 	marketContext,
 }: BuildSocialMediaRelevancePromptParams): AnalysisPromptParts {
-	const assetList = outlookAssets.join(", ");
-	const postsText = formatSocialMediaSignals(batchSignals);
-	const sampleIndex = batchSignals[0]?.index ?? 0;
+	const batchLocalSignals = toBatchLocalSignals(batchSignals);
+	const postsText = formatSocialMediaRelevancePosts(batchLocalSignals);
+	const allowedPostIds = buildAllowedPostIdList(batchSignals.length);
 
-	const system = buildJsonOutputContract(sampleIndex, batchSignals.length);
+	const system = buildJsonOutputContract(batchSignals.length);
 
 	const user = [
-		`You are a crypto social media analyst supporting a 24-hour trading outlook analyzing Outlook assets: ${assetList}.`,
-		"",
 		"Task:",
-		"Review the untrusted social posts in this batch. Return post_index values",
-		"for posts with a concrete, near-term catalyst for the outlook assets.",
-		"When in doubt, exclude.",
+		"Review the untrusted social posts below. Return relevant_post_ids for posts",
+		"that pass the decision rule.",
 		"",
 		...(marketContext ? [buildMarketContextPreamble(marketContext), ""] : []),
 		buildRelevanceFilterGuidance(outlookAssets),
 		"",
-		`Outlook assets: ${assetList}`,
-		`Batch ${batchNumber} of ${batchCount}`,
-		`Posts in this batch: ${batchSignals.length}`,
+		`Batch ${batchNumber} of ${batchCount} — ${batchSignals.length} post(s)`,
+		`Allowed post_id values: ${allowedPostIds}`,
 		"",
-		"Valid post indices (use post_index exactly — not list position):",
-		buildPostIndexCatalog(batchSignals),
-		"",
-		"--- Start of social media posts ---",
 		wrapUntrustedContent("Social media posts", postsText),
-		"--- End of social media posts ---",
 		"",
 		"Return only the JSON object described in the system instructions.",
 	].join("\n");
@@ -109,6 +113,7 @@ export function buildSocialMediaRelevanceRepairPromptParts(
 	);
 	const truncatedSuffix =
 		invalidResponse.length > MAX_INVALID_RESPONSE_LOG_CHARS ? "…" : "";
+	const allowedPostIds = buildAllowedPostIdList(batchSignals.length);
 
 	return {
 		system: original.system,
@@ -121,11 +126,14 @@ export function buildSocialMediaRelevanceRepairPromptParts(
 			"Invalid response:",
 			`${truncatedResponse}${truncatedSuffix}`,
 			"",
-			"Reminder — valid post indices for this batch (copy exactly):",
-			buildPostIndexCatalog(batchSignals),
+			`Allowed post_id values for this batch: ${allowedPostIds}`,
+			"Reminder — valid post_id labels for this batch (copy exactly):",
+			buildValidPostIdReminder(
+				createBatchLocalPostIdValidation(batchSignals.length),
+			),
 			"",
-			"Return ONLY a corrected JSON object with relevant_post_indices.",
-			"Use post_index integers only — no Twitter ids, no usernames, no other fields.",
+			"Return ONLY a corrected JSON object with relevant_post_ids.",
+			"Use only post_id integers from the allowed list — no Twitter ids, no usernames.",
 			"Apply the strict relevance bar: empty array when nothing qualifies.",
 		].join("\n"),
 	};

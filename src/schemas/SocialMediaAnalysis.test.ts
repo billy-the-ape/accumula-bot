@@ -52,7 +52,7 @@ const validAnalysis = {
 	],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			id: "twitter:111",
 			username: "whale_alert",
 			rank: 1,
@@ -63,7 +63,7 @@ const validAnalysis = {
 			why: "Exchange inflow is the clearest near-term sell pressure signal.",
 		},
 		{
-			post_index: 1,
+			post_id: 1,
 			id: "twitter:222",
 			username: "macro_news",
 			rank: 2,
@@ -83,7 +83,7 @@ const validLlmAnalysis = {
 	by_asset: validAnalysis.by_asset,
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			rank: 1,
 			relevance: "high" as const,
 			assets: ["BTC"],
@@ -91,7 +91,7 @@ const validLlmAnalysis = {
 			why: "Exchange inflow is the clearest near-term sell pressure signal.",
 		},
 		{
-			post_index: 1,
+			post_id: 1,
 			rank: 2,
 			relevance: "high" as const,
 			assets: ["MARKET"],
@@ -114,7 +114,7 @@ describe("SocialMediaAnalysisSchema", () => {
 			top_posts: Array.from(
 				{ length: MAX_SOCIAL_MEDIA_TOP_POSTS + 1 },
 				(_, index) => ({
-					post_index: 0,
+					post_id: 0,
 					id: "twitter:111",
 					username: "whale_alert",
 					rank: index + 1,
@@ -132,7 +132,7 @@ describe("SocialMediaAnalysisSchema", () => {
 });
 
 describe("createSocialMediaAnalysisLlmSchema", () => {
-	it("accepts LLM output with post_index values from the prompt subset", () => {
+	it("accepts LLM output with post_id values from the prompt subset", () => {
 		const result =
 			createSocialMediaAnalysisLlmSchema(validation).safeParse(
 				validLlmAnalysis,
@@ -141,10 +141,10 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		expect(result.success).toBe(true);
 	});
 
-	it("rejects unknown post_index values", () => {
+	it("rejects unknown post_id values", () => {
 		const result = createSocialMediaAnalysisLlmSchema(validation).safeParse({
 			...validLlmAnalysis,
-			top_posts: [{ ...validLlmAnalysis.top_posts[0], post_index: 99 }],
+			top_posts: [{ ...validLlmAnalysis.top_posts[0], post_id: 99 }],
 		});
 
 		expect(result.success).toBe(false);
@@ -300,7 +300,7 @@ describe("createSocialMediaAnalysisSchema", () => {
 			...validAnalysis,
 			top_posts: [
 				{
-					post_index: 2,
+					post_id: 2,
 					id: "twitter:333",
 					username: "other_user",
 					rank: 1,

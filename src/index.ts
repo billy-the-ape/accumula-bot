@@ -31,8 +31,10 @@ import { createDatabase } from "@/storage/db.js";
 import { saveDecision } from "@/storage/repositories/decisionRepository.js";
 
 import { getLatestPortfolio } from "@/storage/repositories/portfolioRepository.js";
+import { formatDuration } from "@/utils";
 
 async function main() {
+	const mainStart = Date.now();
 	const config = loadConfig();
 
 	console.info("Accumula Bot starting");
@@ -97,7 +99,7 @@ async function main() {
 
 		const analysisDuration = Date.now() - analysisStart;
 		console.info(
-			`Analysis context built in ${analysisDuration.toLocaleString()}ms`,
+			`Analysis context built in ${formatDuration(analysisDuration)}`,
 		);
 
 		const marketData = getMarketSnapshotsFromContext(analysisContext);
@@ -135,11 +137,13 @@ async function main() {
 		const recommendationSummary = summarizeRecommendation(recommendation);
 
 		const llmDuration = Date.now() - llmStart;
-		console.info(`LLM analysis completed in ${llmDuration.toLocaleString()}ms`);
+		console.info(
+			`Trade recommendation LLM analysis completed in ${formatDuration(llmDuration)}`,
+		);
 
 		if (llmAnalysis.thinking) {
 			console.info(
-				`LLM thinking captured (${llmAnalysis.thinking.length.toLocaleString()} chars, attempt=${llmAnalysis.attempt})`,
+				`Trade recommendation LLM thinking captured (${llmAnalysis.thinking.length.toLocaleString()} chars, attempt=${llmAnalysis.attempt})`,
 			);
 		}
 
@@ -267,11 +271,12 @@ async function main() {
 
 		throw error;
 	}
+	return Date.now() - mainStart;
 }
 
 main()
-	.then(() => {
-		console.info("Accumula Bot run completed.");
+	.then((duration) => {
+		console.info(`Accumula Bot run completed in ${formatDuration(duration)}`);
 		process.exit(0);
 	})
 	.catch((error: unknown) => {

@@ -815,7 +815,7 @@ A read-only data source (`src/sources/social_media/`, surfaced via `socialMediaS
 
 Each run with social media enabled performs **multiple LLM calls** on the **trading** LLM (`.env` — typically Ollama), then one portfolio-outlook call:
 
-1. **Stage 1a — batched relevance filter** (`findRelevantSocialMediaSignals`) — Up to **500 newest posts** are split into **20-post batches** and scanned **sequentially**. Each batch prompt includes the optional macro briefing preamble (see [Macro Briefing](#macro-briefing)) and returns `{ relevant_post_indices: [...] }`. Failed batch parses degrade to 0 relevant for that batch rather than failing the run.
+1. **Stage 1a — batched relevance filter** (`findRelevantSocialMediaSignals`) — Up to **500 newest posts** are split into **20-post batches** and scanned **sequentially**. Each batch prompt includes the optional macro briefing preamble (see [Macro Briefing](#macro-briefing)) and returns `{ relevant_post_ids: [...] }`. Failed batch parses degrade to 0 relevant for that batch rather than failing the run.
 2. **Stage 1b — synthesis** (`analyzeSocialMedia` → `synthesizeRelevantSocialMediaSignals`) — Runs only when Stage 1a finds ≥1 relevant post. The **pre-filtered subset** is synthesized into structured `SocialMediaAnalysis` JSON (themes, per-asset sentiment, ranked `top_posts`). `relevant_count` is computed server-side from the filter — the synthesis model does not re-count relevance. Macro briefing preamble is included again.
 3. **Stage 2 — `runAnalysis`** — The portfolio-outlook prompt receives a **compact digest** (`formatSocialMediaAnalysis`) instead of every post. The digest includes full text for the **top three** ranked posts for grounding. The section is still wrapped as untrusted-derived data.
 

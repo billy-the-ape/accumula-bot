@@ -1,3 +1,7 @@
+import {
+	CRYPTOCURRENCY_REGISTRY,
+	isKnownCryptocurrencySymbol,
+} from "@/config/assets.js";
 import { stripMarkdownLinksForPrompt } from "@/macro/macroBriefingContent.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
@@ -20,6 +24,19 @@ export function buildMarketContextPreamble(
 	].join("\n");
 }
 
+export function buildOutlookAssetListWithAliases(
+	outlookAssets: readonly string[],
+): string {
+	return outlookAssets
+		.map((symbol) => {
+			if (isKnownCryptocurrencySymbol(symbol)) {
+				return `${symbol} (${CRYPTOCURRENCY_REGISTRY[symbol].name})`;
+			}
+			return symbol;
+		})
+		.join(", ");
+}
+
 export function buildPostIndexCatalog(
 	promptSignals: readonly Pick<
 		SocialMediaSignal,
@@ -29,43 +46,50 @@ export function buildPostIndexCatalog(
 	return promptSignals
 		.map(
 			(signal) =>
-				`${signal.index} → @${signal.username}: ${signal.text.slice(0, 80)}${signal.text.length > 80 ? "…" : ""}`,
+				`[post_id=${signal.index}] @${signal.username}: ${signal.text.slice(0, 80)}${signal.text.length > 80 ? "…" : ""}`,
 		)
 		.join("\n");
+}
+
+export function buildValidPostIdReminder(
+	promptSignals: readonly Pick<SocialMediaSignal, "index">[],
+): string {
+	return promptSignals.map((signal) => `[post_id=${signal.index}]`).join(", ");
+}
+
+function buildRelevanceDecisionRule(outlookAssets: readonly string[]): string {
+	const assetList = buildOutlookAssetListWithAliases(outlookAssets);
+
+	return [
+		"Decision rule (24-hour trading horizon):",
+		"Include a post ONLY if it reports a NEW FACT (not commentary on an existing move)",
+		`that could change positioning in ${assetList} or broad crypto risk within 24 hours.`,
+		"When in doubt, exclude.",
+	].join("\n");
+}
+
+function buildRelevanceFewShotExamples(): string {
+	return [
+		"Relevance examples (illustrative only — do NOT copy any post_id numbers from here):",
+		"",
+		'  INCLUDE: "@whale_alert: 15,000 BTC ($1.4B) transferred from unknown wallet to Coinbase" (concrete exchange inflow)',
+		'  INCLUDE: "@DeItaone: BREAKING: Fed Chair signals no rate cut before September meeting" (new macro catalyst)',
+		'  EXCLUDE: "@WatcherGuru: Bitcoin just hit $95k!" (price cheer, no new fact)',
+		'  EXCLUDE: "@coinbureau: Why I\'m bullish on ETH long term" (opinion, no catalyst)',
+		'  INCLUDE: "@SECGov: SEC approves spot Ethereum ETF applications" (regulatory catalyst for ETH)',
+		'  EXCLUDE: "@randomtrader: Support at 92k holding, next resistance 98k" (TA chatter without new event)',
+	].join("\n");
 }
 
 /** Relevance criteria for Stage 1a batch filtering (no synthesis/top_posts rules). */
 export function buildRelevanceFilterGuidance(
 	outlookAssets: readonly string[],
 ): string {
-	const assetList = outlookAssets.join(", ");
-
 	return [
-		"Relevance bar (24-hour trading horizon):",
-		"- Include ONLY posts that could plausibly change near-term positioning for",
-		`  ${assetList} or broad crypto risk appetite within 24 hours.`,
-		"- A post qualifies only if it reports a concrete, new catalyst — not vibes.",
+		buildRelevanceDecisionRule(outlookAssets),
 		"",
-		"Strong signals:",
-		"- Large on-chain / exchange flows, ETF or treasury flows, liquidation cascades",
-		"- New regulation, enforcement, policy, or major legal outcomes",
-		"- Macro prints or central-bank / fiscal news with clear risk-on/risk-off read",
-		"- Credible breaking news on hacks, insolvencies, exchange outages, delistings",
-		"- Official or first-source announcements affecting an outlook asset",
-		"- World or US news events with market-moving potential",
+		buildRelevanceFewShotExamples(),
 		"",
-		"Usually NOT relevant — even if crypto-related:",
-		"- Generic price cheer, hopium, bear memes, or recap threads without new facts",
-		"- Vague technical analysis with no new catalyst (support/resistance chatter)",
-		"- Old news, rehashed headlines, or commentary on moves that already happened",
-		"- Personal takes, podcasts, newsletters, or engagement bait without a fact",
-		"- Politics, culture war, or celebrity posts unless they announce concrete policy",
-		"- Promotions, referral links, airdrops, NFT mints, or product marketing",
-		"- Posts about unrelated assets with no read-through to the outlook assets",
-		"",
-		"Filtering rules:",
-		"- Return post_index values only for posts you would actually trade on.",
-		"- When in doubt, exclude — an empty array is correct when nothing clears the bar.",
-		"- High impressions alone do NOT make a post relevant.",
+		"Return post_id values only for posts like the INCLUDE examples — posts you would actually trade on.",
 	].join("\n");
 }

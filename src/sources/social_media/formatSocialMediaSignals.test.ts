@@ -28,8 +28,8 @@ describe("formatSocialMediaSignals", () => {
 		]);
 
 		expect(formatted).toContain("[users tagged=crypto]");
-		expect(formatted).toContain("[index=0]");
-		expect(formatted).toContain("[index=1]");
+		expect(formatted).toContain("[post_id=0]");
+		expect(formatted).toContain("[post_id=1]");
 		expect(formatted).toContain("@whale_alert");
 		expect(formatted).toContain("@WatcherGuru");
 	});

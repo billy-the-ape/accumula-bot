@@ -15,38 +15,38 @@ const validation = createSocialMediaRelevanceBatchValidation([
 describe("parseSocialMediaRelevanceBatchJson", () => {
 	it("parses plain JSON with relevant indices", () => {
 		const result = parseSocialMediaRelevanceBatchJson(
-			JSON.stringify({ relevant_post_indices: [0, 2] }),
+			JSON.stringify({ relevant_post_ids: [0, 2] }),
 			validation,
 		);
 
-		expect(result.relevant_post_indices).toEqual([0, 2]);
+		expect(result.relevant_post_ids).toEqual([0, 2]);
 	});
 
-	it("parses an empty relevant_post_indices array", () => {
+	it("parses an empty relevant_post_ids array", () => {
 		const result = parseSocialMediaRelevanceBatchJson(
-			JSON.stringify({ relevant_post_indices: [] }),
+			JSON.stringify({ relevant_post_ids: [] }),
 			validation,
 		);
 
-		expect(result.relevant_post_indices).toEqual([]);
+		expect(result.relevant_post_ids).toEqual([]);
 	});
 
 	it("parses JSON wrapped in markdown fences", () => {
 		const result = parseSocialMediaRelevanceBatchJson(
-			`\`\`\`json\n${JSON.stringify({ relevant_post_indices: [1] })}\n\`\`\``,
+			`\`\`\`json\n${JSON.stringify({ relevant_post_ids: [1] })}\n\`\`\``,
 			validation,
 		);
 
-		expect(result.relevant_post_indices).toEqual([1]);
+		expect(result.relevant_post_ids).toEqual([1]);
 	});
 
 	it("parses JSON after a thinking block", () => {
 		const result = parseSocialMediaRelevanceBatchJson(
-			`${thinkOpenTag}Scanning batch...${thinkCloseTag}\n${JSON.stringify({ relevant_post_indices: [0] })}`,
+			`${thinkOpenTag}Scanning batch...${thinkCloseTag}\n${JSON.stringify({ relevant_post_ids: [0] })}`,
 			validation,
 		);
 
-		expect(result.relevant_post_indices).toEqual([0]);
+		expect(result.relevant_post_ids).toEqual([0]);
 	});
 
 	it("throws ParseResponseError for invalid JSON", () => {
@@ -55,10 +55,10 @@ describe("parseSocialMediaRelevanceBatchJson", () => {
 		).toThrow(ParseResponseError);
 	});
 
-	it("throws ParseResponseError for unknown post_index", () => {
+	it("throws ParseResponseError for unknown post_id", () => {
 		expect(() =>
 			parseSocialMediaRelevanceBatchJson(
-				JSON.stringify({ relevant_post_indices: [0, 99] }),
+				JSON.stringify({ relevant_post_ids: [0, 99] }),
 				validation,
 			),
 		).toThrow(ParseResponseError);
@@ -67,7 +67,7 @@ describe("parseSocialMediaRelevanceBatchJson", () => {
 	it("throws ParseResponseError for duplicate indices", () => {
 		expect(() =>
 			parseSocialMediaRelevanceBatchJson(
-				JSON.stringify({ relevant_post_indices: [1, 1] }),
+				JSON.stringify({ relevant_post_ids: [1, 1] }),
 				validation,
 			),
 		).toThrow(ParseResponseError);

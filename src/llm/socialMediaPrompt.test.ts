@@ -36,7 +36,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.system).toContain("top_posts must use relevance=high only");
 		expect(prompt.system).not.toContain('"relevant_count":');
 		expect(prompt.system).not.toContain('"posts":');
-		expect(prompt.system).toContain('"post_index": 0');
+		expect(prompt.system).toContain('"post_id": 0');
 		expect(prompt.user).toContain("pre-filtered relevant posts");
 		expect(prompt.user).not.toContain(
 			"Relevance bar (24-hour trading horizon):",
@@ -47,7 +47,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.user).toContain(
 			"Posts shown: 1 (all pre-filtered as relevant)",
 		);
-		expect(prompt.user).toContain("Valid post indices (use post_index exactly");
+		expect(prompt.user).toContain("Valid post indices (use post_id exactly");
 		expect(prompt.user).toContain("0");
 	});
 
@@ -59,7 +59,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		});
 
 		expect(prompt.user).toContain(UNTRUSTED_BEGIN_MARKER);
-		expect(prompt.user).toContain("[index=0]");
+		expect(prompt.user).toContain("[post_id=0]");
 		expect(prompt.user).toContain("Large BTC transfer detected");
 	});
 

@@ -23,7 +23,7 @@ const sampleSignal = (
 const sampleTopPost = (
 	overrides: Partial<SocialMediaAnalysis["top_posts"][number]> = {},
 ): SocialMediaAnalysis["top_posts"][number] => ({
-	post_index: 0,
+	post_id: 0,
 	id: "twitter:111",
 	username: "whale_alert",
 	rank: 1,
@@ -88,7 +88,7 @@ describe("formatSocialMediaAnalysis", () => {
 			relevant_count: 4,
 			top_posts: [
 				sampleTopPost({
-					post_index: 3,
+					post_id: 3,
 					id: "twitter:444",
 					username: "d",
 					rank: 4,
@@ -96,7 +96,7 @@ describe("formatSocialMediaAnalysis", () => {
 					why: "fourth why",
 				}),
 				sampleTopPost({
-					post_index: 1,
+					post_id: 1,
 					id: "twitter:222",
 					username: "b",
 					rank: 2,
@@ -104,7 +104,7 @@ describe("formatSocialMediaAnalysis", () => {
 					why: "second why",
 				}),
 				sampleTopPost({
-					post_index: 0,
+					post_id: 0,
 					id: "twitter:111",
 					username: "a",
 					rank: 1,
@@ -112,7 +112,7 @@ describe("formatSocialMediaAnalysis", () => {
 					why: "first why",
 				}),
 				sampleTopPost({
-					post_index: 2,
+					post_id: 2,
 					id: "twitter:333",
 					username: "c",
 					rank: 3,
@@ -155,14 +155,14 @@ describe("formatSocialMediaAnalysis", () => {
 			by_asset: [],
 			top_posts: [
 				sampleTopPost({
-					post_index: 0,
+					post_id: 0,
 					id: "twitter:0",
 					rank: 1,
 					summary: "Whale move",
 					why: "Whale signal",
 				}),
 				sampleTopPost({
-					post_index: 1,
+					post_id: 1,
 					id: "twitter:1",
 					username: "macro_news",
 					rank: 2,

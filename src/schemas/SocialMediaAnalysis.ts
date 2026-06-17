@@ -6,7 +6,7 @@ import {
 import { summarizeSocialMediaSignal } from "@/sources/social_media/resolveSocialMediaSignal.js";
 
 export const SocialMediaAnalysisTopPostSchema = z.object({
-	post_index: z.number().int().nonnegative(),
+	post_id: z.number().int().nonnegative(),
 	id: z.string().min(1),
 	username: z.string().min(1),
 	rank: z.number().int().positive(),
@@ -18,7 +18,7 @@ export const SocialMediaAnalysisTopPostSchema = z.object({
 });
 
 export const SocialMediaAnalysisTopPostLlmSchema = z.object({
-	post_index: z.number().int().nonnegative(),
+	post_id: z.number().int().nonnegative(),
 	rank: z.number().int().positive(),
 	relevance: z.enum(["high", "medium"]),
 	assets: z.array(z.string().min(1)),
@@ -134,11 +134,11 @@ export function createSocialMediaAnalysisLlmSchema(
 				});
 			}
 
-			if (!allowedPostIndices.has(topPost.post_index)) {
+			if (!allowedPostIndices.has(topPost.post_id)) {
 				ctx.addIssue({
 					code: "custom",
-					path: ["top_posts", index, "post_index"],
-					message: `Unknown post_index: ${topPost.post_index}`,
+					path: ["top_posts", index, "post_id"],
+					message: `Unknown post_id: ${topPost.post_id}`,
 				});
 			}
 
@@ -151,16 +151,16 @@ export function createSocialMediaAnalysisLlmSchema(
 					});
 				}
 
-				if (seenIndices.has(topPost.post_index)) {
+				if (seenIndices.has(topPost.post_id)) {
 					ctx.addIssue({
 						code: "custom",
-						path: ["top_posts", index, "post_index"],
-						message: `Duplicate top_posts post_index: ${topPost.post_index}`,
+						path: ["top_posts", index, "post_id"],
+						message: `Duplicate top_posts post_id: ${topPost.post_id}`,
 					});
 				}
 
 				seenRanks.add(topPost.rank);
-				seenIndices.add(topPost.post_index);
+				seenIndices.add(topPost.post_id);
 			}
 		}
 	});
@@ -175,13 +175,13 @@ export function remapSocialMediaAnalysisFromLlm(
 	);
 
 	const top_posts = llm.top_posts.map((topPost) => {
-		const signal = signalsByIndex.get(topPost.post_index);
+		const signal = signalsByIndex.get(topPost.post_id);
 		if (!signal) {
-			throw new Error(`Unknown post_index: ${topPost.post_index}`);
+			throw new Error(`Unknown post_id: ${topPost.post_id}`);
 		}
 
 		return {
-			post_index: signal.index,
+			post_id: signal.index,
 			id: formatSocialMediaPostId(signal),
 			username: signal.username,
 			rank: topPost.rank,

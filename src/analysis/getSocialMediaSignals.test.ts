@@ -26,7 +26,7 @@ const sampleAnalysis: SocialMediaAnalysis = {
 	by_asset: [],
 	top_posts: [
 		{
-			post_index: 0,
+			post_id: 0,
 			id: "twitter:111",
 			username: "whale_alert",
 			rank: 1,

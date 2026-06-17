@@ -78,7 +78,7 @@ function buildExampleSocialMediaAnalysis(
 
 			top_posts: [
 				{
-					post_index: sampleSignal.index,
+					post_id: sampleSignal.index,
 
 					rank: 1,
 
@@ -141,7 +141,7 @@ function buildJsonOutputContract(
 
 		"Do NOT include a separate posts array. Put per-post detail only in top_posts.",
 
-		"Do NOT return Twitter ids or usernames — use post_index only.",
+		"Do NOT return Twitter ids or usernames — use post_id only.",
 
 		"Do NOT include relevant_count — relevance was determined in a prior step.",
 
@@ -151,9 +151,9 @@ function buildJsonOutputContract(
 
 		"- ONLY analyze posts shown in the user prompt (all are pre-filtered as relevant).",
 
-		"- NEVER invent post_index values.",
+		"- NEVER invent post_id values.",
 
-		'- Copy each top_posts[].post_index EXACTLY from the "Valid post indices" list.',
+		'- Copy each top_posts[].post_id EXACTLY from the "Valid post indices" list.',
 
 		"- top_posts must use relevance=high only; never put medium-relevance posts in top_posts.",
 
@@ -161,7 +161,7 @@ function buildJsonOutputContract(
 
 		"top_posts object fields:",
 
-		'- "post_index": integer matching the [index=N] label on that post (NOT list position)',
+		'- "post_id": integer matching the [post_id=N] label on that post (NOT list position)',
 
 		'- "rank": positive integer, 1 = most useful (no duplicate ranks or indices)',
 
@@ -175,7 +175,7 @@ function buildJsonOutputContract(
 
 		"",
 
-		"Do NOT include summary or username fields — post text is resolved server-side from post_index.",
+		"Do NOT include summary or username fields — post text is resolved server-side from post_id.",
 
 		"",
 
@@ -267,7 +267,7 @@ export function buildSocialMediaAnalysisPromptParts({
 
 		"",
 
-		"Valid post indices (use post_index exactly — not list position):",
+		"Valid post indices (use post_id exactly — not list position):",
 
 		buildPostIndexCatalog(promptSignals),
 
@@ -335,7 +335,7 @@ export function buildSocialMediaRepairPromptParts(
 
 			"Return ONLY a corrected JSON object that matches the system instructions.",
 
-			"Use post_index integers only — no Twitter ids, no usernames, no posts array.",
+			"Use post_id integers only — no Twitter ids, no usernames, no posts array.",
 
 			"Do not include relevant_count. Rank top_posts by impact; relevance=high only.",
 		].join("\n"),

@@ -18,14 +18,14 @@ export function truncateSocialMediaPostText(
 
 /** Resolve the source tweet for a ranked post (index-first, then composite id). */
 export function resolveSocialMediaSignalForTopPost(
-	topPost: Pick<SocialMediaAnalysisTopPost, "post_index" | "id">,
+	topPost: Pick<SocialMediaAnalysisTopPost, "post_id" | "id">,
 	signals: readonly SocialMediaSignal[],
 ): SocialMediaSignal | undefined {
 	const byIndex = new Map(signals.map((signal) => [signal.index, signal]));
 	const byId = new Map(signals.map((signal) => [signal.id, signal]));
 	const externalId = topPost.id.replace(/^twitter:/, "");
 
-	return byIndex.get(topPost.post_index) ?? byId.get(externalId);
+	return byIndex.get(topPost.post_id) ?? byId.get(externalId);
 }
 
 export function summarizeSocialMediaSignal(

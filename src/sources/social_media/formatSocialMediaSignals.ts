@@ -2,7 +2,7 @@ import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import { TWITTER_ACCOUNTS_TAG_MAP } from "@/sources/social_media/twitterClient/twitterClient";
 
 function mapSignal(signal: SocialMediaSignal) {
-	return `[index=${signal.index}] Posted by @${signal.username} at ${signal.asOf}: ${signal.text}`;
+	return `[post_id=${signal.index}] Posted by @${signal.username} at ${signal.asOf}: ${signal.text}`;
 }
 
 export function formatSocialMediaSignals(
