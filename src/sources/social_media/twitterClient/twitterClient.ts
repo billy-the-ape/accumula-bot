@@ -30,26 +30,19 @@ const BUSINESS_NEWS_ACCOUNTS = [
 	"DeItaone",
 	"financialjuice",
 	"ReutersBiz",
-	"CNBC",
 	"WSJ",
 	"FT",
-	"NYTimes",
 ];
 
 const CRYPTO_ACCOUNTS = [
-	"unusual_whales",
 	"whale_alert",
-	"WatcherGuru",
 	"BloombergCrypto",
 	"CoinDesk",
-	"Cointelegraph",
-	"coinbureau",
 	"TheBlockCo",
-	"bitcoinarchive",
 	"glassnode",
 ];
 
-const MACRO_ACCOUNTS = ["LynAldenContact", "TheMarketEar", "KobeissiLetter"];
+const MACRO_ACCOUNTS = ["KobeissiLetter"];
 
 const GOVERNMENT_ACCOUNTS = ["SECGov", "federalreserve", "CFTC"];
 

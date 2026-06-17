@@ -17,11 +17,11 @@ const promptSignal = {
 const validation = createSocialMediaAnalysisValidation(
 	[{ source: "twitter", id: "111", username: "whale_alert" }],
 	[promptSignal],
-	3,
 );
 
 const validLlmPayload = {
 	total_retrieved: 1,
+	relevant_count: 1,
 	summary: "One actionable whale alert.",
 	themes: ["whale flow"],
 	by_asset: [
@@ -58,13 +58,13 @@ describe("parseSocialMediaAnalysisJson", () => {
 		);
 	});
 
-	it("injects relevant_count from validation rather than LLM output", () => {
+	it("preserves relevant_count from LLM output", () => {
 		const result = parseSocialMediaAnalysisJson(
 			JSON.stringify(validLlmPayload),
 			validation,
 		);
 
-		expect(result.relevant_count).toBe(3);
+		expect(result.relevant_count).toBe(1);
 	});
 
 	it("parses JSON wrapped in markdown fences", () => {
@@ -73,7 +73,7 @@ describe("parseSocialMediaAnalysisJson", () => {
 			validation,
 		);
 
-		expect(result.relevant_count).toBe(3);
+		expect(result.relevant_count).toBe(1);
 	});
 
 	it("parses JSON after a thinking block", () => {

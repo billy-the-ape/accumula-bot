@@ -47,6 +47,7 @@ export const SocialMediaAnalysisSchema = z.object({
 
 export const SocialMediaAnalysisLlmSchema = z.object({
 	total_retrieved: z.number().int().nonnegative(),
+	relevant_count: z.number().int().nonnegative(),
 	summary: z.string().min(1),
 	themes: z.array(z.string().min(1)),
 	by_asset: z.array(SocialMediaAnalysisByAssetSchema),
@@ -78,22 +79,18 @@ export type SocialMediaPromptSignal = Pick<
 export type SocialMediaAnalysisValidation = {
 	/** Full number of posts retrieved from the source. */
 	totalRetrieved: number;
-	/** Posts actually shown in the Stage 1b synthesis prompt (pre-filtered relevant subset). */
+	/** Posts shown in the analysis prompt. */
 	promptSignals: readonly SocialMediaPromptSignal[];
-	/** Server-computed from Stage 1a relevance filter. */
-	relevantCount: number;
 	strict?: boolean;
 };
 
 export function createSocialMediaAnalysisValidation(
 	allSignals: readonly Pick<SocialMediaSignal, "source" | "id" | "username">[],
 	promptSignals: readonly SocialMediaPromptSignal[],
-	relevantCount?: number,
 ): SocialMediaAnalysisValidation {
 	return {
 		totalRetrieved: allSignals.length,
 		promptSignals,
-		relevantCount: relevantCount ?? promptSignals.length,
 	};
 }
 
@@ -104,6 +101,7 @@ export function createSocialMediaAnalysisLlmSchema(
 		validation.promptSignals.map((signal) => signal.index),
 	);
 	const maxTopPosts = validation.promptSignals.length;
+	const maxRelevantAmongShown = validation.promptSignals.length;
 
 	return SocialMediaAnalysisLlmSchema.superRefine((data, ctx) => {
 		if (data.total_retrieved !== validation.totalRetrieved) {
@@ -111,6 +109,31 @@ export function createSocialMediaAnalysisLlmSchema(
 				code: "custom",
 				path: ["total_retrieved"],
 				message: `total_retrieved must equal input post count (${validation.totalRetrieved})`,
+			});
+		}
+
+		if (data.relevant_count > data.total_retrieved) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["relevant_count"],
+				message: "relevant_count cannot exceed total_retrieved",
+			});
+		}
+
+		if (data.relevant_count > maxRelevantAmongShown) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["relevant_count"],
+				message: `relevant_count cannot exceed posts shown in prompt (${maxRelevantAmongShown})`,
+			});
+		}
+
+		if (data.relevant_count < data.top_posts.length) {
+			ctx.addIssue({
+				code: "custom",
+				path: ["relevant_count"],
+				message:
+					"relevant_count must be at least top_posts.length (top posts are relevant)",
 			});
 		}
 
@@ -195,7 +218,7 @@ export function remapSocialMediaAnalysisFromLlm(
 
 	return SocialMediaAnalysisSchema.parse({
 		total_retrieved: llm.total_retrieved,
-		relevant_count: validation.relevantCount,
+		relevant_count: llm.relevant_count,
 		summary: llm.summary,
 		themes: llm.themes,
 		by_asset: llm.by_asset,

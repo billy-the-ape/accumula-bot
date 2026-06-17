@@ -32,11 +32,7 @@ const allSignals = [
 	},
 ] as const;
 
-const validation = createSocialMediaAnalysisValidation(
-	allSignals,
-	allSignals,
-	2,
-);
+const validation = createSocialMediaAnalysisValidation(allSignals, allSignals);
 
 const validAnalysis = {
 	total_retrieved: 3,
@@ -78,6 +74,7 @@ const validAnalysis = {
 
 const validLlmAnalysis = {
 	total_retrieved: 3,
+	relevant_count: 2,
 	summary: validAnalysis.summary,
 	themes: validAnalysis.themes,
 	by_asset: validAnalysis.by_asset,
@@ -168,7 +165,6 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		const singlePostValidation = createSocialMediaAnalysisValidation(
 			allSignals,
 			[allSignals[0]],
-			1,
 		);
 		const result =
 			createSocialMediaAnalysisLlmSchema(singlePostValidation).safeParse(
@@ -187,7 +183,7 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		);
 	});
 
-	it("injects relevant_count from validation during remap", () => {
+	it("preserves relevant_count from LLM output during remap", () => {
 		const parsed =
 			createSocialMediaAnalysisLlmSchema(validation).parse(validLlmAnalysis);
 
@@ -275,11 +271,10 @@ describe("createSocialMediaAnalysisSchema", () => {
 	});
 
 	it("allows total_retrieved to exceed prompt subset size", () => {
-		const subsetValidation = createSocialMediaAnalysisValidation(
-			allSignals,
-			[allSignals[0], allSignals[1]],
-			2,
-		);
+		const subsetValidation = createSocialMediaAnalysisValidation(allSignals, [
+			allSignals[0],
+			allSignals[1],
+		]);
 
 		const result =
 			createSocialMediaAnalysisSchema(subsetValidation).safeParse(
@@ -290,11 +285,10 @@ describe("createSocialMediaAnalysisSchema", () => {
 	});
 
 	it("rejects post ids outside the prompt subset", () => {
-		const subsetValidation = createSocialMediaAnalysisValidation(
-			allSignals,
-			[allSignals[0], allSignals[1]],
-			2,
-		);
+		const subsetValidation = createSocialMediaAnalysisValidation(allSignals, [
+			allSignals[0],
+			allSignals[1],
+		]);
 
 		const result = createSocialMediaAnalysisSchema(subsetValidation).safeParse({
 			...validAnalysis,
@@ -332,7 +326,6 @@ describe("createSocialMediaAnalysisSchema", () => {
 			),
 		).toEqual({
 			totalRetrieved: 1,
-			relevantCount: 1,
 			promptSignals: [
 				{
 					source: "twitter",

@@ -34,24 +34,17 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 
 		expect(prompt.system).toContain("parseable by JSON.parse()");
 		expect(prompt.system).toContain("top_posts must use relevance=high only");
-		expect(prompt.system).not.toContain('"relevant_count":');
+		expect(prompt.system).toContain('"relevant_count"');
 		expect(prompt.system).not.toContain('"posts":');
 		expect(prompt.system).toContain('"post_id": 0');
-		expect(prompt.user).toContain("pre-filtered relevant posts");
-		expect(prompt.user).not.toContain(
-			"Relevance bar (24-hour trading horizon):",
-		);
-		expect(prompt.user).not.toContain("When in doubt, exclude");
+		expect(prompt.user).toContain("Decision rule (24-hour trading horizon):");
+		expect(prompt.user).toContain("Set relevant_count");
 		expect(prompt.user).toContain("Outlook assets: BTC, ETH, SOL");
 		expect(prompt.user).toContain("Posts retrieved (full fetch): 1");
-		expect(prompt.user).toContain(
-			"Posts shown: 1 (all pre-filtered as relevant)",
-		);
-		expect(prompt.user).toContain("Valid post ids (use post_id exactly");
-		expect(prompt.user).toContain("0");
+		expect(prompt.user).toContain("Posts shown: 1");
 	});
 
-	it("wraps posts in a trust boundary with post indices", () => {
+	it("wraps posts in a trust boundary with post_id labels", () => {
 		const prompt = buildSocialMediaAnalysisPromptParts({
 			promptSignals: [sampleSignal()],
 			totalRetrieved: 1,
@@ -63,7 +56,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.user).toContain("Large BTC transfer detected");
 	});
 
-	it("includes a macro briefing preamble before synthesis guidance when marketContext is provided", () => {
+	it("includes a macro briefing preamble before guidance when marketContext is provided", () => {
 		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
 		const prompt = buildSocialMediaAnalysisPromptParts({
 			promptSignals: [sampleSignal()],

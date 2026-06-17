@@ -22,7 +22,7 @@ describe("formatSocialMediaSignals", () => {
 			sampleSignal({
 				index: 1,
 				id: "9876543210",
-				username: "WatcherGuru",
+				username: "CoinDesk",
 				text: "BTC ETF inflows continue",
 			}),
 		]);
@@ -31,6 +31,6 @@ describe("formatSocialMediaSignals", () => {
 		expect(formatted).toContain("[post_id=0]");
 		expect(formatted).toContain("[post_id=1]");
 		expect(formatted).toContain("@whale_alert");
-		expect(formatted).toContain("@WatcherGuru");
+		expect(formatted).toContain("@CoinDesk");
 	});
 });

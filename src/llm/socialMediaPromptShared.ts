@@ -3,7 +3,6 @@ import {
 	isKnownCryptocurrencySymbol,
 } from "@/config/assets.js";
 import { stripMarkdownLinksForPrompt } from "@/macro/macroBriefingContent.js";
-import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
 export type SocialMediaMarketContext = {
 	content: string;
@@ -35,26 +34,6 @@ export function buildOutlookAssetListWithAliases(
 			return symbol;
 		})
 		.join(", ");
-}
-
-export function buildPostIndexCatalog(
-	promptSignals: readonly Pick<
-		SocialMediaSignal,
-		"index" | "username" | "text"
-	>[],
-): string {
-	return promptSignals
-		.map(
-			(signal) =>
-				`[post_id=${signal.index}] @${signal.username}: ${signal.text.slice(0, 80)}${signal.text.length > 80 ? "…" : ""}`,
-		)
-		.join("\n");
-}
-
-export function buildValidPostIdReminder(
-	promptSignals: readonly Pick<SocialMediaSignal, "index">[],
-): string {
-	return promptSignals.map((signal) => `[post_id=${signal.index}]`).join(", ");
 }
 
 function buildRelevanceDecisionRule(outlookAssets: readonly string[]): string {
