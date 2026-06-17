@@ -3,12 +3,14 @@ import { completeJsonChatViaProvider } from "@/llm/providers/registry.js";
 import type {
 	LlmChatPrompt,
 	LlmRequestContext,
+	ReasoningEffort,
 } from "@/llm/providers/types.js";
 
 export {
 	anthropicProvider,
 	resolveAnthropicMessagesUrl,
 } from "@/llm/providers/anthropicProvider.js";
+export { ollamaProvider } from "@/llm/providers/ollamaProvider.js";
 export {
 	openAiCompatibleProvider,
 	resolveChatCompletionsUrl,
@@ -26,6 +28,11 @@ export {
 
 export type CompleteJsonChatOptions = {
 	fetchImpl?: typeof fetch;
+	/** When false, omit JSON response_format (for prose outputs). Default: true. */
+	jsonMode?: boolean;
+	/** When true, omit max_tokens / max_completion_tokens from the request. */
+	omitMaxOutputTokens?: boolean;
+	reasoningEffort?: ReasoningEffort;
 };
 
 export async function completeJsonChat(
@@ -42,6 +49,11 @@ export async function completeJsonChat(
 		maxOutputTokens: config.maxOutputTokens,
 		...(config.apiKey ? { apiKey: config.apiKey } : {}),
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+		...(options.jsonMode === false ? { jsonMode: false } : {}),
+		...(options.omitMaxOutputTokens ? { omitMaxOutputTokens: true } : {}),
+		...(options.reasoningEffort
+			? { reasoningEffort: options.reasoningEffort }
+			: {}),
 	};
 
 	return completeJsonChatViaProvider(config.provider, context, prompt);

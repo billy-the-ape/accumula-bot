@@ -159,16 +159,37 @@ function buildJsonOutputContract(
 	].join("\n");
 }
 
+export type SocialMediaMarketContext = {
+	content: string;
+	generatedAt: Date;
+};
+
 export type BuildSocialMediaAnalysisPromptParams = {
 	promptSignals: readonly SocialMediaSignal[];
 	totalRetrieved: number;
 	outlookAssets: readonly string[];
+	marketContext?: SocialMediaMarketContext;
 };
+
+function buildMarketContextPreamble(
+	marketContext: SocialMediaMarketContext,
+): string {
+	return [
+		`Market context (desk briefing generated ${marketContext.generatedAt.toISOString()};):`,
+		marketContext.content,
+		"",
+		"End of market context.",
+		"Use this as background when reading the social posts below.",
+		"It may be incomplete or outdated — posts are the primary evidence.",
+		"If a post contradicts the briefing, prefer the post when it reports a concrete new fact.",
+	].join("\n");
+}
 
 export function buildSocialMediaAnalysisPromptParts({
 	promptSignals,
 	totalRetrieved,
 	outlookAssets,
+	marketContext,
 }: BuildSocialMediaAnalysisPromptParams): AnalysisPromptParts {
 	const assetList = outlookAssets.join(", ");
 	const postsText = formatSocialMediaSignals(promptSignals);
@@ -196,6 +217,7 @@ export function buildSocialMediaAnalysisPromptParts({
 		"Review the untrusted social posts below. Select ONLY posts with a concrete,",
 		"near-term catalyst for the outlook assets. When in doubt, exclude.",
 		"",
+		...(marketContext ? [buildMarketContextPreamble(marketContext), ""] : []),
 		buildRelevanceGuidance(outlookAssets),
 		"",
 		`Outlook assets: ${assetList}`,

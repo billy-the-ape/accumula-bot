@@ -1,11 +1,4 @@
-import {
-	applyMaxOutputTokens,
-	resolveChatCompletionsUrl,
-} from "@/llm/providers/chatCompletionsUrl.js";
-import {
-	applyReasoningEffort,
-	applyTemperature,
-} from "@/llm/providers/openAiOfficialApiRequest.js";
+import { resolveChatCompletionsUrl } from "@/llm/providers/chatCompletionsUrl.js";
 import type { LlmChatPrompt, LlmProvider } from "@/llm/providers/types.js";
 import { LlmError } from "@/llm/providers/types.js";
 import {
@@ -24,10 +17,8 @@ type ChatCompletionResponse = {
 	};
 };
 
-export { resolveChatCompletionsUrl } from "@/llm/providers/chatCompletionsUrl.js";
-
-export const openAiCompatibleProvider: LlmProvider = {
-	id: "openai_compatible",
+export const ollamaProvider: LlmProvider = {
+	id: "ollama",
 
 	async completeJsonChat(context, prompt: LlmChatPrompt) {
 		const fetchImpl =
@@ -48,27 +39,12 @@ export const openAiCompatibleProvider: LlmProvider = {
 				{ role: "user", content: prompt.user },
 			],
 			stream: false,
+			temperature: context.temperature,
+			max_tokens: context.maxOutputTokens,
+			options: {
+				num_ctx: context.contextTokens,
+			},
 		};
-
-		applyTemperature(
-			requestBody,
-			context.baseUrl,
-			context.model,
-			context.temperature,
-		);
-		applyReasoningEffort(
-			requestBody,
-			context.baseUrl,
-			context.model,
-			context.reasoningEffort,
-		);
-		if (!context.omitMaxOutputTokens) {
-			applyMaxOutputTokens(
-				requestBody,
-				context.baseUrl,
-				context.maxOutputTokens,
-			);
-		}
 
 		if (context.jsonMode !== false) {
 			requestBody.response_format = { type: "json_object" };

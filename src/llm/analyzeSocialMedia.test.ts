@@ -115,6 +115,38 @@ describe("analyzeSocialMedia", () => {
 		infoSpy.mockRestore();
 	});
 
+	it("injects macro briefing market context into the Stage 1 prompt", async () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+		});
+		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValue(chatCompletionResponse(validAnalysis));
+		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
+
+		await analyzeSocialMedia(config, [sampleSignal], {
+			fetchImpl,
+			outlookAssets: ["BTC"],
+			marketContext: {
+				content: "Risk-off ahead of CPI.",
+				generatedAt,
+			},
+		});
+
+		const [, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
+		const body = JSON.parse(request.body as string) as {
+			messages: Array<{ role: string; content: string }>;
+		};
+		expect(body.messages[1]?.content).toContain("Risk-off ahead of CPI.");
+		expect(body.messages[1]?.content).toContain(
+			"Market context (desk briefing generated 2026-06-16T07:00:00.000Z;):",
+		);
+
+		infoSpy.mockRestore();
+	});
+
 	it("retries once with a repair prompt when the initial response is invalid JSON", async () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",

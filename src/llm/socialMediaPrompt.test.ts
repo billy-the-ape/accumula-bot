@@ -55,4 +55,41 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		expect(prompt.user).toContain("[index=0]");
 		expect(prompt.user).toContain("Large BTC transfer detected");
 	});
+
+	it("includes a macro briefing preamble before relevance guidance when marketContext is provided", () => {
+		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
+		const prompt = buildSocialMediaAnalysisPromptParts({
+			promptSignals: [sampleSignal()],
+			totalRetrieved: 1,
+			outlookAssets: ["BTC"],
+			marketContext: {
+				content: "Risk-off ahead of CPI.",
+				generatedAt,
+			},
+		});
+
+		const relevanceIndex = prompt.user.indexOf(
+			"Relevance bar (24-hour trading horizon):",
+		);
+		const preambleIndex = prompt.user.indexOf(
+			"Market context (desk briefing generated 2026-06-16T07:00:00.000Z;):",
+		);
+
+		expect(preambleIndex).toBeGreaterThan(-1);
+		expect(relevanceIndex).toBeGreaterThan(preambleIndex);
+		expect(prompt.user).toContain("Risk-off ahead of CPI.");
+		expect(prompt.user).toContain("posts are the primary evidence");
+	});
+
+	it("omits the macro briefing preamble when marketContext is absent", () => {
+		const prompt = buildSocialMediaAnalysisPromptParts({
+			promptSignals: [sampleSignal()],
+			totalRetrieved: 1,
+			outlookAssets: ["BTC"],
+		});
+
+		expect(prompt.user).not.toContain(
+			"Market context (desk briefing generated",
+		);
+	});
 });

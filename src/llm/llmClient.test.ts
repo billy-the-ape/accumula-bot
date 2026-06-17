@@ -20,7 +20,7 @@ describe("completeJsonChat", () => {
 		);
 
 		const config: LlmConfig = {
-			provider: "openai_compatible",
+			provider: "ollama",
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
 			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,

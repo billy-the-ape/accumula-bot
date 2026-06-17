@@ -203,6 +203,7 @@ Optional Telegram DM notifications: see [Notifications](#notifications) for `TEL
 |---------|---------|
 | `pnpm dev` | Run with file watch |
 | `pnpm start` | Run once |
+| `pnpm macro:briefing` | Generate daily macro briefing via OpenAI web search (uses `.env.macro`) |
 | `pnpm telegram:daily-summary` | Send Telegram daily summary (requires Telegram env vars) |
 | `pnpm test` | Run tests |
 | `pnpm test:watch` | Run tests in watch mode |
@@ -213,7 +214,7 @@ Optional Telegram DM notifications: see [Notifications](#notifications) for `TEL
 
 ## Scheduling (3× daily)
 
-The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **two LLM calls** (social filter/digest, then trade recommendation) using the same `LLM_*` settings. Schedule it **three times per day** so decisions can accumulate without keeping a Node process running 24/7.
+The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **two LLM calls** on the trading model (social filter/digest, then trade recommendation) using `.env` / Ollama. A **separate daily job** (`pnpm macro:briefing`, `.env.macro` / OpenAI) writes macro context to the DB for Stage 1 — see [Macro Briefing](#macro-briefing). Schedule trading **three times per day** (or hourly via PM2) so decisions can accumulate without keeping a Node process running 24/7.
 
 Default schedule (server **local timezone**):
 
@@ -292,12 +293,14 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-`ecosystem.config.cjs` defines two apps:
+`ecosystem.config.cjs` defines two apps (telegram daily summary is commented out in the repo copy):
 
-| PM2 name | Schedule (local time) | What it runs |
-|----------|----------------------|--------------|
-| `accumula-bot` | 06:00, 14:00, 22:00 | Main trading cycle (`src/index.ts`) |
-| `accumula-bot-telegram` | 15:00 daily | Telegram daily summary |
+| PM2 name | Schedule (local time) | What it runs | Env file |
+|----------|----------------------|--------------|----------|
+| `accumula-bot` | Every hour (`0 * * * *`) | Main trading cycle (`src/index.ts`) | `.env` (Ollama) |
+| `accumula-bot-macro-briefing` | Daily (`0 14 * * *`) | Macro briefing + Telegram daily briefing | `.env.macro` (OpenAI + Telegram) |
+
+Trading runs use **local Ollama** from `.env`. The macro job uses **OpenAI Responses API + web search** from `.env.macro` and writes to the same SQLite DB (`DATABASE_PATH`). Hourly runs read the latest briefing when social media is enabled — see [Macro Briefing](#macro-briefing).
 
 PM2 invokes `node_modules/.bin/tsx` with `interpreter: "bash"` (do not set `script: "pnpm"` — PM2 runs scripts with Node by default and will fail on the pnpm shell wrapper).
 
@@ -306,9 +309,9 @@ Useful commands:
 ```bash
 pm2 status                        # next cron run shown when time: true
 pm2 logs accumula-bot             # main bot stdout/stderr
-pm2 logs accumula-bot-telegram    # daily summary stdout/stderr
+pm2 logs accumula-bot-macro-briefing   # macro briefing stdout/stderr
 pm2 stop accumula-bot             # disable scheduled trading runs
-pm2 delete accumula-bot accumula-bot-telegram
+pm2 delete accumula-bot accumula-bot-macro-briefing
 pm2 startup                       # generate OS startup hook (Linux)
 ```
 
@@ -639,10 +642,11 @@ Read-only — a **two-stage** pipeline filters raw posts in a dedicated LLM pass
 
 * Reddit
 
-## Macro
+## Macro — **implemented** (daily briefing + Stage 1 scene-setting)
 
-* ETF flows
-* Fear & Greed Index
+* Daily macro/narrative briefing stored in SQLite (`macro_briefings` table)
+* OpenAI Responses API with web search (separate `.env.macro` from trading Ollama)
+* Injected into Stage 1 social analysis when fresh (≤36h) — see [Macro Briefing](#macro-briefing)
 
 ## On-chain
 
@@ -733,6 +737,74 @@ Discovery: Kalshi daily series (`KXBTCD` / `KXETHD` / `KXSOLD`); Polymarket via 
 
 ---
 
+# Macro Briefing
+
+A **daily** job (`src/macro/`, `pnpm macro:briefing`) asks an OpenAI model with **web search** for the current macro backdrop affecting crypto markets (~200 words). The result is saved to SQLite and reused by hourly trading runs as **scene-setting context** in Stage 1 social media analysis — not as a separate portfolio-outlook section.
+
+This separates fast-changing world context (Fed meetings, CPI prints, geopolitical headlines) from static prompt structure. Trading runs stay on **local Ollama** (`.env`); the macro job uses **OpenAI** (`.env.macro`).
+
+## Dual env setup
+
+| File | Used by | LLM |
+|------|---------|-----|
+| `.env` | `pnpm start`, PM2 `accumula-bot` | Ollama (default) |
+| `.env.macro` | `pnpm macro:briefing`, PM2 `accumula-bot-macro-briefing` | OpenAI Responses API + web search |
+
+Setup:
+
+```bash
+cp .env .env.macro
+# Edit .env.macro: set LLM_PROVIDER=openai_compatible, LLM_BASE_URL, LLM_MODEL, LLM_API_KEY
+# Keep DATABASE_PATH the same as .env so briefings land in the trading DB
+```
+
+See `.env.macro.example` for the required shape. **Never commit `.env.macro`** (gitignored).
+
+The macro generator calls `POST /v1/responses` with `tools: [{ type: "web_search" }]`, `tool_choice: "required"`, and `reasoning: { effort: "high" }`. It requires `LLM_BASE_URL=https://api.openai.com/v1` and `LLM_API_KEY`.
+
+## Staleness and Stage 1 injection
+
+Each hourly run loads the latest row from `macro_briefings`. It is injected into the Stage 1 prompt only if **`createdAt` is ≤36 hours old** (`MACRO_BRIEFING_MAX_AGE_MS` in code). Otherwise the social prompt runs unchanged (no preamble).
+
+When injected, the briefing appears **before** relevance guidance as trusted desk context. Raw tweets remain untrusted; if a post contradicts the briefing with a concrete new fact, the prompt tells the model to prefer the post.
+
+Console logs during social fetch:
+
+* `Social media: using macro briefing from 2026-06-16T07:00:00.000Z` — fresh briefing loaded
+* `Social media: no fresh macro briefing available; Stage 1 runs without market context` — missing or stale
+
+Manual run:
+
+```bash
+pnpm macro:briefing
+# Macro briefing saved (id=1, createdAt=..., promptVersion=v2, ...)
+# Daily briefing sent to Telegram (macro + portfolio summary)
+```
+
+When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set in `.env.macro`, the job also sends a **Daily Briefing** Telegram message containing the **full macro text** plus the portfolio summary (returns, holdings, values). If Telegram is not configured, the briefing is still saved to the DB.
+
+Run `pnpm db:migrate` once on deploy so the `macro_briefings` table exists.
+
+## PM2 schedule
+
+`accumula-bot-macro-briefing` in `ecosystem.config.cjs` runs daily (default **14:00 local**). Schedule it **before** your first trading run of the day so Stage 1 has fresh context.
+
+## Environment variables (`.env.macro`)
+
+Same `loadConfig()` requirements as `.env` (assets, `DATABASE_PATH`, `CLOUDAMQP_URL`, etc.). Only the **LLM block** differs — point at OpenAI, not Ollama:
+
+| Variable | Required | Example | Description |
+|----------|----------|---------|-------------|
+| `LLM_PROVIDER` | Yes | `openai_compatible` | Must be `openai_compatible` for web search |
+| `LLM_BASE_URL` | Yes | `https://api.openai.com/v1` | Official OpenAI API only |
+| `LLM_MODEL` | Yes | `gpt-5.5` | Model supporting Responses API + web search |
+| `LLM_API_KEY` | Yes | `sk-...` | OpenAI API key |
+| `DATABASE_PATH` | Yes | `data/accumula.db` | **Same path as `.env`** — briefings must be readable by trading runs |
+| `TELEGRAM_BOT_TOKEN` | For daily DM | — | Sends Daily Briefing after generation |
+| `TELEGRAM_CHAT_ID` | For daily DM | — | Same chat as trading run reports |
+
+---
+
 # Social Media
 
 A read-only data source (`src/sources/social_media/`, surfaced via `socialMediaSource` in `DEFAULT_ANALYSIS_DATA_SOURCES`) that collects Twitter/X posts via AMQP search and adds a **structured social digest** to the portfolio-outlook LLM context. The bot does **not** post or trade on social signals — they inform the 24h direction score only.
@@ -741,9 +813,9 @@ A read-only data source (`src/sources/social_media/`, surfaced via `socialMediaS
 
 ## Two-stage LLM pipeline
 
-Each run with social media enabled performs **two LLM calls** (same `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, etc.):
+Each run with social media enabled performs **two LLM calls** on the **trading** LLM (`.env` — typically Ollama):
 
-1. **Stage 1 — `analyzeSocialMedia`** — Raw posts (with composite ids `source:externalId`, e.g. `twitter:1234567890`) are analyzed inside a trust boundary. The model returns structured `SocialMediaAnalysis` JSON: retrieved/relevant counts, themes, per-asset sentiment, ranked top posts, and one-line summaries for each relevant post.
+1. **Stage 1 — `analyzeSocialMedia`** — Raw posts (with composite ids `source:externalId`, e.g. `twitter:1234567890`) are analyzed inside a trust boundary. When a **fresh macro briefing** exists in the DB (≤36h old), a desk-context preamble is prepended before relevance guidance — see [Macro Briefing](#macro-briefing). The model returns structured `SocialMediaAnalysis` JSON: retrieved/relevant counts, themes, per-asset sentiment, ranked top posts, and one-line summaries for each relevant post.
 2. **Stage 2 — `runAnalysis`** — The portfolio-outlook prompt receives a **compact digest** (`formatSocialMediaAnalysis`) instead of every post. The digest includes full text for the **top three** ranked posts for grounding. The section is still wrapped as untrusted-derived data.
 
 If Stage 1 fails (parse error after retry), the run **continues**: the social section falls back to raw post formatting and the Telegram report shows `Analysis unavailable`. Trading is never blocked on social analysis failure.
@@ -754,6 +826,7 @@ When zero posts are retrieved, Stage 1 is skipped (no extra LLM call).
 
 After building the analysis context, the run logs:
 
+* `Social media: using macro briefing from …` or `no fresh macro briefing available` (when social enabled)
 * `Social media: retrieved=N relevant=M` (and themes when present)
 * Or `Social media: retrieved=N (analysis unavailable)` on fallback
 * Or `Social media: no posts retrieved`
@@ -839,24 +912,25 @@ Sent on every completed run (executed, risk-blocked, or hold). Includes:
 
 Legacy note: an older doc version described notifications as trade-only; the run report is always sent when Telegram is configured.
 
-### Daily summary
+### Daily briefing
 
-Sent manually via `pnpm telegram:daily-summary` or on the PM2 `accumula-bot-telegram` schedule (default 15:00 local). Includes:
+Sent automatically after `pnpm macro:briefing` (PM2 `accumula-bot-macro-briefing`) when Telegram is configured in `.env.macro`. Also available manually via `pnpm telegram:daily-summary` (uses `.env`; includes the latest saved macro text from the DB when present). Includes:
 
+* **Full macro briefing text** (when generated / stored)
 * **BTC-denominated** returns for 24h, 7d, and all-time (the bot's primary benchmark — not USD PnL)
 * Trade count in the last 24h
 * Current holdings
 * Starting and current portfolio value in BTC and USD
 
-**Note:** USD value can rise while BTC return is negative if BTC price moved up but the strategy holds less BTC than the starting baseline. The percentage lines at the top measure performance in **BTC terms**, matching the project's success criteria.
+**Note:** USD value can rise while BTC return is negative if BTC price moved up but the strategy holds less BTC than the starting baseline. The percentage lines measure performance in **BTC terms**, matching the project's success criteria.
 
-## Scheduling the daily summary
+## Scheduling the daily briefing
 
 | Method | Command / config |
 |--------|------------------|
-| Manual | `pnpm telegram:daily-summary` |
-| PM2 | `accumula-bot-telegram` in `ecosystem.config.cjs` (default `0 15 * * *`) |
-| Cron | `0 15 * * * cd /path/to/accumula-bot && pnpm telegram:daily-summary >> logs/telegram.log 2>&1` |
+| Automatic | PM2 `accumula-bot-macro-briefing` in `ecosystem.config.cjs` (runs macro job + Telegram daily briefing) |
+| Manual (macro + Telegram) | `pnpm macro:briefing` (requires Telegram in `.env.macro`) |
+| Manual (portfolio only / re-send) | `pnpm telegram:daily-summary` |
 
 ---
 

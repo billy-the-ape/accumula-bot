@@ -16,7 +16,15 @@ export type LlmRequestContext = {
 	maxOutputTokens: number;
 	apiKey?: string;
 	fetchImpl?: typeof fetch;
+	/** When false, omit JSON response_format (for prose outputs). Default: true. */
+	jsonMode?: boolean;
+	/** When true, omit max_tokens / max_completion_tokens from the request. */
+	omitMaxOutputTokens?: boolean;
+	/** OpenAI reasoning models only (gpt-5.x, o-series). */
+	reasoningEffort?: ReasoningEffort;
 };
+
+export type ReasoningEffort = "minimal" | "low" | "medium" | "high";
 
 export type LlmChatPrompt = {
 	system: string;

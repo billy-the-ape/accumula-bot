@@ -6,6 +6,7 @@ import {
 } from "@/llm/parseResponse.js";
 import { parseSocialMediaAnalysisJson } from "@/llm/parseSocialMediaAnalysis.js";
 import { LlmError } from "@/llm/providers/types.js";
+import type { SocialMediaMarketContext } from "@/llm/socialMediaPrompt.js";
 import {
 	buildSocialMediaAnalysisPromptParts,
 	buildSocialMediaRepairPromptParts,
@@ -20,6 +21,7 @@ import { selectSocialMediaPromptSignals } from "@/sources/social_media/selectSoc
 export type AnalyzeSocialMediaOptions = {
 	fetchImpl?: typeof fetch;
 	outlookAssets?: readonly string[];
+	marketContext?: SocialMediaMarketContext;
 };
 
 export type SocialMediaAnalysisMetadata = {
@@ -149,6 +151,7 @@ export async function analyzeSocialMedia(
 		promptSignals,
 		totalRetrieved: signals.length,
 		outlookAssets,
+		...(options.marketContext ? { marketContext: options.marketContext } : {}),
 	});
 	const chatOptions = {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),

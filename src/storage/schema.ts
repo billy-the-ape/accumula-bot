@@ -71,6 +71,15 @@ export const trades = sqliteTable("trades", {
 	quoteValueUsd: real("quote_value_usd").notNull(),
 });
 
+export const macroBriefings = sqliteTable("macro_briefings", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
+	content: text("content").notNull(),
+	llmProvider: text("llm_provider").notNull(),
+	llmModel: text("llm_model").notNull(),
+	promptVersion: text("prompt_version").notNull(),
+});
+
 export type DecisionRow = typeof decisions.$inferSelect;
 export type NewDecisionRow = typeof decisions.$inferInsert;
 export type PortfolioRow = typeof portfolios.$inferSelect;
@@ -79,3 +88,5 @@ export type PositionRow = typeof positions.$inferSelect;
 export type NewPositionRow = typeof positions.$inferInsert;
 export type TradeRow = typeof trades.$inferSelect;
 export type NewTradeRow = typeof trades.$inferInsert;
+export type MacroBriefingRow = typeof macroBriefings.$inferSelect;
+export type NewMacroBriefingRow = typeof macroBriefings.$inferInsert;

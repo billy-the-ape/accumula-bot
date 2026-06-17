@@ -14,7 +14,7 @@ import {
 import type { LlmProviderId } from "@/schemas/LlmProvider.js";
 
 const LlmConfigSchema = z.object({
-	provider: z.enum(["openai_compatible", "anthropic"]),
+	provider: z.enum(["ollama", "openai_compatible", "anthropic"]),
 	baseUrl: z.url(),
 	model: z.string().min(1),
 	requestTimeoutMs: z.number().int().positive(),

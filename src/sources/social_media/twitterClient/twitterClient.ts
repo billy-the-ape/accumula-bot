@@ -46,6 +46,9 @@ const CRYPTO_ACCOUNTS = [
 	"tier10k",
 	"TheBlockCo",
 	"DefiIgnas",
+	"nikhileshde",
+	"bitcoinarchive",
+	"glassnode",
 ];
 
 const MACRO_ACCOUNTS = ["LynAldenContact", "TheMarketEar", "KobeissiLetter"];

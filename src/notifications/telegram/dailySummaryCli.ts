@@ -1,6 +1,7 @@
 import { loadConfig } from "@/config/index.js";
 import { sendDailySummary } from "@/notifications/telegram/sendDailySummary.js";
 import { createDatabase } from "@/storage/db.js";
+import { getLatestMacroBriefing } from "@/storage/repositories/macroBriefingRepository.js";
 
 async function main() {
 	const config = loadConfig();
@@ -15,8 +16,22 @@ async function main() {
 	const connection = await createDatabase(config.databasePath);
 
 	try {
-		await sendDailySummary(config, connection.db);
-		console.info("Daily summary sent to Telegram");
+		const latestBriefing = await getLatestMacroBriefing(connection.db);
+		await sendDailySummary(config, connection.db, {
+			...(latestBriefing
+				? {
+						macroBriefing: {
+							content: latestBriefing.content,
+							generatedAt: latestBriefing.createdAt,
+						},
+					}
+				: {}),
+		});
+		console.info(
+			latestBriefing
+				? "Daily briefing sent to Telegram (macro + portfolio summary)"
+				: "Daily summary sent to Telegram",
+		);
 	} finally {
 		connection.client.close();
 	}

@@ -19,11 +19,18 @@ describe("formatSocialMediaSignals", () => {
 	it("includes stable post index in each line for Stage 1 cross-referencing", () => {
 		const formatted = formatSocialMediaSignals([
 			sampleSignal(),
-			sampleSignal({ index: 1, id: "9876543210", username: "crypto_news" }),
+			sampleSignal({
+				index: 1,
+				id: "9876543210",
+				username: "WatcherGuru",
+				text: "BTC ETF inflows continue",
+			}),
 		]);
 
+		expect(formatted).toContain("[users tagged=crypto]");
 		expect(formatted).toContain("[index=0]");
 		expect(formatted).toContain("[index=1]");
-		expect(formatted.split("\n")).toHaveLength(2);
+		expect(formatted).toContain("@whale_alert");
+		expect(formatted).toContain("@WatcherGuru");
 	});
 });

@@ -1,6 +1,11 @@
 import type { PortfolioHoldings } from "@/domain/types.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 
+export type DailySummaryMacroBriefing = {
+	content: string;
+	generatedAt: Date;
+};
+
 export type DailySummaryInput = {
 	tradesLast24h: readonly StoredTrade[];
 	btcValue: number;
@@ -12,7 +17,26 @@ export type DailySummaryInput = {
 	weeklyReturnPct: number;
 	allTimeReturnPct: number;
 	holdings: PortfolioHoldings;
+	macroBriefing?: DailySummaryMacroBriefing;
 };
+
+function escapeHtml(value: string): string {
+	return value
+		.replace(/&/g, "&amp;")
+		.replace(/</g, "&lt;")
+		.replace(/>/g, "&gt;");
+}
+
+function formatMacroBriefingSection(
+	macroBriefing: DailySummaryMacroBriefing,
+): string[] {
+	return [
+		"<u>Macro briefing:</u>",
+		`<i>Generated ${macroBriefing.generatedAt.toISOString()}</i>`,
+		escapeHtml(macroBriefing.content),
+		"",
+	];
+}
 
 function formatReturnPct(value: number): string {
 	return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -38,9 +62,16 @@ function formatHoldings(holdings: PortfolioHoldings): string {
 }
 
 export function formatDailySummary(input: DailySummaryInput): string {
+	const title = input.macroBriefing
+		? "📅<b><u>AccumulaBot — Daily Briefing</u></b>📅"
+		: "📅<b><u>AccumulaBot — Daily Summary</u></b>📅";
+
 	const lines = [
-		"📅<b><u>AccumulaBot — Daily Summary</u></b>📅",
+		title,
 		"",
+		...(input.macroBriefing
+			? formatMacroBriefingSection(input.macroBriefing)
+			: []),
 		"<u>Current BTC Amount vs Starting BTC Value:</u>",
 		`24h: <b>${formatReturnPct(input.dailyReturnPct)}</b> · ${input.tradesLast24h.length} trade(s)`,
 		`7d: <b>${formatReturnPct(input.weeklyReturnPct)}</b>`,

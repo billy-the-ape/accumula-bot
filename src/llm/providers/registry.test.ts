@@ -12,6 +12,7 @@ import { DEFAULT_LLM_REQUEST_TIMEOUT_MS } from "@/llm/requestTimeout.js";
 
 describe("getLlmProvider", () => {
 	it("returns the configured provider adapter", () => {
+		expect(getLlmProvider("ollama").id).toBe("ollama");
 		expect(getLlmProvider("openai_compatible").id).toBe("openai_compatible");
 		expect(getLlmProvider("anthropic").id).toBe("anthropic");
 	});

@@ -27,7 +27,7 @@ describe("loadConfig", () => {
 			config.assetTradeable.map((asset: Cryptocurrency) => asset.symbol),
 		).toEqual(["BTC", "ETH", "SOL", "USDC"]);
 		expect(config.llm).toEqual({
-			provider: "openai_compatible",
+			provider: "ollama",
 			baseUrl: "http://127.0.0.1:11434",
 			model: "qwen3:8b",
 			requestTimeoutMs: DEFAULT_LLM_REQUEST_TIMEOUT_MS,
@@ -48,7 +48,7 @@ describe("loadConfig", () => {
 
 		expect(config.assetToAccumulate.symbol).toBe("BTC");
 		expect(config.assetStarting.symbol).toBe("USDC");
-		expect(config.llm.provider).toBe("openai_compatible");
+		expect(config.llm.provider).toBe("ollama");
 		expect(config.llm.baseUrl).toBe("http://127.0.0.1:11434");
 		expect(config.llm.model).toBe("qwen3:8b");
 	});

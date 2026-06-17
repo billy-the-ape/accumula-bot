@@ -44,4 +44,54 @@ describe("formatDailySummary", () => {
 		expect(message).toContain("BTC: <b>0.10500000</b>");
 		expect(message).toContain("USD: <b> 9,975.00</b>");
 	});
+
+	it("includes the full macro briefing text when provided", () => {
+		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
+		const message = formatDailySummary({
+			tradesLast24h: [],
+			btcValue: 0.105,
+			usdValue: 9_975,
+			startingBtcValue: 0.1,
+			startingUsdValue: 10_000,
+			accumulateSymbol: "BTC",
+			dailyReturnPct: 1.2,
+			weeklyReturnPct: -0.5,
+			allTimeReturnPct: 4.8,
+			holdings: { BTC: 0.1 },
+			macroBriefing: {
+				content: "Risk-off ahead of CPI. ETF flows steady.",
+				generatedAt,
+			},
+		});
+
+		expect(message).toContain("📅<b><u>AccumulaBot — Daily Briefing</u></b>📅");
+		expect(message).toContain("<u>Macro briefing:</u>");
+		expect(message).toContain("Generated 2026-06-16T07:00:00.000Z");
+		expect(message).toContain("Risk-off ahead of CPI. ETF flows steady.");
+		expect(message.indexOf("Risk-off ahead of CPI")).toBeLessThan(
+			message.indexOf("<u>Current BTC Amount vs Starting BTC Value:</u>"),
+		);
+	});
+
+	it("escapes HTML in macro briefing content", () => {
+		const message = formatDailySummary({
+			tradesLast24h: [],
+			btcValue: 0.1,
+			usdValue: 10_000,
+			startingBtcValue: 0.1,
+			startingUsdValue: 10_000,
+			accumulateSymbol: "BTC",
+			dailyReturnPct: 0,
+			weeklyReturnPct: 0,
+			allTimeReturnPct: 0,
+			holdings: { BTC: 0.1 },
+			macroBriefing: {
+				content: "BTC < $70k & risk-off",
+				generatedAt: new Date("2026-06-16T07:00:00.000Z"),
+			},
+		});
+
+		expect(message).toContain("BTC &lt; $70k &amp; risk-off");
+		expect(message).not.toContain("BTC < $70k");
+	});
 });
