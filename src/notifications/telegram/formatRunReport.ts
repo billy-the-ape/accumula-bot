@@ -1,4 +1,12 @@
 import type { OutlookThresholds } from "@/execution/outlookActions";
+import {
+	bold,
+	boldLink,
+	boldUnderline,
+	escapeMarkdownV2,
+	italic,
+	underline,
+} from "@/notifications/telegram/escapeMarkdownV2.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
@@ -39,18 +47,10 @@ export type RunReportInput = {
 const MAX_REASON_CHARS = 200;
 
 const OUTCOME_HEADERS: Record<RunOutcome, string> = {
-	executed: "💰<u><b>AccumulaBot — Trade Executed</b></u>💰",
-	risk_blocked: "🛑<u><b>AccumulaBot — Trade Blocked (Risk)</b></u>🛑",
-	hold: "😴<u><b>AccumulaBot — No Trades (Hold)</b></u>😴",
+	executed: `💰${boldUnderline("AccumulaBot — Trade Executed")}💰`,
+	risk_blocked: `🛑${boldUnderline("AccumulaBot — Trade Blocked (Risk)")}🛑`,
+	hold: `😴${boldUnderline("AccumulaBot — No Trades (Hold)")}😴`,
 };
-
-/** Escape the HTML special chars Telegram's HTML parse mode rejects. */
-function escapeHtml(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
-}
 
 function formatUsd(value: number): string {
 	return value.toLocaleString("en-US", {
@@ -119,15 +119,15 @@ function formatOutlookBlock(
 	outlook: AssetOutlook,
 	outlookThresholds: OutlookThresholds,
 ): string[] {
-	const asset = escapeHtml(outlook.asset);
+	const asset = escapeMarkdownV2(outlook.asset);
 	const lines = [
-		`<b>· ${asset}:</b> ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} · Outlook: ${outlook.direction_score}/10 · Confidence: ${formatPercent(outlook.confidence)} ${
+		`${bold(`· ${asset}:`)} ${directionLabel(outlook.direction_score, outlook.confidence, outlookThresholds)} · Outlook: ${outlook.direction_score}/10 · Confidence: ${formatPercent(outlook.confidence)} ${
 			outlook.confidence >= outlookThresholds.minConfidence ? "🟢" : "🔴"
 		}`,
 	];
 
 	if (outlook.reason) {
-		lines.push(`  Reasoning: ${escapeHtml(truncate(outlook.reason))}`);
+		lines.push(`  Reasoning: ${escapeMarkdownV2(truncate(outlook.reason))}`);
 	}
 
 	return lines;
@@ -135,7 +135,7 @@ function formatOutlookBlock(
 
 function formatTradeLine(trade: StoredTrade): string {
 	const action = trade.side.toUpperCase();
-	return `${action} ${formatQuantity(trade.quantity)} ${escapeHtml(trade.symbol)} @ ${formatUsd(trade.priceUsd)} (${formatUsd(trade.quoteValueUsd)})`;
+	return `${action} ${escapeMarkdownV2(formatQuantity(trade.quantity))} ${escapeMarkdownV2(trade.symbol)} @ ${escapeMarkdownV2(formatUsd(trade.priceUsd))} \\(${escapeMarkdownV2(formatUsd(trade.quoteValueUsd))}\\)`;
 }
 
 function formatSocialMediaFallbackSection(
@@ -157,8 +157,8 @@ function formatSocialMediaAnalysisSection(
 
 	if (analysis.themes.length > 0) {
 		lines.push(
-			`  <u>Themes:</u>`,
-			`    ${escapeHtml(analysis.themes.join(", ").replace(/_/g, " "))}`,
+			`  ${underline("Themes:")}`,
+			`    ${escapeMarkdownV2(analysis.themes.join(", ").replace(/_/g, " "))}`,
 			"",
 		);
 	}
@@ -168,7 +168,7 @@ function formatSocialMediaAnalysisSection(
 	);
 
 	if (sortedTopPosts.length > 0) {
-		lines.push("  <u>Most Relevant Posts:</u>");
+		lines.push(`  ${underline("Most Relevant Posts:")}`);
 		for (const topPost of sortedTopPosts) {
 			const signal = resolveSocialMediaSignalForTopPost(topPost, signals);
 			const username = signal?.username ?? topPost.username;
@@ -177,17 +177,19 @@ function formatSocialMediaAnalysisSection(
 				/* signal
 				? truncateSocialMediaPostText(signal.text)
 				:  */ topPost.why;
-			const headline = `<b><a href="https://x.com/${escapeHtml(username)}/status/${escapeHtml(externalId)}">From ${escapeHtml(username)}</a></b> — ${escapeHtml(truncate(text))}`;
+			const linkText = `From ${username}`;
+			const url = `https://x.com/${username}/status/${externalId}`;
+			const headline = `${boldLink(linkText, url)} — ${escapeMarkdownV2(truncate(text))}`;
 			lines.push(`    ${topPost.rank}. ${headline}`);
 		}
 		lines.push("");
 	}
 
 	if (analysis.by_asset.length > 0) {
-		lines.push("  <u>Sentiments:</u>");
+		lines.push(`  ${underline("Sentiments:")}`);
 		for (const entry of analysis.by_asset) {
 			lines.push(
-				`    <b>${escapeHtml(entry.asset)}:</b> ${entry.sentiment} — ${escapeHtml(truncate(entry.note))}`,
+				`    ${bold(`${entry.asset}:`)} ${escapeMarkdownV2(entry.sentiment)} — ${escapeMarkdownV2(truncate(entry.note))}`,
 			);
 		}
 		lines.push("");
@@ -208,7 +210,7 @@ function formatSocialMediaSection(input: RunReportInput): string {
 		return formatSocialMediaFallbackSection(input.socialMediaSignals);
 	}
 
-	return "<i>None</i>";
+	return italic("None");
 }
 
 /**
@@ -223,26 +225,26 @@ export function formatRunReport(input: RunReportInput): string {
 		input.predictionSignals.length > 0
 			? input.predictionSignals
 					.map((signal) => {
-						return `  ${signal.asset}|${signal.source.toUpperCase().slice(0, 5)}: ${formatPredictionSignalDisplay(signal)}`;
+						return `  ${escapeMarkdownV2(signal.asset)}\\|${escapeMarkdownV2(signal.source.toUpperCase().slice(0, 5))}: ${escapeMarkdownV2(formatPredictionSignalDisplay(signal))}`;
 					})
 					.join("\n")
-			: "<i>None</i>";
+			: italic("None");
 
 	const lines: string[] = [
 		OUTCOME_HEADERS[input.outcome],
 		"",
-		`<u><b>Actions:</b></u>`,
+		boldUnderline("Actions:"),
 		...input.outlooks.flatMap(
 			(outlook) =>
-				`${outlook.asset}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
+				`${escapeMarkdownV2(outlook.asset)}:${getDirectionString(outlook.direction_score, outlook.confidence, input.outlookThresholds)}`,
 		),
 		"",
-		"<u><b>News & Social Media:</b></u>",
+		boldUnderline("News & Social Media:"),
 		socialMediaSignalsLines,
-		"<u><b>Prediction Markets:</b></u>",
+		boldUnderline("Prediction Markets:"),
 		predictionSignalsLines,
 		"",
-		"<u><b>Plans:</b></u>",
+		boldUnderline("Plans:"),
 		...input.outlooks.flatMap((outlook) =>
 			formatOutlookBlock(outlook, input.outlookThresholds),
 		),
@@ -251,40 +253,53 @@ export function formatRunReport(input: RunReportInput): string {
 	if (input.trades.length > 0) {
 		lines.push(
 			"",
-			"<u><b>Trades:</b></u>",
+			boldUnderline("Trades:"),
 			...input.trades.map(formatTradeLine),
 		);
 	} else {
-		lines.push("", "<u><b>No trades executed</b></u>");
+		lines.push("", boldUnderline("No trades executed"));
 	}
-
-	lines.push("", `<u><b>Status:</b></u>`, escapeHtml(input.executionReason));
 
 	lines.push(
 		"",
-		`<u><b>Summary:</b></u>`,
-		!input.summary ? "<i>None</i>" : escapeHtml(input.summary),
+		boldUnderline("Status:"),
+		escapeMarkdownV2(input.executionReason),
+	);
+
+	lines.push(
+		"",
+		boldUnderline("Summary:"),
+		!input.summary ? italic("None") : escapeMarkdownV2(input.summary),
 	);
 
 	if (input.portfolio) {
 		const { holdings } = input.portfolio;
 		lines.push(
 			"",
-			`<u><b>Current Portfolio:</b></u>`,
+			boldUnderline("Current Portfolio:"),
 			`${Object.entries(holdings)
 				.sort(([left], [right]) => left.localeCompare(right))
-				.map(([symbol, quantity]) => `${symbol}: ${formatQuantity(quantity)}`)
+				.map(
+					([symbol, quantity]) =>
+						`${symbol}: ${escapeMarkdownV2(formatQuantity(quantity))}`,
+				)
 				.join("\n")}`,
 		);
 	}
 
 	if (input.portfolioReport) {
 		const { btcValue, returnPct } = input.portfolioReport;
+		const btcValueStr = btcValue.toFixed(8).replace(/0+$/, "");
+		const returnSign = returnPct >= 0 ? "\\+" : "";
+		const returnStr = returnPct.toFixed(2);
+		const lessOrMore = returnPct >= 0 ? "less" : "more";
 		lines.push(
 			"",
-			`<u><b>Accumulated Value:</b></u>`,
-			`${btcValue.toFixed(8).replace(/0+$/, "")} ${input.accumulateSymbol} (${returnPct >= 0 ? "+" : ""}${returnPct.toFixed(2)}% all-time vs initial ${input.accumulateSymbol} baseline)`,
-			`<i>In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnPct.toFixed(2)} ${returnPct >= 0 ? "less" : "more"} ${input.accumulateSymbol} than you do now</i>`,
+			boldUnderline("Accumulated Value:"),
+			`${escapeMarkdownV2(btcValueStr)} ${escapeMarkdownV2(input.accumulateSymbol)} \\(${returnSign}${escapeMarkdownV2(returnStr)}% all\\-time vs initial ${escapeMarkdownV2(input.accumulateSymbol)} baseline\\)`,
+			italic(
+				`In other words, if you had bought ${input.accumulateSymbol} at the start of this portfolio, you would have ${returnStr} ${lessOrMore} ${input.accumulateSymbol} than you do now`,
+			),
 		);
 	}
 
@@ -294,8 +309,8 @@ export function formatRunReport(input: RunReportInput): string {
 /** Minimal alert for a run that threw before a normal report could be built. */
 export function formatRunFailure(message: string): string {
 	return [
-		"⚠️<u><b>AccumulaBot — Run Failed</b></u>⚠️",
+		`⚠️${boldUnderline("AccumulaBot — Run Failed")}⚠️`,
 		"",
-		`<u>Error:</u> ${escapeHtml(message)}`,
+		`${underline("Error:")} ${escapeMarkdownV2(message)}`,
 	].join("\n");
 }

@@ -74,8 +74,8 @@ const DEFAULT_ACCOUNTS_SEARCH_STRING = `(${[
 
 const DEFAULT_SEARCH_STRING = [
 	DEFAULT_ACCOUNTS_SEARCH_STRING,
-	"-is:reply",
-	"-is:retweet",
+	"exclude:replies",
+	"exclude:retweets",
 ].join(" ");
 
 interface TwitterSearchOptions {
@@ -116,9 +116,15 @@ export const getTwitterSearchResult = async ({
 		const config = loadConfig();
 
 		searchString =
-			searchString || config.socialMedia.twitterConfig.searchString;
+			searchString ||
+			config.socialMedia.twitterConfig.searchString ||
+			DEFAULT_SEARCH_STRING;
 		pagesToScrape =
-			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages;
+			pagesToScrape || config.socialMedia.twitterConfig.searchMaxPages || 10;
+	}
+
+	if (!searchString || !pagesToScrape) {
+		throw new Error("Search string and pages to scrape are required");
 	}
 
 	console.info(
@@ -134,10 +140,7 @@ export const getTwitterSearchResult = async ({
 		`earliestDate: ${new Date(earliestDateMs).toISOString()}`,
 	);
 
-	const result = await getSearchScrape(
-		searchString || DEFAULT_SEARCH_STRING,
-		pagesToScrape || 10,
-	);
+	const result = await getSearchScrape(searchString, pagesToScrape);
 
 	if (!result.success && result.message === "depth_exceeded") {
 		await sleep(1000 * (depth + 1));

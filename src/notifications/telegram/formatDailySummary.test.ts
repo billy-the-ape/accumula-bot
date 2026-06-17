@@ -27,22 +27,20 @@ describe("formatDailySummary", () => {
 			holdings: { BTC: 0.1, USDC: 5000 },
 		});
 
-		expect(message).toContain("📅<b><u>AccumulaBot — Daily Summary</u></b>📅");
-		expect(message).toContain(
-			"<u>Current BTC Amount vs Starting BTC Value:</u>",
-		);
-		expect(message).toContain("24h: <b>+1.20%</b> · 1 trade(s)");
-		expect(message).toContain("7d: <b>-0.50%</b>");
-		expect(message).toContain("All-time: <b>+4.80%</b>");
-		expect(message).toContain("<u>Holdings:</u>");
-		expect(message).toContain("BTC: <b>0.1</b>");
-		expect(message).toContain("USDC: <b>5,000</b>");
-		expect(message).toContain("<u>Starting value:</u>");
-		expect(message).toContain("BTC: <b>0.10000000</b>");
-		expect(message).toContain("USD: <b>10,000.00</b>");
-		expect(message).toContain("<u>Current value:</u>");
-		expect(message).toContain("BTC: <b>0.10500000</b>");
-		expect(message).toContain("USD: <b> 9,975.00</b>");
+		expect(message).toContain("📅*__AccumulaBot — Daily Summary__*📅");
+		expect(message).toContain("__Current BTC Amount vs Starting BTC Value:__");
+		expect(message).toContain("24h: *\\+1\\.20%* · 1 trade\\(s\\)");
+		expect(message).toContain("7d: *\\-0\\.50%*");
+		expect(message).toContain("All\\-time: *\\+4\\.80%*");
+		expect(message).toContain("__Holdings:__");
+		expect(message).toContain("BTC: *0\\.1*");
+		expect(message).toContain("USDC: *5,000*");
+		expect(message).toContain("__Starting value:__");
+		expect(message).toContain("BTC: *0\\.10000000*");
+		expect(message).toContain("USD: *10,000\\.00*");
+		expect(message).toContain("__Current value:__");
+		expect(message).toContain("BTC: *0\\.10500000*");
+		expect(message).toContain("USD: * 9,975\\.00*");
 	});
 
 	it("includes the full macro briefing text when provided", () => {
@@ -64,16 +62,16 @@ describe("formatDailySummary", () => {
 			},
 		});
 
-		expect(message).toContain("📅<b><u>AccumulaBot — Daily Briefing</u></b>📅");
-		expect(message).toContain("<u>Macro briefing:</u>");
-		expect(message).toContain("Generated 2026-06-16T07:00:00.000Z");
-		expect(message).toContain("Risk-off ahead of CPI. ETF flows steady.");
-		expect(message.indexOf("Risk-off ahead of CPI")).toBeLessThan(
-			message.indexOf("<u>Current BTC Amount vs Starting BTC Value:</u>"),
+		expect(message).toContain("📅*__AccumulaBot — Daily Briefing__*📅");
+		expect(message).toContain("__Macro briefing:__");
+		expect(message).toContain("_Generated 2026\\-06\\-16T07:00:00\\.000Z_");
+		expect(message).toContain("Risk\\-off ahead of CPI\\. ETF flows steady\\.");
+		expect(message.indexOf("Risk\\-off ahead of CPI")).toBeLessThan(
+			message.indexOf("__Current BTC Amount vs Starting BTC Value:__"),
 		);
 	});
 
-	it("escapes HTML in macro briefing content", () => {
+	it("escapes MarkdownV2 in macro briefing content", () => {
 		const message = formatDailySummary({
 			tradesLast24h: [],
 			btcValue: 0.1,
@@ -91,7 +89,29 @@ describe("formatDailySummary", () => {
 			},
 		});
 
-		expect(message).toContain("BTC &lt; $70k &amp; risk-off");
-		expect(message).not.toContain("BTC < $70k");
+		expect(message).toContain("BTC < $70k & risk\\-off");
+	});
+
+	it("renders markdown citation links as Telegram MarkdownV2 links", () => {
+		const message = formatDailySummary({
+			tradesLast24h: [],
+			btcValue: 0.1,
+			usdValue: 10_000,
+			startingBtcValue: 0.1,
+			startingUsdValue: 10_000,
+			accumulateSymbol: "BTC",
+			dailyReturnPct: 0,
+			weeklyReturnPct: 0,
+			allTimeReturnPct: 0,
+			holdings: { BTC: 0.1 },
+			macroBriefing: {
+				content: "Hot CPI ([Reuters](https://reuters.com/article)) today.",
+				generatedAt: new Date("2026-06-16T07:00:00.000Z"),
+			},
+		});
+
+		expect(message).toContain(
+			"Hot CPI \\([Reuters](https://reuters.com/article)\\) today\\.",
+		);
 	});
 });

@@ -37,7 +37,7 @@ export function buildMacroBriefingPromptParts(
 		"",
 		"Cover:",
 		"- Dominant macro themes from the last 24-48 hours",
-		"- Key scheduled high-impact events in the next 24 hours",
+		"- Key scheduled high-impact events ONLY within the next 24 hours",
 		"- Risk-on vs risk-off read for crypto, with brief read-through to the outlook assets",
 	].join("\n");
 

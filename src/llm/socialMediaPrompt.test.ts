@@ -92,4 +92,21 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 			"Market context (desk briefing generated",
 		);
 	});
+
+	it("strips markdown citation links from macro briefing market context", () => {
+		const prompt = buildSocialMediaAnalysisPromptParts({
+			promptSignals: [sampleSignal()],
+			totalRetrieved: 1,
+			outlookAssets: ["BTC"],
+			marketContext: {
+				content:
+					"Hot CPI ([Reuters](https://reuters.com/a)). See [Fed](https://fed.gov) tone.",
+				generatedAt: new Date("2026-06-16T07:00:00.000Z"),
+			},
+		});
+
+		expect(prompt.user).toContain("Hot CPI. See Fed tone.");
+		expect(prompt.user).not.toContain("https://");
+		expect(prompt.user).not.toContain("[Reuters]");
+	});
 });

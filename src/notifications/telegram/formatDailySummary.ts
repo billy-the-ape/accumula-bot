@@ -1,4 +1,12 @@
 import type { PortfolioHoldings } from "@/domain/types.js";
+import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingContent.js";
+import {
+	bold,
+	escapeMarkdownV2,
+	italic,
+	underline,
+	underlineBold,
+} from "@/notifications/telegram/escapeMarkdownV2.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 
 export type DailySummaryMacroBriefing = {
@@ -20,20 +28,13 @@ export type DailySummaryInput = {
 	macroBriefing?: DailySummaryMacroBriefing;
 };
 
-function escapeHtml(value: string): string {
-	return value
-		.replace(/&/g, "&amp;")
-		.replace(/</g, "&lt;")
-		.replace(/>/g, "&gt;");
-}
-
 function formatMacroBriefingSection(
 	macroBriefing: DailySummaryMacroBriefing,
 ): string[] {
 	return [
-		"<u>Macro briefing:</u>",
-		`<i>Generated ${macroBriefing.generatedAt.toISOString()}</i>`,
-		escapeHtml(macroBriefing.content),
+		underline("Macro briefing:"),
+		italic(`Generated ${macroBriefing.generatedAt.toISOString()}`),
+		formatMacroBriefingContentForTelegram(macroBriefing.content),
 		"",
 	];
 }
@@ -55,16 +56,16 @@ function formatHoldings(holdings: PortfolioHoldings): string {
 		.sort(([left], [right]) => left.localeCompare(right))
 		.map(
 			([symbol, quantity]) =>
-				`${symbol}: <b>${quantity.toLocaleString("en-US", { maximumFractionDigits: 8 })}</b>`,
+				`${symbol}: ${bold(quantity.toLocaleString("en-US", { maximumFractionDigits: 8 }))}`,
 		);
 
-	return parts.length > 0 ? parts.join("\n") : "(empty)";
+	return parts.length > 0 ? parts.join("\n") : "\\(empty\\)";
 }
 
 export function formatDailySummary(input: DailySummaryInput): string {
 	const title = input.macroBriefing
-		? "📅<b><u>AccumulaBot — Daily Briefing</u></b>📅"
-		: "📅<b><u>AccumulaBot — Daily Summary</u></b>📅";
+		? `📅${underlineBold("AccumulaBot — Daily Briefing")}📅`
+		: `📅${underlineBold("AccumulaBot — Daily Summary")}📅`;
 
 	const lines = [
 		title,
@@ -72,21 +73,21 @@ export function formatDailySummary(input: DailySummaryInput): string {
 		...(input.macroBriefing
 			? formatMacroBriefingSection(input.macroBriefing)
 			: []),
-		"<u>Current BTC Amount vs Starting BTC Value:</u>",
-		`24h: <b>${formatReturnPct(input.dailyReturnPct)}</b> · ${input.tradesLast24h.length} trade(s)`,
-		`7d: <b>${formatReturnPct(input.weeklyReturnPct)}</b>`,
-		`All-time: <b>${formatReturnPct(input.allTimeReturnPct)}</b>`,
+		underline("Current BTC Amount vs Starting BTC Value:"),
+		`24h: ${bold(formatReturnPct(input.dailyReturnPct))} · ${input.tradesLast24h.length} trade\\(s\\)`,
+		`7d: ${bold(formatReturnPct(input.weeklyReturnPct))}`,
+		`All\\-time: ${bold(formatReturnPct(input.allTimeReturnPct))}`,
 		"",
-		`<u>Holdings:</u>`,
+		underline("Holdings:"),
 		formatHoldings(input.holdings),
 		"",
-		`<u>Starting value:</u>`,
-		`${input.accumulateSymbol}: <b>${input.startingBtcValue.toFixed(8)}</b>`,
-		`USD: <b>${formatUsd(input.startingUsdValue)}</b>`,
+		underline("Starting value:"),
+		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.startingBtcValue.toFixed(8))}`,
+		`USD: ${bold(formatUsd(input.startingUsdValue))}`,
 		"",
-		`<u>Current value:</u>`,
-		`${input.accumulateSymbol}: <b>${input.btcValue.toFixed(8)}</b>`,
-		`USD: <b> ${formatUsd(input.usdValue)}</b>`,
+		underline("Current value:"),
+		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.btcValue.toFixed(8))}`,
+		`USD: ${bold(` ${formatUsd(input.usdValue)}`)}`,
 	];
 
 	return lines.join("\n");

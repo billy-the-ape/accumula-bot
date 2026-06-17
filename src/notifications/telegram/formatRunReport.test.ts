@@ -138,9 +138,9 @@ describe("formatRunReport", () => {
 		expect(message).toContain("72%");
 		expect(message).toContain("Strong relative momentum");
 		expect(message).toContain("Trades:");
-		expect(message).toContain("BUY 0.01 BTC");
+		expect(message).toContain("BUY 0\\.01 BTC");
 		expect(message).toContain(
-			"0.105 BTC (+2.50% all-time vs initial BTC baseline)",
+			"0\\.105 BTC \\(\\+2\\.50% all\\-time vs initial BTC baseline\\)",
 		);
 	});
 
@@ -154,9 +154,10 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("No Trades (Hold)");
+		expect(message).toContain("No Trades");
+		expect(message).toContain("Hold");
 		expect(message).toContain("No trades planned");
-		expect(message).not.toContain("<u>Trades:</u>");
+		expect(message).not.toContain("__*Trades:*__");
 	});
 
 	it("renders a risk-blocked run with the violation reason", () => {
@@ -168,7 +169,8 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("Trade Blocked (Risk)");
+		expect(message).toContain("Trade Blocked");
+		expect(message).toContain("Risk");
 		expect(message).toContain("Allocation cap exceeded for BTC");
 	});
 
@@ -177,11 +179,11 @@ describe("formatRunReport", () => {
 			baseInput({ predictionSignals: [btcPrediction] }),
 		);
 
-		expect(message).toContain("expects $68.5k vs current $66.0k");
-		expect(message).toContain("BTC|POLYM: 0.79");
+		expect(message).toContain("expects $68\\.5k vs current $66\\.0k");
+		expect(message).toContain("BTC\\|POLYM: 0\\.79");
 	});
 
-	it("labels SELL outlooks and escapes HTML in reasons", () => {
+	it("labels SELL outlooks and escapes MarkdownV2 in reasons", () => {
 		const message = formatRunReport(
 			baseInput({
 				outlooks: [{ ...ethOutlook, reason: "drop <below> support & fail" }],
@@ -192,7 +194,7 @@ describe("formatRunReport", () => {
 		expect(message).toContain(" SELL ");
 		expect(message).toContain("2/10");
 		expect(message).toContain("60%");
-		expect(message).toContain("drop &lt;below&gt; support &amp; fail");
+		expect(message).toContain("drop <below\\> support & fail");
 	});
 
 	it("omits the portfolio line when no portfolio is provided", () => {
@@ -226,16 +228,16 @@ describe("formatRunReport", () => {
 		expect(message).toContain("whale flow, macro");
 		expect(message).toContain("Most Relevant Posts:");
 		expect(message).toContain(
-			'1. <b><a href="https://x.com/whale_alert/status/111">From whale_alert</a></b> — Exchange inflow is the clearest near-term sell-pressure signal.',
+			"1. *[From whale\\_alert](https://x.com/whale_alert/status/111)* — Exchange inflow is the clearest near\\-term sell\\-pressure signal\\.",
 		);
 		expect(message).toContain(
-			'2. <b><a href="https://x.com/macro_news/status/222">From macro_news</a></b> — Macro tone may cap upside.',
+			"2. *[From macro\\_news](https://x.com/macro_news/status/222)* — Macro tone may cap upside\\.",
 		);
 		expect(message).toContain(
-			"<b>BTC:</b> mixed — Whale deposit offset by steady ETF inflows.",
+			"*BTC:* mixed — Whale deposit offset by steady ETF inflows\\.",
 		);
 		expect(message).toContain(
-			"<b>ETH:</b> bullish — Layer-2 activity picked up overnight.",
+			"*ETH:* bullish — Layer\\-2 activity picked up overnight\\.",
 		);
 	});
 
@@ -252,7 +254,7 @@ describe("formatRunReport", () => {
 		const message = formatRunReport(baseInput());
 
 		expect(message).toContain("News & Social Media:");
-		expect(message).toContain("<i>None</i>");
+		expect(message).toContain("_None_");
 	});
 });
 
@@ -261,8 +263,6 @@ describe("formatRunFailure", () => {
 		const message = formatRunFailure("LLM timeout <fatal> & gone");
 
 		expect(message).toContain("Run Failed");
-		expect(message).toContain(
-			"<u>Error:</u> LLM timeout &lt;fatal&gt; &amp; gone",
-		);
+		expect(message).toContain("__Error:__ LLM timeout <fatal\\> & gone");
 	});
 });

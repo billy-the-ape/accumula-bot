@@ -1,5 +1,6 @@
 import { wrapUntrustedContent } from "@/analysis/trustBoundary.js";
 import type { AnalysisPromptParts } from "@/llm/prompt.js";
+import { stripMarkdownLinksForPrompt } from "@/macro/macroBriefingContent.js";
 import { MAX_SOCIAL_MEDIA_TOP_POSTS } from "@/schemas/SocialMediaAnalysis.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import { formatSocialMediaSignals } from "@/sources/social_media/formatSocialMediaSignals.js";
@@ -176,7 +177,7 @@ function buildMarketContextPreamble(
 ): string {
 	return [
 		`Market context (desk briefing generated ${marketContext.generatedAt.toISOString()};):`,
-		marketContext.content,
+		stripMarkdownLinksForPrompt(marketContext.content),
 		"",
 		"End of market context.",
 		"Use this as background when reading the social posts below.",
