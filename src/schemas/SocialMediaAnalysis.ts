@@ -149,14 +149,6 @@ export function createSocialMediaAnalysisLlmSchema(
 		const seenIndices = new Set<number>();
 
 		for (const [index, topPost] of data.top_posts.entries()) {
-			if (topPost.relevance !== "high") {
-				ctx.addIssue({
-					code: "custom",
-					path: ["top_posts", index, "relevance"],
-					message: 'top_posts must use relevance "high" only',
-				});
-			}
-
 			if (!allowedPostIndices.has(topPost.post_id)) {
 				ctx.addIssue({
 					code: "custom",

@@ -33,11 +33,12 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		});
 
 		expect(prompt.system).toContain("parseable by JSON.parse()");
-		expect(prompt.system).toContain("top_posts must use relevance=high only");
-		expect(prompt.system).toContain('"relevant_count"');
+		expect(prompt.system).toContain("relevant_count");
+		expect(prompt.system).toContain('"high" or "medium"');
 		expect(prompt.system).not.toContain('"posts":');
 		expect(prompt.system).toContain('"post_id": 0');
-		expect(prompt.user).toContain("Decision rule (24-hour trading horizon):");
+		expect(prompt.user).toContain("Relevance rule (24-hour trading horizon):");
+		expect(prompt.user).toContain("relevant_count=0 should be rare");
 		expect(prompt.user).toContain("Set relevant_count");
 		expect(prompt.user).toContain("Outlook assets: BTC, ETH, SOL");
 		expect(prompt.user).toContain("Posts retrieved (full fetch): 1");

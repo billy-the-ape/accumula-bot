@@ -18,11 +18,12 @@ function makeSignal(
 }
 
 describe("prefilterSocialMediaSignalsForRelevance", () => {
-	it("always includes priority government, macro, and business accounts", () => {
+	it("always includes priority government, macro, business, and crypto accounts", () => {
 		const signals = [
 			makeSignal({ index: 0, username: "SECGov", text: "Weekly update" }),
 			makeSignal({ index: 1, username: "federalreserve", text: "Statement" }),
 			makeSignal({ index: 2, username: "DeItaone", text: "Morning headlines" }),
+			makeSignal({ index: 3, username: "CoinDesk", text: "Editor note" }),
 		];
 
 		const { candidates, excludedCount } =

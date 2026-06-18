@@ -111,7 +111,7 @@ describe("analyzeSocialMedia", () => {
 			messages: Array<{ role: string; content: string }>;
 		};
 		expect(body.messages[0]?.content).toContain('"relevant_count"');
-		expect(body.messages[1]?.content).toContain("Decision rule");
+		expect(body.messages[1]?.content).toContain("Relevance rule");
 		expect(body.messages[1]?.content).toContain("[post_id=0]");
 
 		infoSpy.mockRestore();

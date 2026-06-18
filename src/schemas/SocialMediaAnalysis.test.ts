@@ -147,7 +147,7 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
-	it("rejects medium relevance in top_posts", () => {
+	it("accepts medium relevance in top_posts", () => {
 		const result = createSocialMediaAnalysisLlmSchema(validation).safeParse({
 			...validLlmAnalysis,
 			top_posts: [
@@ -158,7 +158,7 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 			],
 		});
 
-		expect(result.success).toBe(false);
+		expect(result.success).toBe(true);
 	});
 
 	it("rejects top_posts exceeding the prompt subset size", () => {

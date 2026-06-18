@@ -229,7 +229,9 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("Analyzed 12 posts, 2 relevant");
+		expect(message).toContain(
+			"Analyzed **12** posts from the last **24h**, **2** were relevant",
+		);
 		expect(message).toContain("whale flow, macro");
 		expect(message).toContain("Most Relevant Posts:");
 		expect(message).toContain(

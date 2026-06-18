@@ -1,8 +1,8 @@
 import { wrapUntrustedContent } from "@/analysis/trustBoundary.js";
 import type { AnalysisPromptParts } from "@/llm/prompt.js";
 import {
+	buildAnalysisRelevanceGuidance,
 	buildMarketContextPreamble,
-	buildRelevanceFilterGuidance,
 	type SocialMediaMarketContext,
 } from "@/llm/socialMediaPromptShared.js";
 import { MAX_SOCIAL_MEDIA_TOP_POSTS } from "@/schemas/SocialMediaAnalysis.js";
@@ -15,10 +15,11 @@ function buildTopPostsGuidance(): string {
 	return [
 		"top_posts selection rules:",
 		`- Include at most ${MAX_SOCIAL_MEDIA_TOP_POSTS} highest-impact posts.`,
-		"- top_posts MUST contain only relevance=high posts — never include medium.",
+		"- Prefer relevance=high; use relevance=medium only when no high signals exist.",
 		"- Do NOT pad top_posts to fill slots; fewer is fine when signals are thin.",
 		"- Rank by expected 24h market impact, not impressions or virality.",
 		"- Each why must cite one specific fact from that post's text (not generic reasoning).",
+		"- relevant_count may exceed top_posts.length (it counts all desk-worthy posts).",
 	].join("\n");
 }
 
@@ -27,7 +28,7 @@ function buildExampleEmptyAnalysis(totalRetrieved: number): string {
 		{
 			total_retrieved: totalRetrieved,
 			relevant_count: 0,
-			summary: "No posts met the relevance bar for near-term market impact.",
+			summary: "No posts in this batch were desk-worthy after review.",
 			themes: [],
 			by_asset: [],
 			top_posts: [],
@@ -101,14 +102,14 @@ function buildJsonOutputContract(
 		"- NEVER invent post_id values.",
 		"- Copy each top_posts[].post_id EXACTLY from the [post_id=N] label on that post.",
 		"- post_id is the label number — NOT list position, NOT a Twitter id.",
-		"- relevant_count must count posts that pass the relevance bar among those shown.",
-		"- top_posts must use relevance=high only; never put medium-relevance posts in top_posts.",
+		"- relevant_count must count all desk-worthy posts (medium + high) among those shown.",
+		"- top_posts should list the best candidates; prefer high, medium allowed when thin.",
 		"- relevant_count must be >= top_posts.length.",
 		"",
 		"top_posts object fields:",
 		'- "post_id": integer matching the [post_id=N] label on that post (NOT list position)',
 		'- "rank": positive integer, 1 = most useful (no duplicate ranks or ids)',
-		'- "relevance": must be "high" (medium is not allowed in top_posts)',
+		'- "relevance": "high" or "medium" (prefer high; medium only for borderline desk-worthy posts)',
 		'- "assets": array of asset symbols or "MARKET" for broad macro',
 		'- "signal_type": short category such as whale_alert, regulation, macro, sentiment',
 		'- "why": short explanation of trading relevance for that specific post',
@@ -158,13 +159,13 @@ export function buildSocialMediaAnalysisPromptParts({
 		"You are a crypto social media analyst supporting a 24-hour trading outlook.",
 		"",
 		"Task:",
-		"Review all posts below. Set relevant_count to the number of posts that pass",
-		"the relevance bar. Synthesize themes, per-asset sentiment, and rank the",
-		"highest-impact relevant posts in top_posts.",
-		"When in doubt about relevance, exclude the post from relevant_count.",
+		"Review all posts below. Set relevant_count to the number of desk-worthy posts",
+		"(medium or high relevance). Synthesize themes, per-asset sentiment, and rank",
+		"the best posts in top_posts.",
+		"Prioritize breaking headlines from monitored wire, crypto, macro, and official accounts.",
 		"",
 		...(marketContext ? [buildMarketContextPreamble(marketContext), ""] : []),
-		buildRelevanceFilterGuidance(outlookAssets),
+		buildAnalysisRelevanceGuidance(outlookAssets),
 		"",
 		buildTopPostsGuidance(),
 		"",
@@ -208,7 +209,7 @@ export function buildSocialMediaRepairPromptParts(
 			"",
 			"Return ONLY a corrected JSON object that matches the system instructions.",
 			"Use post_id integers only — no Twitter ids, no usernames, no posts array.",
-			"Include relevant_count. Rank top_posts by impact; relevance=high only.",
+			"Include relevant_count. Rank top_posts by impact; prefer relevance=high.",
 		].join("\n"),
 	};
 }
