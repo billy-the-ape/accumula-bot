@@ -166,7 +166,7 @@ function formatSocialMediaAnalysisSection(
 	signals: readonly SocialMediaSignal[],
 ): string {
 	const lines: string[] = [
-		`  Analyzed **${escapeMarkdownV2(analysis.total_retrieved.toString())}** posts from the last **24h**, **${escapeMarkdownV2(analysis.relevant_count.toString())}** were relevant for near-term market impact`,
+		`  Analyzed **${escapeMarkdownV2(analysis.total_retrieved.toString())}** posts from the last **24h**, **${escapeMarkdownV2(analysis.relevant_count.toString())}** were relevant for near\\-term market impact`,
 		"",
 	];
 
