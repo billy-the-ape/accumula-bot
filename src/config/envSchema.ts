@@ -134,6 +134,12 @@ export const RawEnvSchema = z
 			.optional()
 			.transform((value) => value === "true" || value === "1"),
 
+		VERBOSE_PROMPT_LOGS: z
+			.string()
+			.trim()
+			.optional()
+			.transform((value) => value === "true" || value === "1"),
+
 		BUY_MIN_DIRECTION_SCORE: z.coerce
 			.number()
 			.min(5)
@@ -205,6 +211,7 @@ export const RawEnvSchema = z
 			sellMaxDirectionScore: env.SELL_MAX_DIRECTION_SCORE,
 			minConfidence: env.MIN_CONFIDENCE,
 		},
+		verbosePromptLogs: env.VERBOSE_PROMPT_LOGS,
 	}));
 
 export type ParsedEnv = z.infer<typeof RawEnvSchema>;

@@ -69,8 +69,8 @@ function neutralizeMarkers(content: string): string {
  */
 export function wrapUntrustedContent(label: string, content: string): string {
 	return [
-		`${UNTRUSTED_BEGIN_MARKER} label="${label}"`,
 		UNTRUSTED_SAFETY_NOTICE,
+		`${UNTRUSTED_BEGIN_MARKER} label="${label}"`,
 		neutralizeMarkers(content),
 		`${UNTRUSTED_END_MARKER} label="${label}"`,
 	].join("\n");

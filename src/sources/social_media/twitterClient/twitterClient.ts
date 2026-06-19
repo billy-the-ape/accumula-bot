@@ -110,10 +110,13 @@ export const getTwitterSearchMultipleResults = async ({
 			});
 		}),
 	);
-	const flattenedResults = results.flat().map((result, index) => ({
-		...result,
-		index,
-	}));
+	const flattenedResults = results
+		.flat()
+		.sort((a, b) => b.tweetedDate - a.tweetedDate)
+		.map((result, index) => ({
+			...result,
+			index,
+		}));
 	console.info(
 		"Social media - Twitter search: ",
 		`Found ${flattenedResults.length} tweets`,

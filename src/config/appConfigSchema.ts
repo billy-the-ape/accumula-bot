@@ -100,6 +100,7 @@ export type AppConfig = {
 	telegram?: TelegramConfig;
 	predictionMarkets: PredictionMarketsConfig;
 	outlookThresholds: OutlookThresholds;
+	verbosePromptLogs: boolean;
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
@@ -259,6 +260,7 @@ export const AppConfigSchema = z
 				},
 			},
 			predictionMarkets: env.predictionMarkets,
+			verbosePromptLogs: env.verbosePromptLogs,
 			...(telegram ? { telegram } : {}),
 			...(hasApiKey &&
 				hasApiSecret && {

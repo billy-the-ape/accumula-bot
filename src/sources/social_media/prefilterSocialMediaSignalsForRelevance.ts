@@ -6,15 +6,10 @@ import { isStablecoin } from "@/domain";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import { TWITTER_ACCOUNTS_TAG_MAP } from "@/sources/social_media/twitterClient/twitterClient.js";
 
-const PRIORITY_ACCOUNT_TAGS = [
-	"government",
-	"macro",
-	"business",
-	"crypto",
-] as const;
+const PRIORITY_ACCOUNT_TAGS = ["macro"] as const;
 
 const CATALYST_KEYWORD_PATTERN =
-	/\b(etf|cpi|ppi|fomc|fed|rate|sec|cftc|hack|exploit|insolv|bankrupt|delist|liquidat|inflow|outflow|treasury|sanction|regulat|enforcement|subpoena|approv|denied|outage|halt|suspend|whale|transfer|btc|eth|sol|bitcoin|market|oil|war|peace)\b/i;
+	/\b(etf|cpi|ppi|fomc|fed|rate|sec|cftc|hack|exploit|insolv|bankrupt|delist|liquidat|inflow|outflow|treasury|sanction|regulat|enforcement|subpoena|approv|denied|outage|halt|suspend|whale|transfer|btc|eth|sol|bitcoin|market|oil|war|peace|sanction)/i;
 
 const PRIORITY_ACCOUNTS = new Set(
 	PRIORITY_ACCOUNT_TAGS.flatMap((tag) =>

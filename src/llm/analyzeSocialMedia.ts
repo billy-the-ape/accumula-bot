@@ -16,6 +16,8 @@ import {
 	type SocialMediaAnalysis,
 } from "@/schemas/SocialMediaAnalysis.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
+import { capSocialMediaPromptSignalsPerAccount } from "@/sources/social_media/capSocialMediaPromptSignalsPerAccount.js";
+import { orderSocialMediaPromptSignals } from "@/sources/social_media/orderSocialMediaPromptSignals.js";
 import { prefilterSocialMediaSignalsForRelevance } from "@/sources/social_media/prefilterSocialMediaSignalsForRelevance.js";
 import { selectSocialMediaPromptSignals } from "@/sources/social_media/selectSocialMediaPromptSignals.js";
 import { formatDuration } from "@/utils";
@@ -52,8 +54,7 @@ function buildZeroRelevantAnalysis(
 	return {
 		total_retrieved: totalRetrieved,
 		relevant_count: 0,
-		summary:
-			"No posts in scanned set met the relevance bar for near-term market impact.",
+		summary: "- No material headlines for outlook assets in this batch.",
 		themes: [],
 		by_asset: [],
 		top_posts: [],
@@ -163,12 +164,22 @@ export async function analyzeSocialMedia(
 		);
 	}
 
-	const { candidates: promptSignals, excludedCount } =
+	const { candidates: prefilteredSignals, excludedCount } =
 		prefilterSocialMediaSignalsForRelevance(scannedSignals, outlookAssets);
 
 	if (excludedCount > 0) {
 		console.info(
 			`Social media: heuristic pre-filter excluded ${excludedCount} of ${scannedSignals.length} posts before LLM`,
+		);
+	}
+
+	const promptSignals = orderSocialMediaPromptSignals(
+		capSocialMediaPromptSignalsPerAccount(prefilteredSignals),
+	);
+
+	if (promptSignals.length < prefilteredSignals.length) {
+		console.info(
+			`Social media: per-account cap reduced prompt from ${prefilteredSignals.length} to ${promptSignals.length} posts`,
 		);
 	}
 
@@ -196,6 +207,12 @@ export async function analyzeSocialMedia(
 
 	const chatOptions = {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+		...(config.verbosePromptLogs
+			? {
+					verbosePromptLogs: true,
+					verbosePromptLabel: "social-media-analysis",
+				}
+			: {}),
 	};
 
 	console.info(
@@ -212,7 +229,7 @@ export async function analyzeSocialMedia(
 		const analysis = parseAnalysisOrThrow(rawResponse, validation, "initial");
 
 		console.info(
-			`Social media analysis completed in ${formatDuration(Date.now() - start)} (relevant=${analysis.relevant_count}/${analysis.total_retrieved})`,
+			`Social media analysis completed in ${formatDuration(Date.now() - start)} (informative=${analysis.relevant_count}/${analysis.total_retrieved})`,
 		);
 
 		return {
@@ -233,16 +250,15 @@ export async function analyzeSocialMedia(
 			promptSignals,
 		);
 
-		const retryResponse = await completeJsonChat(
-			config.llm,
-			repairPrompt,
-			chatOptions,
-		);
+		const retryResponse = await completeJsonChat(config.llm, repairPrompt, {
+			...chatOptions,
+			verbosePromptLabel: "social-media-analysis-repair",
+		});
 
 		const analysis = parseAnalysisOrThrow(retryResponse, validation, "retry");
 
 		console.info(
-			`Social media analysis completed in ${formatDuration(Date.now() - start)} (relevant=${analysis.relevant_count}/${analysis.total_retrieved})`,
+			`Social media analysis completed in ${formatDuration(Date.now() - start)} (informative=${analysis.relevant_count}/${analysis.total_retrieved})`,
 		);
 
 		return {

@@ -3,12 +3,24 @@ import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
 export const MAX_SOCIAL_MEDIA_POST_SUMMARY_CHARS = 100;
 
+/** Collapse whitespace and strip t.co tracking links for prompt input. */
+export function normalizeSocialMediaPostText(text: string): string {
+	return text
+		.replace(/\s+/g, " ")
+		.replace(/\s*https?:\/\/t\.co\/\S+/gi, "")
+		.trim();
+}
+
+/** Prompt-only normalization: also lowercase to avoid ALL-CAPS wire bias (e.g. DeItaone). */
+export function normalizeSocialMediaPostTextForPrompt(text: string): string {
+	return normalizeSocialMediaPostText(text).toLowerCase();
+}
+
 export function truncateSocialMediaPostText(
 	text: string,
 	maxChars = MAX_SOCIAL_MEDIA_POST_SUMMARY_CHARS,
 ): string {
-	const normalized =
-		text.replace(/\s+/g, " ").trim().split("https://t.co/")[0] ?? text;
+	const normalized = normalizeSocialMediaPostText(text);
 	if (normalized.length <= maxChars) {
 		return normalized;
 	}

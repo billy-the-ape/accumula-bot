@@ -1,6 +1,8 @@
-import type { SocialMediaMarketContext } from "@/llm/socialMediaPrompt.js";
+import type { AppConfig } from "@/config/index.js";
+import type { SocialMediaMarketContext } from "@/llm/socialMediaPromptShared.js";
 import { MACRO_BRIEFING_MAX_AGE_MS } from "@/macro/macroBriefingPrompt.js";
 import type { AppDatabase } from "@/storage/db.js";
+import { createDatabase } from "@/storage/db.js";
 import {
 	getLatestMacroBriefing,
 	type StoredMacroBriefing,
@@ -39,4 +41,16 @@ export async function loadFreshMarketContext(
 ): Promise<SocialMediaMarketContext | undefined> {
 	const briefing = await getLatestMacroBriefing(db);
 	return resolveFreshMarketContext(briefing, options);
+}
+
+export async function loadMarketContextFromConfig(
+	config: AppConfig,
+	options: ResolveFreshMarketContextOptions = {},
+): Promise<SocialMediaMarketContext | undefined> {
+	const connection = await createDatabase(config.databasePath);
+	try {
+		return await loadFreshMarketContext(connection.db, options);
+	} finally {
+		connection.client.close();
+	}
 }

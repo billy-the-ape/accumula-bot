@@ -1,4 +1,8 @@
 import type { AppConfig } from "@/config/index.js";
+import {
+	logVerboseChatResponse,
+	logVerboseResponsesPrompt,
+} from "@/llm/logVerbosePrompt.js";
 import { createOpenAiWebSearchResponse } from "@/llm/providers/openAiResponsesClient.js";
 import { LlmError } from "@/llm/providers/types.js";
 import {
@@ -48,6 +52,10 @@ export async function generateMacroBriefing(
 		`Macro briefing: Running OpenAI Responses web search (provider=${config.llm.provider}, model=${config.llm.model}, reasoning=high)...`,
 	);
 
+	if (config.verbosePromptLogs) {
+		logVerboseResponsesPrompt("macro-briefing", request);
+	}
+
 	let text: string;
 	let rawResponse: string;
 	let attempt: GenerateMacroBriefingResult["llm"]["attempt"];
@@ -88,6 +96,10 @@ export async function generateMacroBriefing(
 	const content = normalizeBriefingContent(rawResponse);
 	if (!content) {
 		throw new LlmError("Macro briefing returned empty content after trim");
+	}
+
+	if (config.verbosePromptLogs) {
+		logVerboseChatResponse("macro-briefing", rawResponse);
 	}
 
 	console.info(

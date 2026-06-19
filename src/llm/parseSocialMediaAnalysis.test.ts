@@ -21,8 +21,7 @@ const validation = createSocialMediaAnalysisValidation(
 
 const validLlmPayload = {
 	total_retrieved: 1,
-	relevant_count: 1,
-	summary: "One actionable whale alert.",
+	summary: "- Large BTC moved to an exchange.",
 	themes: ["whale flow"],
 	by_asset: [
 		{
@@ -34,11 +33,9 @@ const validLlmPayload = {
 	top_posts: [
 		{
 			post_id: 0,
-			rank: 1,
-			relevance: "high",
 			assets: ["BTC"],
 			signal_type: "whale_alert",
-			why: "Direct near-term supply signal.",
+			why: "Reports large BTC moved to an exchange.",
 		},
 	],
 };
@@ -58,7 +55,7 @@ describe("parseSocialMediaAnalysisJson", () => {
 		);
 	});
 
-	it("preserves relevant_count from LLM output", () => {
+	it("derives relevant_count from top_posts length", () => {
 		const result = parseSocialMediaAnalysisJson(
 			JSON.stringify(validLlmPayload),
 			validation,

@@ -3,6 +3,7 @@ import {
 	formatSocialMediaPostId,
 	type SocialMediaSignal,
 } from "@/schemas/SocialMediaSignal.js";
+import { normalizeSocialMediaPostTextForPrompt } from "@/sources/social_media/resolveSocialMediaSignal.js";
 
 /** Full post text included for the top N ranked posts (Stage 2 grounding). */
 export const SOCIAL_MEDIA_TOP_POST_FULL_TEXT_COUNT = 3;
@@ -31,7 +32,7 @@ function formatTopPostFullText(
 		return undefined;
 	}
 
-	return `[id=${topPost.id}] @${signal.username}: ${signal.text}`;
+	return `[id=${topPost.id}] @${signal.username}: ${normalizeSocialMediaPostTextForPrompt(signal.text)}`;
 }
 
 /**
@@ -43,7 +44,7 @@ export function formatSocialMediaAnalysis(
 	signals: readonly SocialMediaSignal[],
 ): string {
 	const lines: string[] = [
-		`retrieved=${analysis.total_retrieved} relevant=${analysis.relevant_count}`,
+		`retrieved=${analysis.total_retrieved} informative=${analysis.relevant_count}`,
 		`summary: ${analysis.summary}`,
 	];
 

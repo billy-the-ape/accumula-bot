@@ -33,13 +33,11 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 		});
 
 		expect(prompt.system).toContain("parseable by JSON.parse()");
-		expect(prompt.system).toContain("relevant_count");
-		expect(prompt.system).toContain('"high" or "medium"');
+		expect(prompt.system).toContain("bullet-list string");
+		expect(prompt.system).not.toContain('"relevant_count"');
 		expect(prompt.system).not.toContain('"posts":');
-		expect(prompt.system).toContain('"post_id": 0');
-		expect(prompt.user).toContain("Relevance rule (24-hour trading horizon):");
-		expect(prompt.user).toContain("relevant_count=0 should be rare");
-		expect(prompt.user).toContain("Set relevant_count");
+		expect(prompt.user).toContain("bullet-point summary");
+		expect(prompt.user).toContain("most informative");
 		expect(prompt.user).toContain("Outlook assets: BTC, ETH, SOL");
 		expect(prompt.user).toContain("Posts retrieved (full fetch): 1");
 		expect(prompt.user).toContain("Posts shown: 1");
@@ -54,7 +52,7 @@ describe("buildSocialMediaAnalysisPromptParts", () => {
 
 		expect(prompt.user).toContain(UNTRUSTED_BEGIN_MARKER);
 		expect(prompt.user).toContain("[post_id=0]");
-		expect(prompt.user).toContain("Large BTC transfer detected");
+		expect(prompt.user).toContain("large btc transfer detected");
 	});
 
 	it("includes a macro briefing preamble before guidance when marketContext is provided", () => {

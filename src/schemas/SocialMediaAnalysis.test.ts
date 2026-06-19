@@ -37,7 +37,8 @@ const validation = createSocialMediaAnalysisValidation(allSignals, allSignals);
 const validAnalysis = {
 	total_retrieved: 3,
 	relevant_count: 2,
-	summary: "Mixed macro tone with one notable whale alert.",
+	summary:
+		"- Large BTC moved to an exchange.\n- Fed speaker struck a cautious tone.",
 	themes: ["whale flow", "macro"],
 	by_asset: [
 		{
@@ -56,7 +57,7 @@ const validAnalysis = {
 			assets: ["BTC"],
 			signal_type: "whale_alert",
 			summary: "Large BTC moved to an exchange.",
-			why: "Exchange inflow is the clearest near-term sell pressure signal.",
+			why: "Reports large BTC moved to an exchange.",
 		},
 		{
 			post_id: 1,
@@ -67,33 +68,28 @@ const validAnalysis = {
 			assets: ["MARKET"],
 			signal_type: "macro",
 			summary: "Fed speaker struck a cautious tone.",
-			why: "Macro tone can shift risk appetite across crypto.",
+			why: "Fed speaker struck a cautious tone.",
 		},
 	],
 };
 
 const validLlmAnalysis = {
 	total_retrieved: 3,
-	relevant_count: 2,
 	summary: validAnalysis.summary,
 	themes: validAnalysis.themes,
 	by_asset: validAnalysis.by_asset,
 	top_posts: [
 		{
 			post_id: 0,
-			rank: 1,
-			relevance: "high" as const,
 			assets: ["BTC"],
 			signal_type: "whale_alert",
-			why: "Exchange inflow is the clearest near-term sell pressure signal.",
+			why: "Reports large BTC moved to an exchange.",
 		},
 		{
 			post_id: 1,
-			rank: 2,
-			relevance: "high" as const,
 			assets: ["MARKET"],
 			signal_type: "macro",
-			why: "Macro tone can shift risk appetite across crypto.",
+			why: "Fed speaker struck a cautious tone.",
 		},
 	],
 };
@@ -147,18 +143,87 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		expect(result.success).toBe(false);
 	});
 
-	it("accepts medium relevance in top_posts", () => {
+	it("rejects generic why text that does not reference the post", () => {
 		const result = createSocialMediaAnalysisLlmSchema(validation).safeParse({
 			...validLlmAnalysis,
 			top_posts: [
 				{
 					...validLlmAnalysis.top_posts[0],
-					relevance: "medium" as const,
+					why: "Trusted wire headline from a macro account.",
 				},
 			],
 		});
 
-		expect(result.success).toBe(true);
+		expect(result.success).toBe(false);
+	});
+
+	it("rejects more than one top_posts entry from the same username", () => {
+		const sameUserValidation = createSocialMediaAnalysisValidation(allSignals, [
+			allSignals[0],
+			{ ...allSignals[0], index: 3, id: "444", text: "Another whale post." },
+		]);
+		const result = createSocialMediaAnalysisLlmSchema(
+			sameUserValidation,
+		).safeParse({
+			...validLlmAnalysis,
+			top_posts: [
+				{
+					post_id: 0,
+					assets: ["BTC"],
+					signal_type: "whale_alert",
+					why: "Reports large BTC moved to an exchange.",
+				},
+				{
+					post_id: 3,
+					assets: ["BTC"],
+					signal_type: "whale_alert",
+					why: "Another whale post.",
+				},
+			],
+		});
+
+		expect(result.success).toBe(false);
+	});
+
+	it("looks up posts by stable signal index during remap", () => {
+		const promptSignals = [
+			{ ...allSignals[1], index: 99 },
+			{ ...allSignals[0], index: 42 },
+		];
+		const localValidation = createSocialMediaAnalysisValidation(
+			allSignals,
+			promptSignals,
+		);
+		const parsed = createSocialMediaAnalysisLlmSchema(localValidation).parse({
+			...validLlmAnalysis,
+			top_posts: [
+				{
+					post_id: 42,
+					assets: ["BTC"],
+					signal_type: "whale_alert",
+					why: "Reports large BTC moved to an exchange.",
+				},
+				{
+					post_id: 99,
+					assets: ["MARKET"],
+					signal_type: "macro",
+					why: "Fed speaker struck a cautious tone.",
+				},
+			],
+		});
+
+		const remapped = remapSocialMediaAnalysisFromLlm(parsed, localValidation);
+		expect(remapped.top_posts.map((post) => post.post_id)).toEqual([42, 99]);
+		expect(remapped.top_posts.map((post) => post.rank)).toEqual([1, 2]);
+	});
+
+	it("derives relevant_count from top_posts length during remap", () => {
+		const parsed =
+			createSocialMediaAnalysisLlmSchema(validation).parse(validLlmAnalysis);
+
+		expect(
+			remapSocialMediaAnalysisFromLlm(parsed, validation).relevant_count,
+		).toBe(2);
 	});
 
 	it("rejects top_posts exceeding the prompt subset size", () => {
@@ -183,22 +248,13 @@ describe("createSocialMediaAnalysisLlmSchema", () => {
 		);
 	});
 
-	it("preserves relevant_count from LLM output during remap", () => {
-		const parsed =
-			createSocialMediaAnalysisLlmSchema(validation).parse(validLlmAnalysis);
-
-		expect(
-			remapSocialMediaAnalysisFromLlm(parsed, validation).relevant_count,
-		).toBe(2);
-	});
-
 	it("ignores hallucinated LLM summaries during remap", () => {
 		const parsed = createSocialMediaAnalysisLlmSchema(validation).parse({
 			...validLlmAnalysis,
 			top_posts: [
 				{
 					...validLlmAnalysis.top_posts[0],
-					why: "Made-up trading reason.",
+					why: "Large BTC moved to an exchange.",
 				},
 			],
 		});

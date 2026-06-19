@@ -41,6 +41,43 @@ describe("buildAnalysisPromptParts", () => {
 		expect(prompt.user).not.toContain("Outlook assets: USDC");
 	});
 
+	it("includes macro briefing market context before analysis inputs when present", () => {
+		const config = loadTestConfig({
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",
+			LLM_BASE_URL: "http://127.0.0.1:11434",
+			CLOUDAMQP_URL: "amqp://localhost",
+		});
+		const analyzableAssets = getAnalyzableAssets(config);
+		const outlookAssets = analyzableAssets.map((asset) => asset.symbol);
+		const marketData = createSampleMarketSnapshots(analyzableAssets);
+		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
+		const context: AnalysisContext = {
+			fetchedAt: new Date().toISOString(),
+			marketContext: {
+				content: "Risk-off ahead of CPI.",
+				generatedAt,
+			},
+			sections: [
+				{
+					sourceId: "market",
+					label: "Market data",
+					payload: marketData,
+					promptText: formatMarketData(marketData),
+				},
+			],
+		};
+		const prompt = buildAnalysisPromptParts(config, context, outlookAssets);
+
+		expect(prompt.user).toContain("Market context (desk briefing generated");
+		expect(prompt.user).toContain("Risk-off ahead of CPI.");
+		expect(
+			prompt.user.indexOf("Market context (desk briefing generated"),
+		).toBeLessThan(prompt.user.indexOf("--- Start of analysis inputs ---"));
+		expect(
+			prompt.user.indexOf("--- Start of analysis inputs ---"),
+		).toBeLessThan(prompt.user.indexOf("change_30d_pct: 12"));
+	});
+
 	it("excludes stablecoins from analyzable assets", () => {
 		const config = loadTestConfig({
 			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC",

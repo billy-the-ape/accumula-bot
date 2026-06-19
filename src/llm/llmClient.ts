@@ -1,4 +1,8 @@
 import type { LlmConfig } from "@/config/appConfigSchema.js";
+import {
+	logVerboseChatPrompt,
+	logVerboseChatResponse,
+} from "@/llm/logVerbosePrompt.js";
 import { completeJsonChatViaProvider } from "@/llm/providers/registry.js";
 import type {
 	LlmChatPrompt,
@@ -34,6 +38,8 @@ export type CompleteJsonChatOptions = {
 	omitMaxOutputTokens?: boolean;
 	reasoningEffort?: ReasoningEffort;
 	fast?: boolean;
+	verbosePromptLogs?: boolean;
+	verbosePromptLabel?: string;
 };
 
 export async function completeJsonChat(
@@ -41,6 +47,10 @@ export async function completeJsonChat(
 	prompt: LlmChatPrompt,
 	options: CompleteJsonChatOptions = {},
 ): Promise<string> {
+	if (options.verbosePromptLogs) {
+		logVerboseChatPrompt(options.verbosePromptLabel ?? "llm", prompt);
+	}
+
 	const context: LlmRequestContext = {
 		baseUrl: config.baseUrl,
 		model: options.fast ? config.fastModel : config.model,
@@ -57,5 +67,15 @@ export async function completeJsonChat(
 			: {}),
 	};
 
-	return completeJsonChatViaProvider(config.provider, context, prompt);
+	const response = await completeJsonChatViaProvider(
+		config.provider,
+		context,
+		prompt,
+	);
+
+	if (options.verbosePromptLogs) {
+		logVerboseChatResponse(options.verbosePromptLabel ?? "llm", response);
+	}
+
+	return response;
 }

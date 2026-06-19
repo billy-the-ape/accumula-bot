@@ -68,7 +68,8 @@ const sampleSocialSignal: SocialMediaSignal = {
 const sampleSocialAnalysis: SocialMediaAnalysis = {
 	total_retrieved: 12,
 	relevant_count: 2,
-	summary: "Whale alert amid macro noise.",
+	summary:
+		"- Large BTC transfer detected (whale flow)\n- Fed speaker struck a cautious tone (macro headwind)",
 	themes: ["whale flow", "macro"],
 	by_asset: [
 		{
@@ -230,7 +231,7 @@ describe("formatRunReport", () => {
 		);
 
 		expect(message).toContain(
-			"Analyzed **12** posts from the last **24h**, **2** were relevant",
+			"Analyzed **12** posts from the last **24h**, **2** were relevant for near\\-term market impact",
 		);
 		expect(message).toContain("whale flow, macro");
 		expect(message).toContain("Most Relevant Posts:");

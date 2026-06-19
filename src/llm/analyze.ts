@@ -86,6 +86,12 @@ export async function runAnalysis(
 
 	const chatOptions = {
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+		...(config.verbosePromptLogs
+			? {
+					verbosePromptLogs: true,
+					verbosePromptLabel: "trade-recommendation",
+				}
+			: {}),
 	};
 
 	const rawResponse = await completeJsonChat(config.llm, prompt, chatOptions);
@@ -111,11 +117,10 @@ export async function runAnalysis(
 			error.message,
 			rawResponse,
 		);
-		const retryResponse = await completeJsonChat(
-			config.llm,
-			repairPrompt,
-			chatOptions,
-		);
+		const retryResponse = await completeJsonChat(config.llm, repairPrompt, {
+			...chatOptions,
+			verbosePromptLabel: "trade-recommendation-repair",
+		});
 		const recommendation = parseRecommendationOrThrow(
 			retryResponse,
 			validation,

@@ -38,6 +38,7 @@ describe("loadConfig", () => {
 		});
 		expect(config.databasePath).toBe("data/accumula.db");
 		expect(config.exchange).toBeUndefined();
+		expect(config.verbosePromptLogs).toBe(false);
 	});
 
 	it("applies asset and LLM defaults when optional env vars are omitted", () => {
@@ -67,6 +68,15 @@ describe("loadConfig", () => {
 		expect(config.llm.provider).toBe("anthropic");
 		expect(config.llm.baseUrl).toBe("https://api.anthropic.com");
 		expect(config.llm.apiKey).toBe("anthropic-key");
+	});
+
+	it("enables verbose prompt logging when VERBOSE_PROMPT_LOGS=true", () => {
+		const config = loadConfig({
+			...validEnv,
+			VERBOSE_PROMPT_LOGS: "true",
+		});
+
+		expect(config.verbosePromptLogs).toBe(true);
 	});
 
 	it("rejects missing LLM base URL", () => {

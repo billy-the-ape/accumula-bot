@@ -1,25 +1,38 @@
 import { wrapUntrustedContent } from "@/analysis/trustBoundary.js";
 import type { AnalysisPromptParts } from "@/llm/prompt.js";
 import {
-	buildAnalysisRelevanceGuidance,
 	buildMarketContextPreamble,
+	buildSummaryAnalysisGuidance,
 	type SocialMediaMarketContext,
 } from "@/llm/socialMediaPromptShared.js";
-import { MAX_SOCIAL_MEDIA_TOP_POSTS } from "@/schemas/SocialMediaAnalysis.js";
+import {
+	formatAllowedPostIdHint,
+	MAX_SOCIAL_MEDIA_TOP_POSTS,
+} from "@/schemas/SocialMediaAnalysis.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import { formatSocialMediaSignals } from "@/sources/social_media/formatSocialMediaSignals.js";
 
 export type { SocialMediaMarketContext };
 
-function buildTopPostsGuidance(): string {
+function buildTopPostsGuidance(
+	promptSignals: readonly SocialMediaSignal[],
+): string {
+	const allowedPostIds = formatAllowedPostIdHint(promptSignals);
 	return [
 		"top_posts selection rules:",
-		`- Include at most ${MAX_SOCIAL_MEDIA_TOP_POSTS} highest-impact posts.`,
-		"- Prefer relevance=high; use relevance=medium only when no high signals exist.",
-		"- Do NOT pad top_posts to fill slots; fewer is fine when signals are thin.",
-		"- Rank by expected 24h market impact, not impressions or virality.",
-		"- Each why must cite one specific fact from that post's text (not generic reasoning).",
-		"- relevant_count may exceed top_posts.length (it counts all desk-worthy posts).",
+		`- Include at most ${MAX_SOCIAL_MEDIA_TOP_POSTS} posts that were most informative for the summary.`,
+		"- Do NOT pad top_posts; fewer is fine when only one or two posts mattered.",
+		"- Order the array most-informative first (index 0 = your #1 pick).",
+		"- Each entry must correspond to a fact or theme in summary.",
+		"- Include at most ONE post per username — pick that user's single best post.",
+		"- Do NOT pick a post just because of who wrote it; judge the text only.",
+		"- Read the entire batch before choosing; do not stop after the first few posts.",
+		`- post_id must be copied exactly from [post_id=N] on that post (${allowedPostIds}).`,
+		"- post_id is NOT a rank, NOT a Twitter id, and NOT a 0-based position in the list.",
+		"- Do NOT use small integers like 0–5 unless that exact [post_id=N] label appears.",
+		'- "why" must mention a concrete detail from that post (number, event, asset, or quoted phrase).',
+		'- Bad why: "Key macro headline from a trusted wire account".',
+		'- Good why: "Reports CPI came in at 3.2% vs 3.0% expected".',
 	].join("\n");
 }
 
@@ -27,8 +40,7 @@ function buildExampleEmptyAnalysis(totalRetrieved: number): string {
 	return JSON.stringify(
 		{
 			total_retrieved: totalRetrieved,
-			relevant_count: 0,
-			summary: "No posts in this batch were desk-worthy after review.",
+			summary: "- No material headlines for outlook assets in this batch.",
 			themes: [],
 			by_asset: [],
 			top_posts: [],
@@ -38,31 +50,32 @@ function buildExampleEmptyAnalysis(totalRetrieved: number): string {
 	);
 }
 
-function buildExampleSocialMediaAnalysis(
-	totalRetrieved: number,
-	sampleSignal: Pick<SocialMediaSignal, "index">,
-): string {
+function buildExampleSocialMediaAnalysis(totalRetrieved: number): string {
 	return JSON.stringify(
 		{
 			total_retrieved: totalRetrieved,
-			relevant_count: 1,
-			summary: "One-line aggregate read of market-moving social signals.",
-			themes: ["whale flow"],
+			summary:
+				"- 15,000 BTC transferred to Coinbase (whale flow, near-term supply risk)\n- Fed speakers reiterated higher-for-longer (macro headwind for risk assets)",
+			themes: ["whale flow", "macro"],
 			by_asset: [
 				{
 					asset: "BTC",
 					sentiment: "mixed",
-					note: "Whale alert offset by steady ETF inflows.",
+					note: "Whale inflow offset by steady ETF inflows.",
 				},
 			],
 			top_posts: [
 				{
-					post_id: sampleSignal.index,
-					rank: 1,
-					relevance: "high",
+					post_id: 10042,
 					assets: ["BTC"],
 					signal_type: "whale_alert",
-					why: "Exchange inflow is the clearest near-term sell-pressure signal.",
+					why: "Reports 15,000 BTC transferred to Coinbase.",
+				},
+				{
+					post_id: 10087,
+					assets: ["MARKET"],
+					signal_type: "macro",
+					why: "Fed speakers reiterated higher-for-longer stance.",
 				},
 			],
 		},
@@ -73,8 +86,10 @@ function buildExampleSocialMediaAnalysis(
 
 function buildJsonOutputContract(
 	totalRetrieved: number,
-	sampleSignal: Pick<SocialMediaSignal, "index">,
+	promptSignals: readonly SocialMediaSignal[],
 ): string {
+	const allowedPostIds = formatAllowedPostIdHint(promptSignals);
+
 	return [
 		"You are a JSON API that returns machine-readable social media analysis.",
 		"",
@@ -88,43 +103,39 @@ function buildJsonOutputContract(
 		"",
 		"Required top-level fields:",
 		`- "total_retrieved": integer equal to ${totalRetrieved} (full fetch count)`,
-		'- "relevant_count": integer count of posts that pass the relevance bar',
-		'- "summary": string with a 1-3 sentence aggregate narrative',
+		'- "summary": bullet-list string (each line starts with "- ")',
 		'- "themes": array of short theme strings (may be empty)',
-		'- "by_asset": array of per-asset sentiment notes',
-		`- "top_posts": array of up to ${MAX_SOCIAL_MEDIA_TOP_POSTS} highest-impact posts (may be empty)`,
+		'- "by_asset": array of per-asset sentiment notes (may be empty)',
+		`- "top_posts": ordered array (most-informative first) of up to ${MAX_SOCIAL_MEDIA_TOP_POSTS} posts (may be empty)`,
 		"",
 		"Do NOT include a separate posts array. Put per-post detail only in top_posts.",
 		"Do NOT return Twitter ids or usernames — use post_id only.",
+		"Do NOT include relevant_count or rank — both are derived server-side.",
 		"",
 		"Critical rules:",
-		"- ONLY analyze posts shown in the user prompt.",
+		"- ONLY use posts shown in the user prompt.",
 		"- NEVER invent post_id values.",
-		"- Copy each top_posts[].post_id EXACTLY from the [post_id=N] label on that post.",
-		"- post_id is the label number — NOT list position, NOT a Twitter id.",
-		"- relevant_count must count all desk-worthy posts (medium + high) among those shown.",
-		"- top_posts should list the best candidates; prefer high, medium allowed when thin.",
-		"- relevant_count must be >= top_posts.length.",
+		`- Valid post_id values: ${allowedPostIds}.`,
+		"- Copy post_id exactly from the [post_id=N] label on that post.",
 		"",
 		"top_posts object fields:",
-		'- "post_id": integer matching the [post_id=N] label on that post (NOT list position)',
-		'- "rank": positive integer, 1 = most useful (no duplicate ranks or ids)',
-		'- "relevance": "high" or "medium" (prefer high; medium only for borderline desk-worthy posts)',
+		'- "post_id": integer from the [post_id=N] label on that post',
 		'- "assets": array of asset symbols or "MARKET" for broad macro',
 		'- "signal_type": short category such as whale_alert, regulation, macro, sentiment',
-		'- "why": short explanation of trading relevance for that specific post',
+		'- "why": must cite a specific fact/number/phrase from THAT post\'s text (not account reputation)',
 		"",
-		"Do NOT include summary or username fields — post text is resolved server-side from post_id.",
+		"Do NOT include summary, username, or rank on top_posts — resolved server-side.",
 		"",
 		"Cross-field rules:",
 		`- total_retrieved must equal ${totalRetrieved}`,
-		"- relevant_count cannot exceed total_retrieved.",
 		"- top_posts.length must not exceed the number of posts shown in the prompt.",
+		"- At most one top_posts entry per username.",
+		"- top_posts array order = most informative first.",
 		"",
-		"Valid example when one post stands out:",
-		buildExampleSocialMediaAnalysis(totalRetrieved, sampleSignal),
+		"Valid example:",
+		buildExampleSocialMediaAnalysis(totalRetrieved),
 		"",
-		"Valid example when nothing stands out:",
+		"Valid example when nothing stood out:",
 		buildExampleEmptyAnalysis(totalRetrieved),
 	].join("\n");
 }
@@ -142,32 +153,23 @@ export function buildSocialMediaAnalysisPromptParts({
 	outlookAssets,
 	marketContext,
 }: BuildSocialMediaAnalysisPromptParams): AnalysisPromptParts {
+	const _postsShown = promptSignals.length;
 	const postsText = formatSocialMediaSignals(promptSignals);
-	const sampleSignal = promptSignals[0] ?? {
-		source: "twitter" as const,
-		index: 0,
-		id: "0",
-		username: "example_user",
-		text: "",
-		asOf: "2026-01-01T00:00:00.000Z",
-		impressions: 0,
-	};
-
-	const system = buildJsonOutputContract(totalRetrieved, sampleSignal);
+	const system = buildJsonOutputContract(totalRetrieved, promptSignals);
 
 	const user = [
 		"You are a crypto social media analyst supporting a 24-hour trading outlook.",
 		"",
 		"Task:",
-		"Review all posts below. Set relevant_count to the number of desk-worthy posts",
-		"(medium or high relevance). Synthesize themes, per-asset sentiment, and rank",
-		"the best posts in top_posts.",
-		"Prioritize breaking headlines from monitored wire, crypto, macro, and official accounts.",
+		"1. Read all posts below and produce a bullet-point summary of the important",
+		"   information for outlook assets and broad crypto/macro risk.",
+		"2. List top_posts: the posts that were most informative when writing that summary.",
+		"3. Optionally add themes and by_asset sentiment notes if helpful.",
 		"",
 		...(marketContext ? [buildMarketContextPreamble(marketContext), ""] : []),
-		buildAnalysisRelevanceGuidance(outlookAssets),
+		buildSummaryAnalysisGuidance(outlookAssets),
 		"",
-		buildTopPostsGuidance(),
+		buildTopPostsGuidance(promptSignals),
 		"",
 		`Outlook assets: ${outlookAssets.join(", ")}`,
 		`Posts retrieved (full fetch): ${totalRetrieved}`,
@@ -209,7 +211,9 @@ export function buildSocialMediaRepairPromptParts(
 			"",
 			"Return ONLY a corrected JSON object that matches the system instructions.",
 			"Use post_id integers only — no Twitter ids, no usernames, no posts array.",
-			"Include relevant_count. Rank top_posts by impact; prefer relevance=high.",
+			'summary must be bullet lines starting with "- ". Order top_posts most-informative first.',
+			"why must cite a concrete fact from that post's text. At most one top_posts entry per username.",
+			"post_id must match [post_id=N] labels exactly — copy the integer from the prompt, not a 0-based rank.",
 		].join("\n"),
 	};
 }

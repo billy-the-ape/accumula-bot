@@ -18,19 +18,25 @@ function makeSignal(
 }
 
 describe("prefilterSocialMediaSignalsForRelevance", () => {
-	it("always includes priority government, macro, business, and crypto accounts", () => {
+	it("always includes priority macro accounts", () => {
 		const signals = [
-			makeSignal({ index: 0, username: "SECGov", text: "Weekly update" }),
-			makeSignal({ index: 1, username: "federalreserve", text: "Statement" }),
-			makeSignal({ index: 2, username: "DeItaone", text: "Morning headlines" }),
-			makeSignal({ index: 3, username: "CoinDesk", text: "Editor note" }),
+			makeSignal({
+				index: 0,
+				username: "KobeissiLetter",
+				text: "Weekly update",
+			}),
+			makeSignal({
+				index: 1,
+				username: "randomtrader",
+				text: "Have a great weekend!",
+			}),
 		];
 
 		const { candidates, excludedCount } =
 			prefilterSocialMediaSignalsForRelevance(signals, ["BTC"]);
 
-		expect(candidates).toEqual(signals);
-		expect(excludedCount).toBe(0);
+		expect(candidates).toEqual([signals[0]]);
+		expect(excludedCount).toBe(1);
 	});
 
 	it("includes posts that mention outlook asset symbols or names", () => {

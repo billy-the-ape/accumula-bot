@@ -1,4 +1,5 @@
 import type { AppConfig } from "@/config/index.js";
+import type { SocialMediaMarketContext } from "@/llm/socialMediaPromptShared.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
 export type AnalysisSection<TPayload = unknown> = {
@@ -8,9 +9,14 @@ export type AnalysisSection<TPayload = unknown> = {
 	payload: TPayload;
 };
 
+export type AnalysisFetchOptions = {
+	marketContext?: SocialMediaMarketContext;
+};
+
 export type AnalysisContext = {
 	fetchedAt: string;
 	sections: AnalysisSection[];
+	marketContext?: SocialMediaMarketContext;
 };
 
 export interface AnalysisDataSource<TPayload = unknown> {
@@ -19,5 +25,6 @@ export interface AnalysisDataSource<TPayload = unknown> {
 	fetch(
 		config: AppConfig,
 		assets: readonly Cryptocurrency[],
+		options?: AnalysisFetchOptions,
 	): Promise<AnalysisSection<TPayload>>;
 }

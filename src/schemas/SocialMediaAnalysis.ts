@@ -4,6 +4,7 @@ import {
 	type SocialMediaSignal,
 } from "@/schemas/SocialMediaSignal";
 import { summarizeSocialMediaSignal } from "@/sources/social_media/resolveSocialMediaSignal.js";
+import { whyReferencesPostText } from "@/sources/social_media/validateSocialMediaTopPostWhy.js";
 
 export const SocialMediaAnalysisTopPostSchema = z.object({
 	post_id: z.number().int().nonnegative(),
@@ -19,8 +20,6 @@ export const SocialMediaAnalysisTopPostSchema = z.object({
 
 export const SocialMediaAnalysisTopPostLlmSchema = z.object({
 	post_id: z.number().int().nonnegative(),
-	rank: z.number().int().positive(),
-	relevance: z.enum(["high", "medium"]),
 	assets: z.array(z.string().min(1)),
 	signal_type: z.string().min(1),
 	why: z.string().min(1),
@@ -47,7 +46,6 @@ export const SocialMediaAnalysisSchema = z.object({
 
 export const SocialMediaAnalysisLlmSchema = z.object({
 	total_retrieved: z.number().int().nonnegative(),
-	relevant_count: z.number().int().nonnegative(),
 	summary: z.string().min(1),
 	themes: z.array(z.string().min(1)),
 	by_asset: z.array(SocialMediaAnalysisByAssetSchema),
@@ -79,10 +77,32 @@ export type SocialMediaPromptSignal = Pick<
 export type SocialMediaAnalysisValidation = {
 	/** Full number of posts retrieved from the source. */
 	totalRetrieved: number;
-	/** Posts shown in the analysis prompt. */
+	/** Posts shown in the analysis prompt. LLM post_id must match signal.index. */
 	promptSignals: readonly SocialMediaPromptSignal[];
 	strict?: boolean;
 };
+
+function buildPromptSignalIndexMap(
+	promptSignals: readonly SocialMediaPromptSignal[],
+): Map<number, SocialMediaPromptSignal> {
+	return new Map(promptSignals.map((signal) => [signal.index, signal]));
+}
+
+export function formatAllowedPostIdHint(
+	promptSignals: readonly Pick<SocialMediaPromptSignal, "index">[],
+): string {
+	if (promptSignals.length === 0) {
+		return "none (empty batch)";
+	}
+
+	const sortedIds = [...promptSignals.map((signal) => signal.index)].sort(
+		(left, right) => left - right,
+	);
+	const minId = sortedIds[0]!;
+	const maxId = sortedIds[sortedIds.length - 1]!;
+
+	return `only integers N from [post_id=N] labels in the user prompt (this batch: ${minId}–${maxId})`;
+}
 
 export function createSocialMediaAnalysisValidation(
 	allSignals: readonly Pick<SocialMediaSignal, "source" | "id" | "username">[],
@@ -100,8 +120,14 @@ export function createSocialMediaAnalysisLlmSchema(
 	const allowedPostIndices = new Set(
 		validation.promptSignals.map((signal) => signal.index),
 	);
+	const postTextByIndex = new Map(
+		validation.promptSignals.map((signal) => [signal.index, signal.text]),
+	);
+	const usernameByIndex = new Map(
+		validation.promptSignals.map((signal) => [signal.index, signal.username]),
+	);
 	const maxTopPosts = validation.promptSignals.length;
-	const maxRelevantAmongShown = validation.promptSignals.length;
+	const allowedPostIdHint = formatAllowedPostIdHint(validation.promptSignals);
 
 	return SocialMediaAnalysisLlmSchema.superRefine((data, ctx) => {
 		if (data.total_retrieved !== validation.totalRetrieved) {
@@ -109,31 +135,6 @@ export function createSocialMediaAnalysisLlmSchema(
 				code: "custom",
 				path: ["total_retrieved"],
 				message: `total_retrieved must equal input post count (${validation.totalRetrieved})`,
-			});
-		}
-
-		if (data.relevant_count > data.total_retrieved) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["relevant_count"],
-				message: "relevant_count cannot exceed total_retrieved",
-			});
-		}
-
-		if (data.relevant_count > maxRelevantAmongShown) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["relevant_count"],
-				message: `relevant_count cannot exceed posts shown in prompt (${maxRelevantAmongShown})`,
-			});
-		}
-
-		if (data.relevant_count < data.top_posts.length) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["relevant_count"],
-				message:
-					"relevant_count must be at least top_posts.length (top posts are relevant)",
 			});
 		}
 
@@ -145,27 +146,42 @@ export function createSocialMediaAnalysisLlmSchema(
 			});
 		}
 
-		const seenRanks = new Set<number>();
 		const seenIndices = new Set<number>();
+		const seenUsernames = new Set<string>();
 
 		for (const [index, topPost] of data.top_posts.entries()) {
 			if (!allowedPostIndices.has(topPost.post_id)) {
 				ctx.addIssue({
 					code: "custom",
 					path: ["top_posts", index, "post_id"],
-					message: `Unknown post_id: ${topPost.post_id}`,
+					message: `Unknown post_id: ${topPost.post_id} (valid: ${allowedPostIdHint})`,
+				});
+			}
+
+			const username = usernameByIndex.get(topPost.post_id);
+			if (username) {
+				const normalizedUsername = username.toLowerCase();
+				if (seenUsernames.has(normalizedUsername)) {
+					ctx.addIssue({
+						code: "custom",
+						path: ["top_posts", index, "post_id"],
+						message: `Only one top_posts entry allowed per username (@${username})`,
+					});
+				}
+				seenUsernames.add(normalizedUsername);
+			}
+
+			const postText = postTextByIndex.get(topPost.post_id);
+			if (postText && !whyReferencesPostText(topPost.why, postText)) {
+				ctx.addIssue({
+					code: "custom",
+					path: ["top_posts", index, "why"],
+					message:
+						"why must cite a concrete fact, number, or phrase from that post's text",
 				});
 			}
 
 			if (validation.strict) {
-				if (seenRanks.has(topPost.rank)) {
-					ctx.addIssue({
-						code: "custom",
-						path: ["top_posts", index, "rank"],
-						message: `Duplicate top_posts rank: ${topPost.rank}`,
-					});
-				}
-
 				if (seenIndices.has(topPost.post_id)) {
 					ctx.addIssue({
 						code: "custom",
@@ -174,7 +190,6 @@ export function createSocialMediaAnalysisLlmSchema(
 					});
 				}
 
-				seenRanks.add(topPost.rank);
 				seenIndices.add(topPost.post_id);
 			}
 		}
@@ -185,12 +200,10 @@ export function remapSocialMediaAnalysisFromLlm(
 	llm: SocialMediaAnalysisLlm,
 	validation: SocialMediaAnalysisValidation,
 ): SocialMediaAnalysis {
-	const signalsByIndex = new Map(
-		validation.promptSignals.map((signal) => [signal.index, signal]),
-	);
+	const signalByIndex = buildPromptSignalIndexMap(validation.promptSignals);
 
-	const top_posts = llm.top_posts.map((topPost) => {
-		const signal = signalsByIndex.get(topPost.post_id);
+	const top_posts = llm.top_posts.map((topPost, topPostIndex) => {
+		const signal = signalByIndex.get(topPost.post_id);
 		if (!signal) {
 			throw new Error(`Unknown post_id: ${topPost.post_id}`);
 		}
@@ -199,8 +212,8 @@ export function remapSocialMediaAnalysisFromLlm(
 			post_id: signal.index,
 			id: formatSocialMediaPostId(signal),
 			username: signal.username,
-			rank: topPost.rank,
-			relevance: topPost.relevance,
+			rank: topPostIndex + 1,
+			relevance: "high" as const,
 			assets: topPost.assets,
 			signal_type: topPost.signal_type,
 			summary: summarizeSocialMediaSignal(signal),
@@ -210,7 +223,7 @@ export function remapSocialMediaAnalysisFromLlm(
 
 	return SocialMediaAnalysisSchema.parse({
 		total_retrieved: llm.total_retrieved,
-		relevant_count: llm.relevant_count,
+		relevant_count: top_posts.length,
 		summary: llm.summary,
 		themes: llm.themes,
 		by_asset: llm.by_asset,

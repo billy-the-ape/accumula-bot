@@ -57,7 +57,7 @@ describe("formatSocialMediaAnalysis", () => {
 			sampleSignal({ id: "222", username: "macro_news", text: "Fed speaker" }),
 		]);
 
-		expect(formatted).toContain("retrieved=2 relevant=1");
+		expect(formatted).toContain("retrieved=2 informative=1");
 		expect(formatted).toContain(
 			"summary: One actionable whale alert amid macro noise.",
 		);
@@ -195,7 +195,7 @@ describe("formatSocialMediaAnalysis", () => {
 		);
 
 		expect(formatted).toBe(
-			"retrieved=0 relevant=0\nsummary: No social media posts retrieved.",
+			"retrieved=0 informative=0\nsummary: No social media posts retrieved.",
 		);
 	});
 });

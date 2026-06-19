@@ -1,6 +1,7 @@
 import { wrapUntrustedContent } from "@/analysis";
 import type { AnalysisContext, AnalysisSection } from "@/analysis/types.js";
 import type { AppConfig } from "@/config/index.js";
+import { buildMarketContextPreamble } from "@/llm/socialMediaPromptShared.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
 export type AnalysisPromptParts = {
@@ -104,6 +105,9 @@ export function buildAnalysisPromptParts(
 		"",
 		`Outlook assets: ${assetList}`,
 		"",
+		...(context.marketContext
+			? [buildMarketContextPreamble(context.marketContext), ""]
+			: []),
 		"--- Start of analysis inputs ---",
 		formatAnalysisSections(context),
 		"--- End of analysis inputs ---",

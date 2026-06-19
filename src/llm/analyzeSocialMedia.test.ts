@@ -17,8 +17,7 @@ const sampleSignal: SocialMediaSignal = {
 
 const validAnalysis = JSON.stringify({
 	total_retrieved: 1,
-	relevant_count: 1,
-	summary: "One actionable whale alert.",
+	summary: "- Large BTC transfer detected (exchange inflow risk)",
 	themes: ["whale flow"],
 	by_asset: [
 		{
@@ -30,11 +29,9 @@ const validAnalysis = JSON.stringify({
 	top_posts: [
 		{
 			post_id: 0,
-			rank: 1,
-			relevance: "high",
 			assets: ["BTC"],
 			signal_type: "whale_alert",
-			why: "Direct near-term supply signal.",
+			why: "Reports large BTC transfer detected.",
 		},
 	],
 });
@@ -103,15 +100,16 @@ describe("analyzeSocialMedia", () => {
 			expect.stringMatching(/running analysis on 1 posts/),
 		);
 		expect(infoSpy).toHaveBeenCalledWith(
-			expect.stringMatching(/relevant=1\/1\)/),
+			expect.stringMatching(/informative=1\/1\)/),
 		);
 
 		const [, request] = fetchImpl.mock.calls[0] as [URL, RequestInit];
 		const body = JSON.parse(request.body as string) as {
 			messages: Array<{ role: string; content: string }>;
 		};
-		expect(body.messages[0]?.content).toContain('"relevant_count"');
-		expect(body.messages[1]?.content).toContain("Relevance rule");
+		expect(body.messages[0]?.content).toContain("bullet-list string");
+		expect(body.messages[1]?.content).toContain("bullet-point summary");
+		expect(body.messages[1]?.content).toContain("most informative");
 		expect(body.messages[1]?.content).toContain("[post_id=0]");
 
 		infoSpy.mockRestore();
