@@ -1,10 +1,18 @@
 import z from "zod";
-import { SocialMediaAnalysisSchema } from "@/schemas/SocialMediaAnalysis.js";
+import { ScoredSocialMediaPostSchema } from "@/schemas/ScoredSocialMediaPost.js";
 import { SocialMediaSignalListSchema } from "@/schemas/SocialMediaSignal.js";
+
+export const SocialMediaScoringStatsSchema = z.object({
+	fetched: z.number().int().nonnegative(),
+	newlyScored: z.number().int().nonnegative(),
+	skippedAlreadyScored: z.number().int().nonnegative(),
+});
 
 export const SocialMediaSectionPayloadSchema = z.object({
 	signals: SocialMediaSignalListSchema,
-	analysis: SocialMediaAnalysisSchema.optional(),
+	topPostsForPrompt: z.array(ScoredSocialMediaPostSchema).optional(),
+	topPostsForReport: z.array(ScoredSocialMediaPostSchema).optional(),
+	scoringStats: SocialMediaScoringStatsSchema.optional(),
 });
 
 export type SocialMediaSectionPayload = z.infer<

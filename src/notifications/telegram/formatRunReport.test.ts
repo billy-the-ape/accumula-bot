@@ -5,7 +5,7 @@ import {
 	type RunReportInput,
 } from "@/notifications/telegram/formatRunReport.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
-import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
@@ -65,48 +65,26 @@ const sampleSocialSignal: SocialMediaSignal = {
 	impressions: 42_000,
 };
 
-const sampleSocialAnalysis: SocialMediaAnalysis = {
-	total_retrieved: 12,
-	relevant_count: 2,
-	summary:
-		"- Large BTC transfer detected (whale flow)\n- Fed speaker struck a cautious tone (macro headwind)",
-	themes: ["whale flow", "macro"],
-	by_asset: [
-		{
-			asset: "BTC",
-			sentiment: "mixed",
-			note: "Whale deposit offset by steady ETF inflows.",
-		},
-		{
-			asset: "ETH",
-			sentiment: "bullish",
-			note: "Layer-2 activity picked up overnight.",
-		},
-	],
-	top_posts: [
-		{
-			post_id: 0,
-			id: "twitter:111",
-			username: "whale_alert",
-			rank: 1,
-			relevance: "high",
-			assets: ["BTC"],
-			signal_type: "whale_alert",
-			summary: "Large BTC transfer detected",
-			why: "Exchange inflow is the clearest near-term sell-pressure signal.",
-		},
-		{
-			post_id: 1,
-			id: "twitter:222",
-			username: "macro_news",
-			rank: 2,
-			relevance: "medium",
-			assets: ["MARKET"],
-			signal_type: "macro",
-			summary: "Fed speaker struck a cautious tone",
-			why: "Macro tone may cap upside.",
-		},
-	],
+const sampleScoredPost: ScoredSocialMediaPost = {
+	externalId: "111",
+	source: "twitter",
+	username: "whale_alert",
+	text: "Large BTC transfer detected",
+	postedAt: "2026-06-16T12:00:00.000Z",
+	impressions: 42_000,
+	relevanceScore: 9,
+	scoredAt: "2026-06-16T12:05:00.000Z",
+};
+
+const sampleScoredPostTwo: ScoredSocialMediaPost = {
+	externalId: "222",
+	source: "twitter",
+	username: "macro_news",
+	text: "Fed speaker struck a cautious tone",
+	postedAt: "2026-06-16T11:30:00.000Z",
+	impressions: 12_000,
+	relevanceScore: 7,
+	scoredAt: "2026-06-16T12:05:00.000Z",
 };
 
 function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
@@ -211,42 +189,46 @@ describe("formatRunReport", () => {
 		expect(message).not.toContain("Current value:");
 	});
 
-	it("renders structured social analysis when Stage 1 succeeded", () => {
+	it("renders top scored posts from the last hour", () => {
 		const message = formatRunReport(
 			baseInput({
-				socialMediaAnalysis: sampleSocialAnalysis,
-				socialMediaSignals: [
-					sampleSocialSignal,
-					{
-						index: 1,
-						id: "222",
-						source: "twitter",
-						username: "macro_news",
-						text: "Fed speaker struck a cautious tone",
-						asOf: "2026-06-16T12:00:00.000Z",
-						impressions: 12_000,
-					},
-				],
+				socialMediaTopPosts: [sampleScoredPost, sampleScoredPostTwo],
+				socialMediaScoringStats: {
+					fetched: 12,
+					newlyScored: 2,
+					skippedAlreadyScored: 10,
+				},
+				socialMediaSignals: [sampleSocialSignal],
 			}),
 		);
 
 		expect(message).toContain(
-			"Analyzed **12** posts from the last **24h**, **2** were relevant for near\\-term market impact",
+			"Fetched: 12 · Newly scored: 2 · Already scored: 10",
 		);
-		expect(message).toContain("whale flow, macro");
-		expect(message).toContain("Most Relevant Posts:");
+		expect(message).toContain("Top posts \\(last hour\\):");
 		expect(message).toContain(
-			"1\\. *[From whale\\_alert](https://x.com/whale_alert/status/111)* — Exchange inflow is the clearest near\\-term sell\\-pressure signal\\.",
-		);
-		expect(message).toContain(
-			"2\\. *[From macro\\_news](https://x.com/macro_news/status/222)* — Macro tone may cap upside\\.",
+			"1\\. *[@whale\\_alert \\(score 9\\)](https://x.com/whale_alert/status/111)* — Large BTC transfer detected",
 		);
 		expect(message).toContain(
-			"*BTC:* mixed — Whale deposit offset by steady ETF inflows\\.",
+			"2\\. *[@macro\\_news \\(score 7\\)](https://x.com/macro_news/status/222)* — Fed speaker struck a cautious tone",
 		);
-		expect(message).toContain(
-			"*ETH:* bullish — Layer\\-2 activity picked up overnight\\.",
+		expect(message).not.toContain("Themes:");
+	});
+
+	it("escapes MarkdownV2 special characters in the empty social section", () => {
+		const message = formatRunReport(
+			baseInput({
+				socialMediaTopPosts: [],
+				socialMediaScoringStats: {
+					fetched: 0,
+					newlyScored: 0,
+					skippedAlreadyScored: 0,
+				},
+			}),
 		);
+
+		expect(message).toContain("No posts scored \\>\\=4 in the last hour.");
+		expect(message).not.toContain("No posts scored >=4");
 	});
 
 	it("shows fallback counts when signals exist without analysis", () => {

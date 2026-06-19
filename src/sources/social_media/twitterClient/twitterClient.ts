@@ -2,7 +2,7 @@ import { promises } from "node:fs";
 import { loadConfig } from "@/config";
 import { sendAndConsumeAmqp } from "@/sources/social_media/twitterClient/amqpProducer.js";
 import type { TweetForDb } from "@/sources/social_media/twitterClient/types.js";
-import { DAY_MS, sleep } from "@/utils";
+import { HOUR_MS, sleep } from "@/utils";
 
 export interface GetSearchScrapeResult {
 	success: boolean;
@@ -136,7 +136,7 @@ export const getTwitterSearchResult = async ({
 		return [];
 	}
 
-	const earliestDateMs = earliestDate?.getTime() ?? Date.now() - DAY_MS; // 24 hours ago
+	const earliestDateMs = earliestDate?.getTime() ?? Date.now() - HOUR_MS; // 1 hour ago
 
 	let searchString = searchStringFromProps;
 	let pagesToScrape = pagesToScrapeFromProps;

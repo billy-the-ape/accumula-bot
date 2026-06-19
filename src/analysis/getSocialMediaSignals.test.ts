@@ -1,11 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
-	getSocialMediaAnalysisFromContext,
 	getSocialMediaSectionFromContext,
 	getSocialMediaSignalsFromContext,
+	getSocialMediaTopPostsForPromptFromContext,
+	getSocialMediaTopPostsForReportFromContext,
 } from "@/analysis/getSocialMediaSignals.js";
 import type { AnalysisContext } from "@/analysis/types.js";
-import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 
 const sampleSignal: SocialMediaSignal = {
@@ -18,25 +19,15 @@ const sampleSignal: SocialMediaSignal = {
 	impressions: 42_000,
 };
 
-const sampleAnalysis: SocialMediaAnalysis = {
-	total_retrieved: 1,
-	relevant_count: 1,
-	summary: "One actionable whale alert.",
-	themes: ["whale flow"],
-	by_asset: [],
-	top_posts: [
-		{
-			post_id: 0,
-			id: "twitter:111",
-			username: "whale_alert",
-			rank: 1,
-			relevance: "high",
-			assets: ["BTC"],
-			signal_type: "whale_alert",
-			summary: "Large BTC moved to an exchange.",
-			why: "Direct near-term supply signal.",
-		},
-	],
+const sampleScoredPost: ScoredSocialMediaPost = {
+	externalId: "111",
+	source: "twitter",
+	username: "whale_alert",
+	text: "Large BTC transfer detected",
+	postedAt: "2026-06-16T12:00:00.000Z",
+	impressions: 42_000,
+	relevanceScore: 9,
+	scoredAt: "2026-06-16T12:05:00.000Z",
 };
 
 function createContext(payload: unknown): AnalysisContext {
@@ -57,7 +48,7 @@ describe("getSocialMediaSignalsFromContext", () => {
 	it("returns signals from the structured section payload", () => {
 		const context = createContext({
 			signals: [sampleSignal],
-			analysis: sampleAnalysis,
+			topPostsForPrompt: [sampleScoredPost],
 		});
 
 		expect(getSocialMediaSignalsFromContext(context)).toEqual([sampleSignal]);
@@ -82,42 +73,54 @@ describe("getSocialMediaSignalsFromContext", () => {
 	});
 });
 
-describe("getSocialMediaAnalysisFromContext", () => {
-	it("returns analysis when Stage 1 succeeded", () => {
+describe("getSocialMediaTopPostsForPromptFromContext", () => {
+	it("returns top prompt posts when scoring succeeded", () => {
 		const context = createContext({
 			signals: [sampleSignal],
-			analysis: sampleAnalysis,
+			topPostsForPrompt: [sampleScoredPost],
 		});
 
-		expect(getSocialMediaAnalysisFromContext(context)).toEqual(sampleAnalysis);
+		expect(getSocialMediaTopPostsForPromptFromContext(context)).toEqual([
+			sampleScoredPost,
+		]);
 	});
+});
 
-	it("returns undefined for fallback payloads without analysis", () => {
-		const context = createContext({ signals: [sampleSignal] });
+describe("getSocialMediaTopPostsForReportFromContext", () => {
+	it("returns top report posts when scoring succeeded", () => {
+		const context = createContext({
+			signals: [sampleSignal],
+			topPostsForReport: [sampleScoredPost],
+		});
 
-		expect(getSocialMediaAnalysisFromContext(context)).toBeUndefined();
-	});
-
-	it("returns undefined when the section is missing", () => {
-		expect(
-			getSocialMediaAnalysisFromContext({
-				fetchedAt: new Date().toISOString(),
-				sections: [],
-			}),
-		).toBeUndefined();
+		expect(getSocialMediaTopPostsForReportFromContext(context)).toEqual([
+			sampleScoredPost,
+		]);
 	});
 });
 
 describe("getSocialMediaSectionFromContext", () => {
-	it("returns both signals and analysis when available", () => {
+	it("returns signals and scored posts when available", () => {
 		const context = createContext({
 			signals: [sampleSignal],
-			analysis: sampleAnalysis,
+			topPostsForPrompt: [sampleScoredPost],
+			topPostsForReport: [sampleScoredPost],
+			scoringStats: {
+				fetched: 1,
+				newlyScored: 1,
+				skippedAlreadyScored: 0,
+			},
 		});
 
 		expect(getSocialMediaSectionFromContext(context)).toEqual({
 			signals: [sampleSignal],
-			analysis: sampleAnalysis,
+			topPostsForPrompt: [sampleScoredPost],
+			topPostsForReport: [sampleScoredPost],
+			scoringStats: {
+				fetched: 1,
+				newlyScored: 1,
+				skippedAlreadyScored: 0,
+			},
 		});
 	});
 });

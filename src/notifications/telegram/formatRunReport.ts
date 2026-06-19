@@ -8,12 +8,13 @@ import {
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
-import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/formatPredictionSignals.js";
-import { resolveSocialMediaSignalForTopPost } from "@/sources/social_media/resolveSocialMediaSignal.js";
+import type { SocialMediaScoringStats } from "@/sources/social_media/processSocialMediaSignals.js";
+import { SOCIAL_MEDIA_MIN_RELEVANCE_SCORE } from "@/sources/social_media/socialMediaScoringConstants.js";
 import type { StoredPortfolio } from "@/storage";
 
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
@@ -33,8 +34,10 @@ export type RunReportInput = {
 	predictionSignals: readonly PredictionSignal[];
 	/** Social media signals to surface (may be empty). */
 	socialMediaSignals: readonly SocialMediaSignal[];
-	/** Stage 1 social analysis when available (undefined on fallback/disabled). */
-	socialMediaAnalysis?: SocialMediaAnalysis;
+	/** Top scored posts from the last hour for Telegram. */
+	socialMediaTopPosts?: readonly ScoredSocialMediaPost[];
+	/** Scoring pipeline stats when available. */
+	socialMediaScoringStats?: SocialMediaScoringStats;
 	accumulateSymbol: string;
 	portfolio?: StoredPortfolio;
 	portfolioReport?: {
@@ -161,63 +164,47 @@ function formatSocialMediaFallbackSection(
 	);
 }
 
-function formatSocialMediaAnalysisSection(
-	analysis: SocialMediaAnalysis,
-	signals: readonly SocialMediaSignal[],
+function formatSocialMediaScoredSection(
+	topPosts: readonly ScoredSocialMediaPost[],
+	stats?: SocialMediaScoringStats,
 ): string {
-	const lines: string[] = [
-		`  Analyzed **${escapeMarkdownV2(analysis.total_retrieved.toString())}** posts from the last **24h**, **${escapeMarkdownV2(analysis.relevant_count.toString())}** were relevant for near\\-term market impact`,
-		"",
-	];
+	const lines: string[] = [];
 
-	if (analysis.themes.length > 0) {
+	if (stats) {
 		lines.push(
-			`  ${underline("Themes:")}`,
-			`    ${escapeMarkdownV2(analysis.themes.join(", ").replace(/_/g, " "))}`,
+			`  Fetched: ${escapeMarkdownV2(String(stats.fetched))} · Newly scored: ${escapeMarkdownV2(String(stats.newlyScored))} · Already scored: ${escapeMarkdownV2(String(stats.skippedAlreadyScored))}`,
 			"",
 		);
 	}
 
-	const sortedTopPosts = [...analysis.top_posts].sort(
-		(a, b) => a.rank - b.rank,
-	);
-
-	if (sortedTopPosts.length > 0) {
-		lines.push(`  ${underline("Most Relevant Posts:")}`);
-		for (const topPost of sortedTopPosts) {
-			const signal = resolveSocialMediaSignalForTopPost(topPost, signals);
-			const username = signal?.username ?? topPost.username;
-			const externalId = signal?.id ?? topPost.id.replace(/^twitter:/, "");
-			const text =
-				/* signal
-				? truncateSocialMediaPostText(signal.text)
-				:  */ topPost.why;
-			const linkText = `From ${username}`;
-			const url = `https://x.com/${username}/status/${externalId}`;
-			const headline = `${boldLink(linkText, url)} — ${escapeMarkdownV2(truncate(text))}`;
-			lines.push(`    ${topPost.rank}\\. ${headline}`);
-		}
-		lines.push("");
+	if (topPosts.length === 0) {
+		lines.push(
+			escapeMarkdownV2(
+				`  No posts scored >=${SOCIAL_MEDIA_MIN_RELEVANCE_SCORE} in the last hour.`,
+			),
+		);
+		return lines.join("\n");
 	}
 
-	if (analysis.by_asset.length > 0) {
-		lines.push(`  ${underline("Sentiments:")}`);
-		for (const entry of analysis.by_asset) {
-			lines.push(
-				`    ${bold(`${entry.asset}:`)} ${escapeMarkdownV2(entry.sentiment)} — ${escapeMarkdownV2(truncate(entry.note))}`,
-			);
-		}
-		lines.push("");
+	lines.push(`  ${underline("Top posts (last hour):")}`);
+	for (const [index, post] of topPosts.entries()) {
+		const linkText = `@${post.username} (score ${post.relevanceScore})`;
+		const url = `https://x.com/${post.username}/status/${post.externalId}`;
+		const text = truncate(post.text);
+		lines.push(
+			`    ${index + 1}\\. ${boldLink(linkText, url)} — ${escapeMarkdownV2(text)}`,
+		);
 	}
+	lines.push("");
 
 	return lines.join("\n");
 }
 
 function formatSocialMediaSection(input: RunReportInput): string {
-	if (input.socialMediaAnalysis) {
-		return formatSocialMediaAnalysisSection(
-			input.socialMediaAnalysis,
-			input.socialMediaSignals,
+	if (input.socialMediaTopPosts || input.socialMediaScoringStats) {
+		return formatSocialMediaScoredSection(
+			input.socialMediaTopPosts ?? [],
+			input.socialMediaScoringStats,
 		);
 	}
 

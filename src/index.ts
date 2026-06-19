@@ -2,7 +2,7 @@ import {
 	buildAnalysisContext,
 	getMarketSnapshotsFromContext,
 	getPredictionSignalsFromContext,
-	getSocialMediaAnalysisFromContext,
+	getSocialMediaSectionFromContext,
 	getSocialMediaSignalsFromContext,
 } from "@/analysis/index.js";
 import { loadConfig } from "@/config/index.js";
@@ -107,22 +107,22 @@ async function main() {
 		const predictionSignals = getPredictionSignalsFromContext(analysisContext);
 		const socialMediaSignals =
 			getSocialMediaSignalsFromContext(analysisContext);
-		const socialMediaAnalysis =
-			getSocialMediaAnalysisFromContext(analysisContext);
+		const socialMediaSection =
+			getSocialMediaSectionFromContext(analysisContext);
 
 		if (config.socialMedia.enabled) {
-			if (socialMediaAnalysis) {
+			if (socialMediaSection?.scoringStats) {
+				const { fetched, newlyScored, skippedAlreadyScored } =
+					socialMediaSection.scoringStats;
 				console.info(
-					`Social media: retrieved=${socialMediaAnalysis.total_retrieved} relevant=${socialMediaAnalysis.relevant_count}`,
+					`Social media: fetched=${fetched} newly_scored=${newlyScored} already_scored=${skippedAlreadyScored}`,
 				);
-				if (socialMediaAnalysis.themes.length > 0) {
-					console.info(
-						`Social media themes: ${socialMediaAnalysis.themes.join(", ")}`,
-					);
-				}
+				console.info(
+					`Social media prompt: ${socialMediaSection.topPostsForPrompt?.length ?? 0} top posts (24h, score>=4)`,
+				);
 			} else if (socialMediaSignals.length > 0) {
 				console.info(
-					`Social media: retrieved=${socialMediaSignals.length} (analysis unavailable)`,
+					`Social media: retrieved=${socialMediaSignals.length} (scoring unavailable)`,
 				);
 			} else {
 				console.info("Social media: no posts retrieved");
@@ -260,7 +260,12 @@ async function main() {
 						executionReason: execution.reason,
 						predictionSignals,
 						socialMediaSignals,
-						...(socialMediaAnalysis ? { socialMediaAnalysis } : {}),
+						...(socialMediaSection?.topPostsForReport
+							? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
+							: {}),
+						...(socialMediaSection?.scoringStats
+							? { socialMediaScoringStats: socialMediaSection.scoringStats }
+							: {}),
 						accumulateSymbol: config.assetToAccumulate.symbol,
 						outlookThresholds: config.outlookThresholds,
 						...(portfolioReport ? { portfolioReport } : {}),

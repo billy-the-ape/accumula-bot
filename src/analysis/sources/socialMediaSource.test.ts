@@ -2,19 +2,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildAnalysisContext } from "@/analysis/buildAnalysisContext.js";
 import { socialMediaSource } from "@/analysis/sources/socialMediaSource.js";
 import { loadTestConfig } from "@/config/loadTestConfig.js";
-import { analyzeSocialMedia } from "@/llm/analyzeSocialMedia.js";
 import { getAnalyzableAssets } from "@/llm/prompt.js";
-import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
-import { collectSocialMediaSignals } from "@/sources/social_media/collectSocialMediaSignals.js";
+import { processSocialMediaSignals } from "@/sources/social_media/processSocialMediaSignals.js";
 
-vi.mock("@/sources/social_media/collectSocialMediaSignals.js", () => ({
-	collectSocialMediaSignals: vi.fn(),
+vi.mock("@/sources/social_media/processSocialMediaSignals.js", () => ({
+	processSocialMediaSignals: vi.fn(),
 }));
 
-vi.mock("@/llm/analyzeSocialMedia.js", () => ({
-	analyzeSocialMedia: vi.fn(),
+vi.mock("@/storage/db.js", () => ({
+	createDatabase: vi.fn(async () => ({
+		db: {},
+		client: { close: vi.fn() },
+	})),
 }));
+
 const sampleSignals: SocialMediaSignal[] = [
 	{
 		index: 0,
@@ -27,31 +30,15 @@ const sampleSignals: SocialMediaSignal[] = [
 	},
 ];
 
-const sampleAnalysis: SocialMediaAnalysis = {
-	total_retrieved: 1,
-	relevant_count: 1,
-	summary: "One actionable whale alert.",
-	themes: ["whale flow"],
-	by_asset: [
-		{
-			asset: "BTC",
-			sentiment: "bearish",
-			note: "Exchange inflow increases sell-pressure risk.",
-		},
-	],
-	top_posts: [
-		{
-			post_id: 0,
-			id: "twitter:111",
-			username: "whale_alert",
-			rank: 1,
-			relevance: "high",
-			assets: ["BTC"],
-			signal_type: "whale_alert",
-			summary: "Large BTC moved to an exchange.",
-			why: "Direct near-term supply signal.",
-		},
-	],
+const sampleScoredPost: ScoredSocialMediaPost = {
+	externalId: "111",
+	source: "twitter",
+	username: "whale_alert",
+	text: "Large BTC transfer detected",
+	postedAt: "2026-06-16T12:00:00.000Z",
+	impressions: 42_000,
+	relevanceScore: 9,
+	scoredAt: "2026-06-16T12:05:00.000Z",
 };
 
 describe("socialMediaSource", () => {
@@ -67,11 +54,16 @@ describe("socialMediaSource", () => {
 		expect(socialMediaSource.isEnabled(enabled)).toBe(true);
 	});
 
-	it("returns a digest prompt and structured payload when analysis succeeds", async () => {
-		vi.mocked(collectSocialMediaSignals).mockResolvedValue(sampleSignals);
-		vi.mocked(analyzeSocialMedia).mockResolvedValue({
-			analysis: sampleAnalysis,
-			llm: { rawResponse: "{}", attempt: "initial" },
+	it("returns scored posts for the prompt and report when scoring succeeds", async () => {
+		vi.mocked(processSocialMediaSignals).mockResolvedValue({
+			signals: sampleSignals,
+			topPostsForPrompt: [sampleScoredPost],
+			topPostsForReport: [sampleScoredPost],
+			stats: {
+				fetched: 1,
+				newlyScored: 1,
+				skippedAlreadyScored: 0,
+			},
 		});
 
 		const config = loadTestConfig({ SOCIAL_MEDIA_ENABLED: "true" });
@@ -80,26 +72,33 @@ describe("socialMediaSource", () => {
 
 		expect(section.payload).toEqual({
 			signals: sampleSignals,
-			analysis: sampleAnalysis,
+			topPostsForPrompt: [sampleScoredPost],
+			topPostsForReport: [sampleScoredPost],
+			scoringStats: {
+				fetched: 1,
+				newlyScored: 1,
+				skippedAlreadyScored: 0,
+			},
 		});
-		expect(section.promptText).toContain("retrieved=1 informative=1");
-		expect(section.promptText).toContain("top_post_full_text:");
-		expect(section.promptText).not.toContain(
-			"Posted by @whale_alert at 2026-06-16T12:00:00.000Z: Large BTC transfer detected",
-		);
-		expect(analyzeSocialMedia).toHaveBeenCalledWith(
+		expect(section.promptText).toContain("[score=9] @whale_alert");
+		expect(processSocialMediaSignals).toHaveBeenCalledWith(
 			config,
-			sampleSignals,
+			{},
 			expect.objectContaining({ outlookAssets: ["BTC", "ETH", "SOL"] }),
 		);
 	});
 
-	it("passes a fresh macro briefing into Stage 1 analysis", async () => {
+	it("passes a fresh macro briefing into scoring", async () => {
 		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
-		vi.mocked(collectSocialMediaSignals).mockResolvedValue(sampleSignals);
-		vi.mocked(analyzeSocialMedia).mockResolvedValue({
-			analysis: sampleAnalysis,
-			llm: { rawResponse: "{}", attempt: "initial" },
+		vi.mocked(processSocialMediaSignals).mockResolvedValue({
+			signals: sampleSignals,
+			topPostsForPrompt: [sampleScoredPost],
+			topPostsForReport: [sampleScoredPost],
+			stats: {
+				fetched: 1,
+				newlyScored: 1,
+				skippedAlreadyScored: 0,
+			},
 		});
 		const infoSpy = vi.spyOn(console, "info").mockImplementation(() => {});
 
@@ -112,13 +111,17 @@ describe("socialMediaSource", () => {
 			},
 		});
 
-		expect(analyzeSocialMedia).toHaveBeenCalledWith(config, sampleSignals, {
-			outlookAssets: ["BTC", "ETH", "SOL"],
-			marketContext: {
-				content: "Risk-off ahead of CPI.",
-				generatedAt,
+		expect(processSocialMediaSignals).toHaveBeenCalledWith(
+			config,
+			{},
+			{
+				outlookAssets: ["BTC", "ETH", "SOL"],
+				marketContext: {
+					content: "Risk-off ahead of CPI.",
+					generatedAt,
+				},
 			},
-		});
+		);
 		expect(infoSpy).toHaveBeenCalledWith(
 			"Social media: using macro briefing from 2026-06-16T07:00:00.000Z",
 		);
@@ -126,19 +129,22 @@ describe("socialMediaSource", () => {
 		infoSpy.mockRestore();
 	});
 
-	it("falls back to raw posts when analysis fails", async () => {
-		vi.mocked(collectSocialMediaSignals).mockResolvedValue(sampleSignals);
-		vi.mocked(analyzeSocialMedia).mockRejectedValue(new Error("LLM down"));
+	it("falls back to an empty section when scoring fails", async () => {
+		vi.mocked(processSocialMediaSignals).mockRejectedValue(
+			new Error("LLM down"),
+		);
 		const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
 
 		const config = loadTestConfig({ SOCIAL_MEDIA_ENABLED: "true" });
 		const assets = getAnalyzableAssets(config);
 		const section = await socialMediaSource.fetch(config, assets);
 
-		expect(section.payload).toEqual({ signals: sampleSignals });
-		expect(section.promptText).toContain("[post_id=0]");
+		expect(section.payload).toEqual({ signals: [] });
+		expect(section.promptText).toContain(
+			"No scored social media posts met the relevance threshold",
+		);
 		expect(warnSpy).toHaveBeenCalledWith(
-			"Social media analysis failed; falling back to raw posts: LLM down",
+			"Social media scoring failed; falling back to empty section: LLM down",
 		);
 
 		warnSpy.mockRestore();
@@ -161,6 +167,6 @@ describe("buildAnalysisContext with socialMediaSource", () => {
 			}),
 		).rejects.toThrow("No analysis data sources produced sections");
 
-		expect(collectSocialMediaSignals).not.toHaveBeenCalled();
+		expect(processSocialMediaSignals).not.toHaveBeenCalled();
 	});
 });

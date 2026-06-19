@@ -7,9 +7,10 @@ export { formatMarketData } from "@/analysis/formatMarketData.js";
 export { getMarketSnapshotsFromContext } from "@/analysis/getMarketSnapshots.js";
 export { getPredictionSignalsFromContext } from "@/analysis/getPredictionSignals.js";
 export {
-	getSocialMediaAnalysisFromContext,
 	getSocialMediaSectionFromContext,
 	getSocialMediaSignalsFromContext,
+	getSocialMediaTopPostsForPromptFromContext,
+	getSocialMediaTopPostsForReportFromContext,
 } from "@/analysis/getSocialMediaSignals.js";
 export {
 	type SocialMediaSectionPayload,

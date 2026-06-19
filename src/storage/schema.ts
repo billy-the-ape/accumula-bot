@@ -80,6 +80,29 @@ export const macroBriefings = sqliteTable("macro_briefings", {
 	promptVersion: text("prompt_version").notNull(),
 });
 
+export const socialMediaPosts = sqliteTable(
+	"social_media_posts",
+	{
+		id: integer("id").primaryKey({ autoIncrement: true }),
+		externalId: text("external_id").notNull(),
+		source: text("source").notNull(),
+		username: text("username").notNull(),
+		text: text("text").notNull(),
+		postedAt: integer("posted_at", { mode: "timestamp_ms" }).notNull(),
+		impressions: integer("impressions").notNull().default(0),
+		relevanceScore: integer("relevance_score").notNull(),
+		scoredAt: integer("scored_at", { mode: "timestamp_ms" }).notNull(),
+		llmProvider: text("llm_provider").notNull(),
+		llmModel: text("llm_model").notNull(),
+	},
+	(table) => [
+		uniqueIndex("social_media_posts_source_external_id_idx").on(
+			table.source,
+			table.externalId,
+		),
+	],
+);
+
 export type DecisionRow = typeof decisions.$inferSelect;
 export type NewDecisionRow = typeof decisions.$inferInsert;
 export type PortfolioRow = typeof portfolios.$inferSelect;
@@ -90,3 +113,5 @@ export type TradeRow = typeof trades.$inferSelect;
 export type NewTradeRow = typeof trades.$inferInsert;
 export type MacroBriefingRow = typeof macroBriefings.$inferSelect;
 export type NewMacroBriefingRow = typeof macroBriefings.$inferInsert;
+export type SocialMediaPostRow = typeof socialMediaPosts.$inferSelect;
+export type NewSocialMediaPostRow = typeof socialMediaPosts.$inferInsert;

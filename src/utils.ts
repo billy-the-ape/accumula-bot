@@ -3,6 +3,7 @@ export const sleep = (ms: number) =>
 export const noop = () => {};
 
 export const DAY_MS = 24 * 60 * 60 * 1000;
+export const HOUR_MS = 60 * 60 * 1000;
 
 export const formatDuration = (ms: number) => {
 	if (ms < 1000) {

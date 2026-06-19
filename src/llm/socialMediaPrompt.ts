@@ -153,7 +153,6 @@ export function buildSocialMediaAnalysisPromptParts({
 	outlookAssets,
 	marketContext,
 }: BuildSocialMediaAnalysisPromptParams): AnalysisPromptParts {
-	const _postsShown = promptSignals.length;
 	const postsText = formatSocialMediaSignals(promptSignals);
 	const system = buildJsonOutputContract(totalRetrieved, promptSignals);
 

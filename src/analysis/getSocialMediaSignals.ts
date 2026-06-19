@@ -1,7 +1,7 @@
 import type { SocialMediaSectionPayload } from "@/analysis/socialMediaSectionPayload.js";
 import { SocialMediaSectionPayloadSchema } from "@/analysis/socialMediaSectionPayload.js";
 import type { AnalysisContext, AnalysisSection } from "@/analysis/types.js";
-import type { SocialMediaAnalysis } from "@/schemas/SocialMediaAnalysis.js";
+import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import { SocialMediaSignalListSchema } from "@/schemas/SocialMediaSignal.js";
 
@@ -45,24 +45,40 @@ export function getSocialMediaSignalsFromContext(
 }
 
 /**
- * Read Stage 1 social media analysis out of an analysis context. Returns
- * undefined when the source is disabled/absent, Stage 1 failed (fallback path),
- * or the payload is unusable.
+ * Read top scored posts for the trade recommendation prompt (24h window).
  */
-export function getSocialMediaAnalysisFromContext(
+export function getSocialMediaTopPostsForPromptFromContext(
 	context: AnalysisContext,
-): SocialMediaAnalysis | undefined {
+): ScoredSocialMediaPost[] {
 	const section = getSocialMediaSection(context);
 	if (!section) {
-		return undefined;
+		return [];
 	}
 
-	return parseSocialMediaSectionPayload(section.payload)?.analysis;
+	return (
+		parseSocialMediaSectionPayload(section.payload)?.topPostsForPrompt ?? []
+	);
+}
+
+/**
+ * Read top scored posts for the Telegram run report (last hour).
+ */
+export function getSocialMediaTopPostsForReportFromContext(
+	context: AnalysisContext,
+): ScoredSocialMediaPost[] {
+	const section = getSocialMediaSection(context);
+	if (!section) {
+		return [];
+	}
+
+	return (
+		parseSocialMediaSectionPayload(section.payload)?.topPostsForReport ?? []
+	);
 }
 
 /**
  * Read the combined social media section payload when present. Useful for callers
- * that need both raw signals and structured analysis in one pass.
+ * that need both raw signals and scored posts in one pass.
  */
 export function getSocialMediaSectionFromContext(
 	context: AnalysisContext,
