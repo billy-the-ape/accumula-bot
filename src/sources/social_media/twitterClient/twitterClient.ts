@@ -191,10 +191,15 @@ export const getTwitterSearchResult = async ({
 	}));
 
 	if (process.env.NODE_ENV !== "production") {
-		await promises.writeFile(
-			`./temp/twitterSearchResult_${new Date().toISOString().replace(/:/g, "-").split(".")[0]}.json`,
-			JSON.stringify(finalResult, null, 2),
-		);
+		try {
+			await promises.mkdir("./temp");
+		} catch {}
+		try {
+			await promises.writeFile(
+				`./temp/twitterSearchResult_${new Date().toISOString().replace(/:/g, "-").split(".")[0]}.json`,
+				JSON.stringify(finalResult, null, 2),
+			);
+		} catch {}
 	}
 
 	return finalResult;

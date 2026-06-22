@@ -18,7 +18,7 @@
 		"db:migrate": "drizzle-kit migrate",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
-		"start-ecosystem": "pm2 start ecosystem.config.cjs"
+		"start-pm2": "pm2 start ecosystem.config.cjs"
 	},
 	"keywords": [],
 	"author": "",
