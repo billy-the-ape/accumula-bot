@@ -88,7 +88,9 @@ export async function processSocialMediaSignals(
 
 	if (unscored.length > 0) {
 		console.info(
-			`Social media: scoring ${unscored.length} new posts (${skippedAlreadyScored} already scored)`,
+			`Social media: scoring ${unscored.length} new posts (${
+				skippedAlreadyScored
+			}/${signals.length} already scored)`,
 		);
 
 		const scoredSignals = await scoreSocialMediaSignals(config, unscored, {
