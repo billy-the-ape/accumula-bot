@@ -227,7 +227,7 @@ describe("formatRunReport", () => {
 			}),
 		);
 
-		expect(message).toContain("No posts scored \\>\\=4 in the last hour.");
+		expect(message).toContain("No posts scored \\>\\=4 in the last hour\\.");
 		expect(message).not.toContain("No posts scored >=4");
 	});
 

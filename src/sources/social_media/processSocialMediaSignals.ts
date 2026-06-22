@@ -16,7 +16,6 @@ import {
 	deleteSocialMediaPostsOlderThan,
 	getScoredExternalIds,
 	getTopScoredSocialMediaPosts,
-	saveScoredSocialMediaPosts,
 } from "@/storage/repositories/socialMediaPostRepository.js";
 import { formatDuration, HOUR_MS } from "@/utils.js";
 

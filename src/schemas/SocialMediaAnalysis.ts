@@ -98,8 +98,8 @@ export function formatAllowedPostIdHint(
 	const sortedIds = [...promptSignals.map((signal) => signal.index)].sort(
 		(left, right) => left - right,
 	);
-	const minId = sortedIds[0]!;
-	const maxId = sortedIds[sortedIds.length - 1]!;
+	const minId = sortedIds[0];
+	const maxId = sortedIds[sortedIds.length - 1];
 
 	return `only integers N from [post_id=N] labels in the user prompt (this batch: ${minId}–${maxId})`;
 }
