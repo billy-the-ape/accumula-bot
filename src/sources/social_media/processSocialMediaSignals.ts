@@ -100,25 +100,8 @@ export async function processSocialMediaSignals(
 				? { marketContext: options.marketContext }
 				: {}),
 			...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-		});
-
-		await saveScoredSocialMediaPosts(
 			db,
-			scoredSignals.map(({ signal, relevanceScore }) => ({
-				externalId: signal.id,
-				source: signal.source,
-				username: signal.username,
-				text: signal.text,
-				postedAt: new Date(signal.asOf),
-				impressions: signal.impressions,
-				relevanceScore,
-				scoredAt: now,
-				llm: {
-					provider: config.llm.provider,
-					model: config.llm.model,
-				},
-			})),
-		);
+		});
 
 		newlyScored = scoredSignals.length;
 	} else {

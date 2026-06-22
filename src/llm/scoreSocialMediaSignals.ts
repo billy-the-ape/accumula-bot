@@ -14,12 +14,15 @@ import {
 	SOCIAL_MEDIA_MIN_RELEVANCE_SCORE,
 	SOCIAL_MEDIA_SCORE_BATCH_SIZE,
 } from "@/sources/social_media/socialMediaScoringConstants.js";
+import type { AppDatabase } from "@/storage";
+import { saveScoredSocialMediaPosts } from "@/storage/repositories/socialMediaPostRepository";
 import { formatDuration } from "@/utils.js";
 
 export type ScoreSocialMediaSignalsOptions = {
 	fetchImpl?: typeof fetch;
 	outlookAssets?: readonly string[];
 	marketContext?: SocialMediaMarketContext;
+	db?: AppDatabase;
 };
 
 export type ScoredSocialMediaSignal = {
@@ -74,6 +77,7 @@ async function scoreBatch(
 		fetchImpl?: typeof fetch;
 		batchNumber: number;
 		batchCount: number;
+		db?: AppDatabase | undefined;
 	},
 ): Promise<ScoredSocialMediaSignal[]> {
 	const validation = createSocialMediaRelevanceScoreValidation(batchSignals);
@@ -132,7 +136,7 @@ async function scoreBatch(
 		batchSignals.map((signal) => [signal.index, signal]),
 	);
 
-	return scores.map((entry) => {
+	const scoredSignals = scores.map((entry) => {
 		const signal = signalsByIndex.get(entry.post_index);
 		if (!signal) {
 			throw new ParseResponseError(
@@ -145,6 +149,29 @@ async function scoreBatch(
 			relevanceScore: entry.relevance_score,
 		};
 	});
+	const now = new Date();
+
+	if (options.db) {
+		await saveScoredSocialMediaPosts(
+			options.db,
+			scoredSignals.map(({ signal, relevanceScore }) => ({
+				externalId: signal.id,
+				source: signal.source,
+				username: signal.username,
+				text: signal.text,
+				postedAt: new Date(signal.asOf),
+				impressions: signal.impressions,
+				relevanceScore,
+				scoredAt: now,
+				llm: {
+					provider: config.llm.provider,
+					model: config.llm.model,
+				},
+			})),
+		);
+	}
+
+	return scoredSignals;
 }
 
 export async function scoreSocialMediaSignals(
@@ -175,6 +202,7 @@ export async function scoreSocialMediaSignals(
 		const batchStart = Date.now();
 		const batchScores = await scoreBatch(config, batchSignals, {
 			outlookAssets,
+			db: options.db,
 			...(options.marketContext
 				? { marketContext: options.marketContext }
 				: {}),
