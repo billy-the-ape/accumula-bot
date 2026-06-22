@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
 	getSocialMediaSectionFromContext,
-	getSocialMediaSignalsFromContext,
 	getSocialMediaTopPostsForPromptFromContext,
 	getSocialMediaTopPostsForReportFromContext,
 } from "@/analysis/getSocialMediaSignals.js";
@@ -44,35 +43,6 @@ function createContext(payload: unknown): AnalysisContext {
 	};
 }
 
-describe("getSocialMediaSignalsFromContext", () => {
-	it("returns signals from the structured section payload", () => {
-		const context = createContext({
-			signals: [sampleSignal],
-			topPostsForPrompt: [sampleScoredPost],
-		});
-
-		expect(getSocialMediaSignalsFromContext(context)).toEqual([sampleSignal]);
-	});
-
-	it("supports legacy array payloads", () => {
-		const context = createContext([sampleSignal]);
-
-		expect(getSocialMediaSignalsFromContext(context)).toEqual([sampleSignal]);
-	});
-
-	it("returns an empty array when the section is missing or invalid", () => {
-		expect(
-			getSocialMediaSignalsFromContext({
-				fetchedAt: new Date().toISOString(),
-				sections: [],
-			}),
-		).toEqual([]);
-		expect(
-			getSocialMediaSignalsFromContext(createContext({ bad: true })),
-		).toEqual([]);
-	});
-});
-
 describe("getSocialMediaTopPostsForPromptFromContext", () => {
 	it("returns top prompt posts when scoring succeeded", () => {
 		const context = createContext({
@@ -102,7 +72,6 @@ describe("getSocialMediaTopPostsForReportFromContext", () => {
 describe("getSocialMediaSectionFromContext", () => {
 	it("returns signals and scored posts when available", () => {
 		const context = createContext({
-			signals: [sampleSignal],
 			topPostsForPrompt: [sampleScoredPost],
 			topPostsForReport: [sampleScoredPost],
 			scoringStats: {
@@ -113,7 +82,6 @@ describe("getSocialMediaSectionFromContext", () => {
 		});
 
 		expect(getSocialMediaSectionFromContext(context)).toEqual({
-			signals: [sampleSignal],
 			topPostsForPrompt: [sampleScoredPost],
 			topPostsForReport: [sampleScoredPost],
 			scoringStats: {

@@ -118,12 +118,13 @@ export async function processSocialMediaSignals(
 	);
 	if (deletedCount > 0) {
 		console.info(
-			`Social media: pruned ${deletedCount} scored posts older than 24h`,
+			`Social media: pruned ${deletedCount} scored posts older than ${formatDuration(SOCIAL_MEDIA_RETENTION_MS)}`,
 		);
 	}
 
+	const todayCutoff = new Date(now.getTime() - HOUR_MS);
 	const topPostsForPrompt = await getTopScoredSocialMediaPosts(db, {
-		since: retentionCutoff,
+		since: todayCutoff,
 		minScore: SOCIAL_MEDIA_MIN_RELEVANCE_SCORE,
 		limit: SOCIAL_MEDIA_PROMPT_TOP_COUNT,
 	});

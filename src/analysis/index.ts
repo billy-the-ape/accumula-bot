@@ -8,7 +8,6 @@ export { getMarketSnapshotsFromContext } from "@/analysis/getMarketSnapshots.js"
 export { getPredictionSignalsFromContext } from "@/analysis/getPredictionSignals.js";
 export {
 	getSocialMediaSectionFromContext,
-	getSocialMediaSignalsFromContext,
 	getSocialMediaTopPostsForPromptFromContext,
 	getSocialMediaTopPostsForReportFromContext,
 } from "@/analysis/getSocialMediaSignals.js";

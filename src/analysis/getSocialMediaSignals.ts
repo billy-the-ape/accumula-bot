@@ -2,8 +2,6 @@ import type { SocialMediaSectionPayload } from "@/analysis/socialMediaSectionPay
 import { SocialMediaSectionPayloadSchema } from "@/analysis/socialMediaSectionPayload.js";
 import type { AnalysisContext, AnalysisSection } from "@/analysis/types.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
-import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
-import { SocialMediaSignalListSchema } from "@/schemas/SocialMediaSignal.js";
 
 function getSocialMediaSection(
 	context: AnalysisContext,
@@ -21,27 +19,7 @@ function parseSocialMediaSectionPayload(
 		return sectionPayload.data;
 	}
 
-	const legacySignals = SocialMediaSignalListSchema.safeParse(payload);
-	if (legacySignals.success) {
-		return { signals: legacySignals.data };
-	}
-
 	return undefined;
-}
-
-/**
- * Read social media signals out of an analysis context. Returns an empty array
- * when the source is disabled/absent or its payload is unusable.
- */
-export function getSocialMediaSignalsFromContext(
-	context: AnalysisContext,
-): SocialMediaSignal[] {
-	const section = getSocialMediaSection(context);
-	if (!section) {
-		return [];
-	}
-
-	return parseSocialMediaSectionPayload(section.payload)?.signals ?? [];
 }
 
 /**

@@ -6,7 +6,6 @@ import {
 } from "@/notifications/telegram/formatRunReport.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
-import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 
@@ -55,16 +54,6 @@ const btcPrediction: PredictionSignal = {
 	modeBucketProbability: 0.42,
 };
 
-const sampleSocialSignal: SocialMediaSignal = {
-	index: 0,
-	id: "111",
-	source: "twitter",
-	username: "whale_alert",
-	text: "Large BTC transfer detected",
-	asOf: "2026-06-16T12:00:00.000Z",
-	impressions: 42_000,
-};
-
 const sampleScoredPost: ScoredSocialMediaPost = {
 	externalId: "111",
 	source: "twitter",
@@ -97,7 +86,6 @@ function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 		trades: [sampleTrade],
 		executionReason: "Executed 1 planned fill(s)",
 		predictionSignals: [],
-		socialMediaSignals: [],
 		accumulateSymbol: "BTC",
 		portfolioReport: {
 			btcValue: 0.105,
@@ -198,7 +186,6 @@ describe("formatRunReport", () => {
 					newlyScored: 2,
 					skippedAlreadyScored: 10,
 				},
-				socialMediaSignals: [sampleSocialSignal],
 			}),
 		);
 
@@ -229,15 +216,6 @@ describe("formatRunReport", () => {
 
 		expect(message).toContain("No posts scored \\>\\=4 in the last hour\\.");
 		expect(message).not.toContain("No posts scored >=4");
-	});
-
-	it("shows fallback counts when signals exist without analysis", () => {
-		const message = formatRunReport(
-			baseInput({ socialMediaSignals: [sampleSocialSignal] }),
-		);
-
-		expect(message).toContain("Retrieved: 1 · Analysis unavailable");
-		expect(message).not.toContain("Top signals:");
 	});
 
 	it("shows None when social media is absent", () => {

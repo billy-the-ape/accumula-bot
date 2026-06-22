@@ -1,6 +1,5 @@
 import z from "zod";
 import { ScoredSocialMediaPostSchema } from "@/schemas/ScoredSocialMediaPost.js";
-import { SocialMediaSignalListSchema } from "@/schemas/SocialMediaSignal.js";
 
 export const SocialMediaScoringStatsSchema = z.object({
 	fetched: z.number().int().nonnegative(),
@@ -9,7 +8,7 @@ export const SocialMediaScoringStatsSchema = z.object({
 });
 
 export const SocialMediaSectionPayloadSchema = z.object({
-	signals: SocialMediaSignalListSchema,
+	// signals: SocialMediaSignalListSchema,
 	topPostsForPrompt: z.array(ScoredSocialMediaPostSchema).optional(),
 	topPostsForReport: z.array(ScoredSocialMediaPostSchema).optional(),
 	scoringStats: SocialMediaScoringStatsSchema.optional(),

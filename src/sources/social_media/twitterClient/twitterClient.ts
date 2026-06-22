@@ -28,9 +28,9 @@ export const getSearchScrape = async (
 
 const BUSINESS_NEWS_ACCOUNTS = [
 	"DeItaone",
-	"financialjuice",
+	// "financialjuice",
 	"ReutersBiz",
-	"WSJ",
+	// "WSJ",
 	"FT",
 ];
 
@@ -38,7 +38,7 @@ const CRYPTO_ACCOUNTS = [
 	"whale_alert",
 	"BloombergCrypto",
 	"CoinDesk",
-	"TheBlockCo",
+	// "TheBlockCo",
 	"glassnode",
 ];
 

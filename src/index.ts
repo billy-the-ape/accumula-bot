@@ -3,7 +3,6 @@ import {
 	getMarketSnapshotsFromContext,
 	getPredictionSignalsFromContext,
 	getSocialMediaSectionFromContext,
-	getSocialMediaSignalsFromContext,
 } from "@/analysis/index.js";
 import { loadConfig } from "@/config/index.js";
 import {
@@ -105,8 +104,6 @@ async function main() {
 
 		const marketData = getMarketSnapshotsFromContext(analysisContext);
 		const predictionSignals = getPredictionSignalsFromContext(analysisContext);
-		const socialMediaSignals =
-			getSocialMediaSignalsFromContext(analysisContext);
 		const socialMediaSection =
 			getSocialMediaSectionFromContext(analysisContext);
 
@@ -119,10 +116,6 @@ async function main() {
 				);
 				console.info(
 					`Social media prompt: ${socialMediaSection.topPostsForPrompt?.length ?? 0} top posts (24h, score>=4)`,
-				);
-			} else if (socialMediaSignals.length > 0) {
-				console.info(
-					`Social media: retrieved=${socialMediaSignals.length} (scoring unavailable)`,
 				);
 			} else {
 				console.info("Social media: no posts retrieved");
@@ -259,7 +252,6 @@ async function main() {
 						trades: execution.trades,
 						executionReason: execution.reason,
 						predictionSignals,
-						socialMediaSignals,
 						...(socialMediaSection?.topPostsForReport
 							? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
 							: {}),

@@ -9,7 +9,6 @@ import {
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
-import type { SocialMediaSignal } from "@/schemas/SocialMediaSignal";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AssetOutlook } from "@/schemas/TradeRecommendation.js";
 import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/formatPredictionSignals.js";
@@ -32,8 +31,6 @@ export type RunReportInput = {
 	summary: string | undefined;
 	/** Prediction-market signals to surface per asset (may be empty). */
 	predictionSignals: readonly PredictionSignal[];
-	/** Social media signals to surface (may be empty). */
-	socialMediaSignals: readonly SocialMediaSignal[];
 	/** Top scored posts from the last hour for Telegram. */
 	socialMediaTopPosts?: readonly ScoredSocialMediaPost[];
 	/** Scoring pipeline stats when available. */
@@ -156,14 +153,6 @@ function formatTradeLine(trade: StoredTrade): string {
 	return `${action} ${escapeMarkdownV2(formatQuantity(trade.quantity))} ${escapeMarkdownV2(trade.symbol)} @ ${escapeMarkdownV2(formatUsd(trade.priceUsd))} \\(${escapeMarkdownV2(formatUsd(trade.quoteValueUsd))}\\)`;
 }
 
-function formatSocialMediaFallbackSection(
-	signals: readonly SocialMediaSignal[],
-): string {
-	return [`  Retrieved: ${signals.length} · Analysis unavailable`, ""].join(
-		"\n",
-	);
-}
-
 function formatSocialMediaScoredSection(
 	topPosts: readonly ScoredSocialMediaPost[],
 	stats?: SocialMediaScoringStats,
@@ -206,10 +195,6 @@ function formatSocialMediaSection(input: RunReportInput): string {
 			input.socialMediaTopPosts ?? [],
 			input.socialMediaScoringStats,
 		);
-	}
-
-	if (input.socialMediaSignals.length > 0) {
-		return formatSocialMediaFallbackSection(input.socialMediaSignals);
 	}
 
 	return italic("None");
