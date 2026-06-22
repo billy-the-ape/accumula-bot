@@ -51,10 +51,17 @@ function isEmptyLlmResponseError(error: unknown): boolean {
 async function completeJsonChatWithEmptyRetry(
 	config: AppConfig["llm"],
 	prompt: ReturnType<typeof buildSocialMediaScoringPromptParts>,
-	chatOptions: { fetchImpl?: typeof fetch; verbosePromptLabel?: string },
+	chatOptions: {
+		fast?: boolean;
+		fetchImpl?: typeof fetch;
+		verbosePromptLabel?: string;
+	},
 ): Promise<string> {
 	try {
-		return await completeJsonChat(config, prompt, chatOptions);
+		return await completeJsonChat(config, prompt, {
+			fast: true,
+			...chatOptions,
+		});
 	} catch (error) {
 		if (!isEmptyLlmResponseError(error)) {
 			throw error;
@@ -64,7 +71,10 @@ async function completeJsonChatWithEmptyRetry(
 			"Social media scoring: LLM returned an empty response; retrying once...",
 		);
 
-		return await completeJsonChat(config, prompt, chatOptions);
+		return await completeJsonChat(config, prompt, {
+			fast: true,
+			...chatOptions,
+		});
 	}
 }
 
