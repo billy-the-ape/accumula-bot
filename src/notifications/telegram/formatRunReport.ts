@@ -124,10 +124,8 @@ function directionLabel(
 	return `🙅 ${directionString}`;
 }
 
-function truncate(value: string): string {
-	return value.length > MAX_REASON_CHARS
-		? `${value.slice(0, MAX_REASON_CHARS - 1)}…`
-		: value;
+function truncate(value: string, maxChars: number = MAX_REASON_CHARS): string {
+	return value.length > maxChars ? `${value.slice(0, maxChars - 1)}…` : value;
 }
 
 function formatOutlookBlock(
@@ -179,7 +177,7 @@ function formatSocialMediaScoredSection(
 	for (const [index, post] of topPosts.entries()) {
 		const linkText = `@${post.username} (score ${post.relevanceScore})`;
 		const url = `https://x.com/${post.username}/status/${post.externalId}`;
-		const text = truncate(post.text);
+		const text = truncate(post.text, 60);
 		lines.push(
 			`    ${index + 1}\\. ${boldLink(linkText, url)} — ${escapeMarkdownV2(text)}`,
 		);
