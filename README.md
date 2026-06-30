@@ -915,7 +915,7 @@ pnpm telegram:bot
 
 **Onboarding flow:**
 
-1. **Starting value** — send a positive USD number or `/default` ($10,000).
+1. **Starting value** — tap **Default** ($10,000) or send a custom USD amount.
 2. **Risk tolerance** — inline keyboard: Low / Medium / High.
 
 Each user may have **one active portfolio** at a time. Historical portfolios remain in the DB after `/reset`.

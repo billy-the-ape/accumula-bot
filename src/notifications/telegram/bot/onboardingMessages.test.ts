@@ -6,8 +6,10 @@ import {
 
 describe("bot onboarding messages", () => {
 	it("escapes MarkdownV2 reserved characters", () => {
-		expect(formatStartingValuePrompt()).toContain("Accumula Bot\\!");
-		expect(formatStartingValuePrompt()).not.toMatch(/Bot!(?!\\)/);
+		expect(formatStartingValuePrompt()).toContain(
+			"__Welcome to Accumula Bot__",
+		);
+		expect(formatStartingValuePrompt()).toContain("Tap Default for $10,000");
 	});
 
 	it("botPlainText escapes parentheses and periods", () => {

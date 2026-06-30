@@ -1,7 +1,7 @@
 import type { RiskTolerance } from "@/risk/riskTolerance.js";
 import type { OnboardingState } from "@/storage/repositories/telegramUserRepository.js";
 
-export type BotCommand = "start" | "status" | "summary" | "reset" | "default";
+export type BotCommand = "start" | "status" | "summary" | "reset";
 
 export type TelegramInlineKeyboard = {
 	inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;

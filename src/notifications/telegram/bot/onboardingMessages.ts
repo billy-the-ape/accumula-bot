@@ -16,7 +16,7 @@ export function formatStartingValuePrompt(): string {
 		botPlainText([
 			"",
 			"To begin, select your portfolio's initial starting value in USD:",
-			`Default: $${DEFAULT_PAPER_STARTING_CASH_USD.toLocaleString("en-US")} — send /default to use.`,
+			`Tap Default for $${DEFAULT_PAPER_STARTING_CASH_USD.toLocaleString("en-US")}, or send a custom amount.`,
 		])
 	);
 }
@@ -59,12 +59,12 @@ export const RESET_HINT = botPlainText([
 
 export function formatInvalidStartingValueMessage(): string {
 	return botPlainText([
-		"Please send a positive dollar amount (e.g. 10000) or /default for $10,000.",
+		"Please send a positive dollar amount (e.g. 10000) or tap Default.",
 	]);
 }
 
 export function formatStartingValueReminderMessage(): string {
-	return botPlainText(["Please send a positive dollar amount or /default."]);
+	return botPlainText(["Please tap Default or send a positive dollar amount."]);
 }
 
 export function formatRiskToleranceReminderMessage(): string {

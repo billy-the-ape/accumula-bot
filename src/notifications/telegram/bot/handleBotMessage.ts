@@ -21,6 +21,10 @@ import {
 	buildRiskToleranceKeyboard,
 	parseRiskToleranceCallback,
 } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
+import {
+	buildStartingValueKeyboard,
+	parseStartingValueCallback,
+} from "@/notifications/telegram/bot/startingValueKeyboard.js";
 import type {
 	BotHandlerContext,
 	BotHandlerOutput,
@@ -30,6 +34,7 @@ import type {
 function beginOnboarding(): BotHandlerOutput {
 	return {
 		text: formatStartingValuePrompt(),
+		replyMarkup: buildStartingValueKeyboard(),
 		effects: {
 			userPatch: {
 				onboardingState: "awaiting_starting_value",
@@ -43,6 +48,7 @@ function beginOnboarding(): BotHandlerOutput {
 function promptForStartingValue(): BotHandlerOutput {
 	return {
 		text: formatStartingValuePrompt(),
+		replyMarkup: buildStartingValueKeyboard(),
 		effects: {
 			userPatch: {
 				onboardingState: "awaiting_starting_value",
@@ -95,23 +101,31 @@ function formatSummaryReply(
 function handleAwaitingStartingValue(
 	message: BotIncomingMessage,
 ): BotHandlerOutput {
-	let text: string | undefined;
+	if (message.kind === "callback") {
+		const defaultValueUsd = parseStartingValueCallback(message.data);
+		if (defaultValueUsd !== undefined) {
+			return promptForRiskTolerance(defaultValueUsd);
+		}
 
-	if (message.kind === "text") {
-		text = message.text;
-	} else if (message.kind === "command" && message.command === "default") {
-		text = "/default";
-	}
-
-	if (!text) {
 		return {
 			text: formatStartingValueReminderMessage(),
+			replyMarkup: buildStartingValueKeyboard(),
 		};
 	}
 
-	const parsed = parseStartingValueInput(text);
+	if (message.kind !== "text") {
+		return {
+			text: formatStartingValueReminderMessage(),
+			replyMarkup: buildStartingValueKeyboard(),
+		};
+	}
+
+	const parsed = parseStartingValueInput(message.text);
 	if (!parsed.ok) {
-		return { text: formatInvalidStartingValueMessage() };
+		return {
+			text: formatInvalidStartingValueMessage(),
+			replyMarkup: buildStartingValueKeyboard(),
+		};
 	}
 
 	return promptForRiskTolerance(parsed.valueUsd);
@@ -189,12 +203,6 @@ export function handleBotMessage(
 				}
 				return beginOnboarding();
 			}
-
-			case "default":
-				if (context.onboardingState === "awaiting_starting_value") {
-					return handleAwaitingStartingValue(message);
-				}
-				return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
 		}
 	}
 

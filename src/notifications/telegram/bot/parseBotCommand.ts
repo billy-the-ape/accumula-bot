@@ -5,7 +5,6 @@ const BOT_COMMANDS = new Set<BotCommand>([
 	"status",
 	"summary",
 	"reset",
-	"default",
 ]);
 
 export function parseBotCommand(text: string): BotCommand | undefined {

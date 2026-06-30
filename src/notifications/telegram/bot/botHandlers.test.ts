@@ -11,6 +11,10 @@ import {
 	parseRiskToleranceCallback,
 	riskToleranceCallbackData,
 } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
+import {
+	parseStartingValueCallback,
+	STARTING_VALUE_DEFAULT_CALLBACK,
+} from "@/notifications/telegram/bot/startingValueKeyboard.js";
 import type { BotHandlerContext } from "@/notifications/telegram/bot/types.js";
 import { MIN_CONFIDENCE_BY_RISK_TOLERANCE } from "@/risk/riskTolerance.js";
 
@@ -33,13 +37,6 @@ const onboardedContext: BotHandlerContext = {
 };
 
 describe("parseStartingValueInput", () => {
-	it("accepts /default", () => {
-		expect(parseStartingValueInput("/default")).toEqual({
-			ok: true,
-			valueUsd: 10_000,
-		});
-	});
-
 	it("accepts numeric amounts with commas", () => {
 		expect(parseStartingValueInput("12,500")).toEqual({
 			ok: true,
@@ -60,12 +57,20 @@ describe("parseBotCommand", () => {
 		expect(parseBotCommand("/summary")).toBe("summary");
 		expect(parseBotCommand("/status")).toBe("status");
 		expect(parseBotCommand("/reset")).toBe("reset");
-		expect(parseBotCommand("/default")).toBe("default");
 	});
 
 	it("returns undefined for unknown commands", () => {
 		expect(parseBotCommand("/help")).toBeUndefined();
 		expect(parseBotCommand("hello")).toBeUndefined();
+	});
+});
+
+describe("parseStartingValueCallback", () => {
+	it("parses default starting value callback", () => {
+		expect(parseStartingValueCallback(STARTING_VALUE_DEFAULT_CALLBACK)).toBe(
+			10_000,
+		);
+		expect(parseStartingValueCallback("starting_value:other")).toBeUndefined();
 	});
 });
 
@@ -119,7 +124,8 @@ describe("handleBotMessage onboarding", () => {
 			command: "start",
 		});
 
-		expect(result.text).toContain("starting portfolio value");
+		expect(result.text).toContain("initial starting value");
+		expect(result.replyMarkup?.inline_keyboard[0]?.[0]?.text).toBe("Default");
 		expect(result.effects?.userPatch?.onboardingState).toBe(
 			"awaiting_starting_value",
 		);
@@ -145,10 +151,10 @@ describe("handleBotMessage onboarding", () => {
 		});
 	});
 
-	it("uses default starting value via /default", () => {
+	it("uses default starting value via Default button", () => {
 		const result = handleBotMessage(newUserContext, {
-			kind: "command",
-			command: "default",
+			kind: "callback",
+			data: STARTING_VALUE_DEFAULT_CALLBACK,
 		});
 
 		expect(result.effects?.userPatch?.onboardingState).toBe(
