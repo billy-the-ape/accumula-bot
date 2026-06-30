@@ -36,8 +36,8 @@ export function buildSettingsKeyboard(
 	settings: TelegramUserSettings,
 ): TelegramInlineKeyboard {
 	const verboseLabel = settings.verbose
-		? "Verbose: ON (tap to turn off)"
-		: "Verbose: OFF (tap to turn on)";
+		? "🟢 Verbose: ON (tap to turn off)"
+		: "🔴 Verbose: OFF (tap to turn on)";
 
 	return {
 		inline_keyboard: [

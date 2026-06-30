@@ -1,6 +1,7 @@
 import {
 	bold,
 	boldUnderline,
+	code,
 	escapeMarkdownV2,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 import {
@@ -18,9 +19,9 @@ export function formatSettingsMessage(settings: TelegramUserSettings): string {
 	for (const definition of TELEGRAM_USER_SETTING_DEFINITIONS) {
 		const value = settings[definition.key];
 		lines.push(
-			`${bold(definition.label)} — ${formatSettingValue(value)}`,
+			`${value === true ? "🟢" : value === false ? "🔴" : "⚪"} ${bold(definition.label)} — ${formatSettingValue(value)}`,
 			escapeMarkdownV2(definition.description),
-			`Set via: ${escapeMarkdownV2(definition.commandExample)}`,
+			`Set via: ${code(definition.commandExample)}`,
 			"",
 		);
 	}

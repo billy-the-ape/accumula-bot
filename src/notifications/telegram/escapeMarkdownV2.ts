@@ -40,3 +40,7 @@ export function markdownLink(text: string, url: string): string {
 export function boldLink(text: string, url: string): string {
 	return `*[${escapeMarkdownV2(text)}](${escapeMarkdownV2Url(url)})*`;
 }
+
+export function code(value: string): string {
+	return `\`${escapeMarkdownV2(value)}\``;
+}
