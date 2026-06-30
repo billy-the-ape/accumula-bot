@@ -10,7 +10,8 @@ type NotifyOptions = { fetchImpl?: typeof fetch };
 
 /** Send the verbose run report. Called on every run, not just on trades. */
 export async function notifyRun(
-	telegram: TelegramConfig,
+	botToken: string,
+	chatId: string,
 	input: RunReportInput,
 	options: NotifyOptions = {},
 ): Promise<void> {
@@ -19,8 +20,8 @@ export async function notifyRun(
 	try {
 		await sendTelegramMessage(
 			{
-				botToken: telegram.botToken,
-				chatId: telegram.chatId,
+				botToken,
+				chatId,
 				...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 			},
 			fullReportText,
@@ -41,6 +42,10 @@ export async function notifyRunFailure(
 	message: string,
 	options: NotifyOptions = {},
 ): Promise<void> {
+	if (!telegram.chatId) {
+		return;
+	}
+
 	await sendTelegramMessage(
 		{
 			botToken: telegram.botToken,

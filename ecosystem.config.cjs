@@ -29,18 +29,17 @@ module.exports = {
 			error_file: "logs/accumula-macro-error.log",
 			merge_logs: true,
 		},
-		/* {
+		{
 			name: "accumula-bot-telegram",
 			cwd: __dirname,
 			script: "node_modules/.bin/tsx",
-			args: "--env-file=.env src/notifications/telegram/dailySummaryCli.ts",
+			args: "--env-file=.env src/notifications/telegram/botCli.ts",
 			interpreter: "bash",
-			autorestart: false,
-			cron_restart: "0 15 * * *",
+			autorestart: true,
 			time: true,
 			out_file: "logs/accumula-telegram-out.log",
 			error_file: "logs/accumula-telegram-error.log",
 			merge_logs: true,
-		}, */
+		},
 	],
 };

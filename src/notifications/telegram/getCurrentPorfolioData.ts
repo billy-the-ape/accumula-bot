@@ -5,28 +5,27 @@ import {
 	getTotalPortfolioQuoteValue,
 } from "@/domain";
 import { buildPriceMap } from "@/execution";
-import { getAnalyzableAssets } from "@/llm";
-import { fetchMarketSnapshots } from "@/sources/market";
-import { type AppDatabase, getLatestPortfolio } from "@/storage";
+import { fetchMarketSnapshotsForConfig } from "@/notifications/telegram/buildPortfolioSummaryInput.js";
+import type { MarketSnapshot } from "@/schemas/MarketSnapshot.js";
+import type { AppDatabase } from "@/storage";
+import type { StoredPortfolio } from "@/storage/repositories/portfolioRepository.js";
 import { listTradesSince } from "@/storage/repositories/tradeRepository";
 import { DAY_MS } from "@/utils";
+
+export type GetCurrentPortfolioDataOptions = {
+	fetchImpl?: typeof fetch;
+	marketSnapshots?: readonly MarketSnapshot[];
+};
 
 export async function getCurrentPortfolioData(
 	config: AppConfig,
 	db: AppDatabase,
-	options: { fetchImpl?: typeof fetch } = {},
+	portfolio: StoredPortfolio,
+	options: GetCurrentPortfolioDataOptions = {},
 ) {
-	const portfolio = await getLatestPortfolio(db);
-	if (!portfolio) {
-		throw new Error("No portfolio found — run the bot at least once first");
-	}
-
-	const analyzableAssets = getAnalyzableAssets(config);
-	const marketData = await fetchMarketSnapshots(analyzableAssets, {
-		baseUrl: config.coingecko.baseUrl,
-		...(config.coingecko.apiKey ? { apiKey: config.coingecko.apiKey } : {}),
-		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
-	});
+	const marketData =
+		options.marketSnapshots ??
+		(await fetchMarketSnapshotsForConfig(config, options));
 
 	const accumulateSymbol = portfolio.assetToAccumulate;
 	const prices = buildPriceMap(marketData, config.assetStarting.symbol, {
@@ -48,7 +47,6 @@ export async function getCurrentPortfolioData(
 		btcValue: accumulateValue,
 		usdValue,
 		prices,
-		analyzableAssets,
 		marketData,
 		accumulateSymbol,
 		dailyReturnPct:

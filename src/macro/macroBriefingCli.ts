@@ -25,18 +25,24 @@ async function main() {
 		);
 
 		if (config.telegram) {
-			await sendDailySummary(config, connection.db, {
+			const result = await sendDailySummary(config, connection.db, {
 				macroBriefing: {
 					content: saved.content,
 					generatedAt: saved.createdAt,
 				},
 			});
-			console.info(
-				"Daily briefing sent to Telegram (macro + portfolio summary)",
-			);
+			if (result.sentCount === 0) {
+				console.info(
+					"No active portfolios — daily briefing notification skipped",
+				);
+			} else {
+				console.info(
+					`Daily briefing sent to ${result.sentCount} user(s): ${result.recipientChatIds.join(", ")}`,
+				);
+			}
 		} else {
 			console.info(
-				"Telegram not configured; skipping daily briefing notification (set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env.macro)",
+				"Telegram not configured; skipping daily briefing notification (set TELEGRAM_BOT_TOKEN in .env.macro)",
 			);
 		}
 	} finally {

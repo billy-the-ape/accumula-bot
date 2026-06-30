@@ -1,12 +1,16 @@
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { PortfolioHoldings } from "@/domain/types.js";
+import type { RiskTolerance } from "@/risk/riskTolerance.js";
 import type { AppDatabase } from "@/storage/db.js";
 import {
 	type PortfolioRow,
 	type PositionRow,
 	portfolios,
 	positions,
+	telegramUsers,
 } from "@/storage/schema.js";
+
+export type { RiskTolerance } from "@/risk/riskTolerance.js";
 
 export type CreatePortfolioInput = {
 	assetToAccumulate: string;
@@ -15,6 +19,14 @@ export type CreatePortfolioInput = {
 	initialBtcBaseline: number;
 	initialQuoteBaseline: number;
 	tradingEnabled?: boolean;
+	telegramUserId?: number;
+	riskTolerance?: RiskTolerance;
+	isActive?: boolean;
+};
+
+export type CreateUserPortfolioInput = CreatePortfolioInput & {
+	telegramUserId: number;
+	riskTolerance: RiskTolerance;
 };
 
 export type StoredPortfolio = {
@@ -29,6 +41,13 @@ export type StoredPortfolio = {
 	initialBtcBaseline: number;
 	initialQuoteBaseline: number;
 	tradingEnabled: boolean;
+	telegramUserId: number | null;
+	riskTolerance: RiskTolerance;
+	isActive: boolean;
+};
+
+export type ActivePortfolio = StoredPortfolio & {
+	telegramChatId: string;
 };
 
 export type PortfolioBaselines = {
@@ -64,6 +83,9 @@ function mapPortfolioRow(
 		initialBtcBaseline: row.initialBtcBaseline,
 		initialQuoteBaseline: row.initialQuoteBaseline,
 		tradingEnabled: row.tradingEnabled,
+		telegramUserId: row.telegramUserId ?? null,
+		riskTolerance: row.riskTolerance as RiskTolerance,
+		isActive: row.isActive,
 	};
 }
 
@@ -123,6 +145,11 @@ export async function createPortfolio(
 			initialBtcBaseline: baseline,
 			initialQuoteBaseline: input.initialQuoteBaseline,
 			tradingEnabled: input.tradingEnabled ?? true,
+			...(input.telegramUserId !== undefined
+				? { telegramUserId: input.telegramUserId }
+				: {}),
+			riskTolerance: input.riskTolerance ?? "medium",
+			isActive: input.isActive ?? true,
 		})
 		.returning();
 
@@ -144,6 +171,83 @@ export async function createPortfolio(
 	}
 
 	return loadPortfolio(db, row);
+}
+
+export async function deactivateUserPortfolios(
+	db: AppDatabase,
+	telegramUserId: number,
+): Promise<void> {
+	await db
+		.update(portfolios)
+		.set({
+			isActive: false,
+			updatedAt: new Date(),
+		})
+		.where(
+			and(
+				eq(portfolios.telegramUserId, telegramUserId),
+				eq(portfolios.isActive, true),
+			),
+		);
+}
+
+export async function createUserPortfolio(
+	db: AppDatabase,
+	input: CreateUserPortfolioInput,
+): Promise<StoredPortfolio> {
+	await deactivateUserPortfolios(db, input.telegramUserId);
+
+	return createPortfolio(db, {
+		...input,
+		isActive: true,
+	});
+}
+
+export async function getActivePortfolioForUser(
+	db: AppDatabase,
+	telegramUserId: number,
+): Promise<StoredPortfolio | undefined> {
+	const row = await db
+		.select()
+		.from(portfolios)
+		.where(
+			and(
+				eq(portfolios.telegramUserId, telegramUserId),
+				eq(portfolios.isActive, true),
+			),
+		)
+		.orderBy(desc(portfolios.createdAt), desc(portfolios.id))
+		.limit(1)
+		.get();
+
+	return row ? loadPortfolio(db, row) : undefined;
+}
+
+export async function listActivePortfolios(
+	db: AppDatabase,
+): Promise<ActivePortfolio[]> {
+	const rows = await db
+		.select({
+			portfolio: portfolios,
+			telegramChatId: telegramUsers.telegramChatId,
+		})
+		.from(portfolios)
+		.innerJoin(telegramUsers, eq(portfolios.telegramUserId, telegramUsers.id))
+		.where(
+			and(eq(portfolios.isActive, true), eq(portfolios.tradingEnabled, true)),
+		)
+		.orderBy(desc(portfolios.createdAt), desc(portfolios.id));
+
+	const results: ActivePortfolio[] = [];
+	for (const { portfolio: row, telegramChatId } of rows) {
+		const portfolio = await loadPortfolio(db, row);
+		results.push({
+			...portfolio,
+			telegramChatId,
+		});
+	}
+
+	return results;
 }
 
 export async function getOrCreatePortfolio(

@@ -30,11 +30,6 @@ const ExchangeConfigSchema = z.object({
 	apiSecret: z.string().min(1),
 });
 
-const TelegramConfigSchema = z.object({
-	botToken: z.string().min(1),
-	chatId: z.string().min(1),
-});
-
 export type LlmConfig = {
 	provider: LlmProviderId;
 	baseUrl: string;
@@ -54,7 +49,7 @@ export type CoinGeckoConfig = {
 
 export type TelegramConfig = {
 	botToken: string;
-	chatId: string;
+	chatId?: string;
 };
 
 export type TwitterConfig = {
@@ -186,11 +181,11 @@ export const AppConfigSchema = z
 
 		const hasTelegramToken = env.telegram.botToken !== undefined;
 		const hasTelegramChatId = env.telegram.chatId !== undefined;
-		if (hasTelegramToken !== hasTelegramChatId) {
+
+		if (hasTelegramChatId && !hasTelegramToken) {
 			ctx.addIssue({
 				code: "custom",
-				message:
-					"TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must both be set or both be omitted",
+				message: "TELEGRAM_CHAT_ID requires TELEGRAM_BOT_TOKEN to be set",
 			});
 		}
 
@@ -235,13 +230,16 @@ export const AppConfigSchema = z
 		const hasTelegramToken = env.telegram.botToken !== undefined;
 		const hasTelegramChatId = env.telegram.chatId !== undefined;
 
-		const telegram =
-			hasTelegramToken && hasTelegramChatId
-				? TelegramConfigSchema.parse({
-						botToken: env.telegram.botToken,
-						chatId: env.telegram.chatId,
-					})
-				: undefined;
+		const telegram: TelegramConfig | undefined = hasTelegramToken
+			? hasTelegramChatId
+				? {
+						botToken: env.telegram.botToken as string,
+						chatId: env.telegram.chatId as string,
+					}
+				: {
+						botToken: env.telegram.botToken as string,
+					}
+			: undefined;
 
 		return {
 			assetToAccumulate,

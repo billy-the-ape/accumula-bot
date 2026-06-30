@@ -1,3 +1,4 @@
+export type { RiskTolerance } from "@/risk/riskTolerance.js";
 export {
 	type AppDatabase,
 	createDatabase,
@@ -15,17 +16,30 @@ export {
 	saveDecision,
 } from "@/storage/repositories/decisionRepository.js";
 export {
+	type ActivePortfolio,
 	type CreatePortfolioInput,
+	type CreateUserPortfolioInput,
 	createPortfolio,
+	createUserPortfolio,
+	deactivateUserPortfolios,
 	findPortfolioById,
+	getActivePortfolioForUser,
 	getLatestPortfolio,
 	getOrCreatePortfolio,
 	getPortfolioHoldings,
+	listActivePortfolios,
 	type PortfolioBaselines,
 	type StoredPortfolio,
 	setPortfolioTradingEnabled,
 	updatePortfolioBaselines,
 } from "@/storage/repositories/portfolioRepository.js";
+export {
+	findTelegramUserByChatId,
+	getOrCreateTelegramUser,
+	type OnboardingState,
+	type StoredTelegramUser,
+	updateTelegramUserOnboarding,
+} from "@/storage/repositories/telegramUserRepository.js";
 export {
 	findTradeById,
 	listTradesForPortfolio,
@@ -38,11 +52,14 @@ export {
 	type NewDecisionRow,
 	type NewPortfolioRow,
 	type NewPositionRow,
+	type NewTelegramUserRow,
 	type NewTradeRow,
 	type PortfolioRow,
 	type PositionRow,
 	portfolios,
 	positions,
+	type TelegramUserRow,
 	type TradeRow,
+	telegramUsers,
 	trades,
 } from "@/storage/schema.js";

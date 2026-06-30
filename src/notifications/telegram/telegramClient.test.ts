@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-
 import {
 	sendTelegramMessage,
 	TelegramError,
@@ -12,7 +11,9 @@ describe("sendTelegramMessage", () => {
 			.fn()
 
 			.mockResolvedValue(
-				new Response(JSON.stringify({ ok: true }), { status: 200 }),
+				new Response(JSON.stringify({ ok: true, result: { message_id: 1 } }), {
+					status: 200,
+				}),
 			);
 
 		await sendTelegramMessage(

@@ -195,16 +195,21 @@ cp .env.example .env   # Windows: copy .env.example .env
 
 Edit `.env` as needed. Secrets stay local; never commit `.env`.
 
-Optional Telegram DM notifications: see [Notifications](#notifications) for `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` setup.
+Optional Telegram: see [Notifications](#notifications) for the multi-user bot (`TELEGRAM_BOT_TOKEN`) and optional admin mirror (`TELEGRAM_CHAT_ID`).
+
+After pulling updates that add multi-user support, run `pnpm db:migrate` once — see [Upgrading from a single-user install](#upgrading-from-a-single-user-install).
 
 ## Commands
 
 | Command | Purpose |
 |---------|---------|
 | `pnpm dev` | Run with file watch |
-| `pnpm start` | Run once |
+| `pnpm start` | Run once (LLM once → paper execution for each active user portfolio) |
+| `pnpm telegram:bot` | Long-running Telegram bot (onboarding + `/status` / `/summary` / `/reset`) |
+| `pnpm telegram:daily-summary` | Send daily portfolio summary to each active user (requires `TELEGRAM_BOT_TOKEN`) |
 | `pnpm macro:briefing` | Generate daily macro briefing via OpenAI web search (uses `.env.macro`) |
-| `pnpm telegram:daily-summary` | Send Telegram daily summary (requires Telegram env vars) |
+| `pnpm db:migrate` | Apply SQLite schema migrations |
+| `pnpm db:cleanup-legacy` | Preview/remove legacy portfolio rows (keeps tweets + macro); see flags below |
 | `pnpm test` | Run tests |
 | `pnpm test:watch` | Run tests in watch mode |
 | `pnpm type-check` | TypeScript check |
@@ -214,7 +219,9 @@ Optional Telegram DM notifications: see [Notifications](#notifications) for `TEL
 
 ## Scheduling (3× daily)
 
-The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → portfolio-outlook LLM → paper execution → exit). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **many LLM calls** on the trading model (batched relevance filter + synthesis digest, then trade recommendation) using `.env` / Ollama — see [Social Media](#social-media) for call counts. A **separate daily job** (`pnpm macro:briefing`, `.env.macro` / OpenAI) writes macro context to the DB for Stage 1 — see [Macro Briefing](#macro-briefing). Schedule trading **three times per day** (or hourly via PM2) so decisions can accumulate without keeping a Node process running 24/7.
+The bot is designed as a **one-shot process**: `pnpm start` runs a single cycle (market data → optional social-media analysis → **one** portfolio-outlook LLM call → **paper execution for every active user portfolio** → exit). Each onboarded Telegram user has their own paper portfolio and **risk tolerance** (which adjusts the minimum confidence required before a trade executes). When `SOCIAL_MEDIA_ENABLED=true`, each run performs **many LLM calls** on the trading model (batched relevance filter + synthesis digest, then trade recommendation) using `.env` / Ollama — see [Social Media](#social-media) for call counts. A **separate daily job** (`pnpm macro:briefing`, `.env.macro` / OpenAI) writes macro context to the DB for Stage 1 — see [Macro Briefing](#macro-briefing). Schedule trading **three times per day** (or hourly via PM2) so decisions can accumulate without keeping a Node process running 24/7.
+
+The **interactive Telegram bot** (`pnpm telegram:bot` or PM2 `accumula-bot-telegram`) runs separately as a long-lived process for `/start` onboarding and portfolio commands — see [Telegram bot (multi-user)](#telegram-bot-multi-user).
 
 Default schedule (server **local timezone**):
 
@@ -231,7 +238,8 @@ Adjust times to match your VPS timezone and how often you want fresh rankings. T
 1. **Ollama must be running** before each cycle (`LLM_BASE_URL` in `.env`, default `http://127.0.0.1:11434`). The bot does not start Ollama for you.
 2. **`.env` configured** in the project root (`cp .env.example .env`).
 3. **Dependencies installed** (`pnpm install`).
-4. **Log directory** (optional but recommended):
+4. **Database migrated** (`pnpm db:migrate`) — required after schema updates.
+5. **Log directory** (optional but recommended):
 
 ```bash
 mkdir logs
@@ -293,14 +301,24 @@ pm2 start ecosystem.config.cjs
 pm2 save
 ```
 
-`ecosystem.config.cjs` defines two apps (telegram daily summary is commented out in the repo copy):
+`ecosystem.config.cjs` defines **three** apps:
 
-| PM2 name | Schedule (local time) | What it runs | Env file |
-|----------|----------------------|--------------|----------|
-| `accumula-bot` | Every hour (`0 * * * *`) | Main trading cycle (`src/index.ts`) | `.env` (Ollama) |
-| `accumula-bot-macro-briefing` | Daily (`0 14 * * *`) | Macro briefing + Telegram daily briefing | `.env.macro` (OpenAI + Telegram) |
+| PM2 name | Schedule (local time) | What it runs | Env file | Restarts |
+|----------|----------------------|--------------|----------|----------|
+| `accumula-bot` | Every hour (`0 * * * *`) | Main trading cycle (`src/index.ts`) | `.env` (Ollama) | One-shot per cron tick |
+| `accumula-bot-macro-briefing` | Daily (`0 14 * * *`) | Macro briefing + daily Telegram briefing per user | `.env.macro` (OpenAI + Telegram) | One-shot per cron tick |
+| `accumula-bot-telegram` | Always on | Interactive Telegram bot (`botCli.ts`) | `.env` | `autorestart: true` |
 
 Trading runs use **local Ollama** from `.env`. The macro job uses **OpenAI Responses API + web search** from `.env.macro` and writes to the same SQLite DB (`DATABASE_PATH`). Hourly runs read the latest briefing when social media is enabled — see [Macro Briefing](#macro-briefing).
+
+Start all three after deploy:
+
+```bash
+pm2 start ecosystem.config.cjs
+pm2 save
+```
+
+Or start individually: `pm2 start ecosystem.config.cjs --only accumula-bot-telegram`.
 
 PM2 invokes `node_modules/.bin/tsx` with `interpreter: "bash"` (do not set `script: "pnpm"` — PM2 runs scripts with Node by default and will fail on the pnpm shell wrapper).
 
@@ -310,14 +328,15 @@ Useful commands:
 pm2 status                        # next cron run shown when time: true
 pm2 logs accumula-bot             # main bot stdout/stderr
 pm2 logs accumula-bot-macro-briefing   # macro briefing stdout/stderr
+pm2 logs accumula-bot-telegram    # interactive bot stdout/stderr
 pm2 stop accumula-bot             # disable scheduled trading runs
-pm2 delete accumula-bot accumula-bot-macro-briefing
+pm2 delete accumula-bot accumula-bot-macro-briefing accumula-bot-telegram
 pm2 startup                       # generate OS startup hook (Linux)
 ```
 
 Each app uses `autorestart: false` so each cron tick starts a **fresh one-shot run** (same as manual `pnpm start`). Cron times use the **server local timezone**.
 
-Keep **Ollama** running separately (e.g. `pm2 start ollama` or systemd). Telegram notifications require `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` in `.env` — see [Notifications](#notifications).
+Keep **Ollama** running separately (e.g. `pm2 start ollama` or systemd). Telegram requires **`TELEGRAM_BOT_TOKEN`** in `.env` for notifications and the interactive bot — see [Notifications](#notifications).
 
 ### Overlap and failures
 
@@ -348,7 +367,7 @@ accumula-bot/
 │   ├── llm/               # Phase 1+: Ollama client, prompts, JSON parse
 │   ├── risk/              # Guardrails — always runs before execution
 │   ├── execution/         # Phase 3+: paper trader; Phase 4+: live trader
-│   ├── notifications/     # Telegram DMs (trades + daily summary)
+│   ├── notifications/     # Telegram bot, DMs (per-user run reports + daily summary)
 │   ├── exchange/          # Phase 4+: CCXT adapter behind an interface
 │   ├── storage/           # Phase 2+: SQLite repos, migrations
 │   └── scheduler/         # Cron job definitions
@@ -778,10 +797,10 @@ Manual run:
 ```bash
 pnpm macro:briefing
 # Macro briefing saved (id=1, createdAt=..., promptVersion=v2, ...)
-# Daily briefing sent to Telegram (macro + portfolio summary)
+# Daily briefing sent to N user(s): ...
 ```
 
-When `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set in `.env.macro`, the job also sends a **Daily Briefing** Telegram message containing the **full macro text** plus the portfolio summary (returns, holdings, values). If Telegram is not configured, the briefing is still saved to the DB.
+When `TELEGRAM_BOT_TOKEN` is set in `.env.macro`, the job sends a **Daily Briefing** Telegram message to **each active user portfolio** (macro text + that user's portfolio summary). Optionally set `TELEGRAM_CHAT_ID` to mirror copies to an admin chat. If Telegram is not configured, the briefing is still saved to the DB.
 
 Run `pnpm db:migrate` once on deploy so the `macro_briefings` table exists.
 
@@ -800,8 +819,8 @@ Same `loadConfig()` requirements as `.env` (assets, `DATABASE_PATH`, `CLOUDAMQP_
 | `LLM_MODEL` | Yes | `gpt-5.5` | Model supporting Responses API + web search |
 | `LLM_API_KEY` | Yes | `sk-...` | OpenAI API key |
 | `DATABASE_PATH` | Yes | `data/accumula.db` | **Same path as `.env`** — briefings must be readable by trading runs |
-| `TELEGRAM_BOT_TOKEN` | For daily DM | — | Sends Daily Briefing after generation |
-| `TELEGRAM_CHAT_ID` | For daily DM | — | Same chat as trading run reports |
+| `TELEGRAM_BOT_TOKEN` | For daily DM | — | Sends Daily Briefing to each active user |
+| `TELEGRAM_CHAT_ID` | No | — | Optional admin mirror for daily briefing copies |
 
 ---
 
@@ -853,25 +872,63 @@ The per-run Telegram report (see [Notifications](#notifications)) includes the s
 
 # Notifications
 
-Optional [Telegram](https://telegram.org/) DM notifications live in `src/notifications/telegram/`.
+Optional [Telegram](https://telegram.org/) integration lives in `src/notifications/telegram/`.
 
-Notifications are **off by default**. Set both env vars below to enable them.
+The bot supports **multi-user paper portfolios**: each Telegram user who `/start`s the bot gets their own portfolio in SQLite. Hourly trading runs the LLM **once**, then executes paper trades and sends run reports **per active user**, using each user's **risk tolerance** to set the minimum confidence bar for trades.
+
+Notifications are **off by default**. Set `TELEGRAM_BOT_TOKEN` to enable the interactive bot and per-user DMs.
 
 ## Environment variables
 
 | Variable | Required | Description |
 |----------|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes (with chat ID) | Bot token from [@BotFather](https://t.me/BotFather) |
-| `TELEGRAM_CHAT_ID` | Yes (with token) | Your user chat ID for DMs |
+| `TELEGRAM_BOT_TOKEN` | Yes (for Telegram) | Bot token from [@BotFather](https://t.me/BotFather) |
+| `TELEGRAM_CHAT_ID` | No | Optional **admin mirror** — copies each user's run report and daily summary here (useful for the operator). Requires `TELEGRAM_BOT_TOKEN`. |
 
-Both must be set together. If either is omitted, the bot runs normally without sending Telegram messages.
+`TELEGRAM_BOT_TOKEN` alone is enough for onboarded users to receive messages at their own chat id. If `TELEGRAM_CHAT_ID` is set and differs from a user's chat id, that user still gets their report and the admin chat gets a copy.
 
 Add to `.env`:
 
 ```bash
 TELEGRAM_BOT_TOKEN=123456789:AA...
+# Optional operator mirror:
 TELEGRAM_CHAT_ID=987654321
 ```
+
+## Telegram bot (multi-user)
+
+Run the long-polling bot so users can onboard and check portfolios:
+
+```bash
+pnpm telegram:bot
+# or PM2: accumula-bot-telegram (autorestart: true in ecosystem.config.cjs)
+```
+
+### Commands
+
+| Command | Behavior |
+|---------|----------|
+| `/start` | New user: onboarding (starting USD value → risk tolerance). Existing user: portfolio summary **plus** hint about `/reset`. |
+| `/status` | Portfolio snapshot (holdings, returns, risk tolerance, effective min confidence). |
+| `/summary` | Same as `/status`. |
+| `/reset` | Deactivate current portfolio and restart onboarding. |
+
+**Onboarding flow:**
+
+1. **Starting value** — send a positive USD number or `/default` ($10,000).
+2. **Risk tolerance** — inline keyboard: Low / Medium / High.
+
+Each user may have **one active portfolio** at a time. Historical portfolios remain in the DB after `/reset`.
+
+### Risk tolerance → trade confidence
+
+Risk tolerance adjusts only the **minimum confidence** required before a trade executes (global buy/sell direction thresholds stay the same):
+
+| Risk | Min confidence to trade |
+|------|-------------------------|
+| Low | 0.74 |
+| Medium | 0.67 |
+| High | 0.60 |
 
 ## Quick setup (5 minutes)
 
@@ -881,47 +938,55 @@ TELEGRAM_CHAT_ID=987654321
 2. Send `/newbot` and follow the prompts (name + username ending in `bot`).
 3. BotFather replies with a token like `123456789:AAH...` — that is `TELEGRAM_BOT_TOKEN`.
 
-### 2. Start a chat with your bot
+### 2. Start the interactive bot
 
-1. Open the link BotFather gives you (or search for your bot's username).
-2. Press **Start** or send any message (e.g. `hello`).
+```bash
+pnpm db:migrate          # once, if not already done
+pnpm telegram:bot        # or: pm2 start ecosystem.config.cjs --only accumula-bot-telegram
+```
 
-The bot cannot message you until you have started the conversation.
+### 3. Onboard via Telegram
 
-### 3. Get your chat ID
+1. Open your bot in Telegram and send `/start`.
+2. Complete starting value and risk tolerance.
+3. Send `/status` to confirm holdings and returns.
 
-Replace `<TOKEN>` with your bot token:
+### 4. Get your chat ID (optional — for admin mirror)
+
+If you want run reports copied to a fixed operator chat, replace `<TOKEN>` with your bot token:
 
 ```bash
 curl -s "https://api.telegram.org/bot<TOKEN>/getUpdates"
 ```
 
-In the JSON, find `"chat":{"id":987654321` — that number is `TELEGRAM_CHAT_ID`.
+In the JSON, find `"chat":{"id":987654321` — that number is `TELEGRAM_CHAT_ID`. For a personal DM, the ID is a positive integer.
 
-For a personal DM, the ID is a positive integer. If you see no results, send another message to the bot and run `getUpdates` again.
-
-### 4. Test
+### 5. Test notifications
 
 ```bash
-pnpm telegram:daily-summary
+pnpm telegram:daily-summary   # daily summary to each active user
+pnpm start                    # hourly run report after LLM + execution
 ```
 
-You should receive a **Daily Summary** message. Trade notifications are sent automatically after paper trades execute during `pnpm start` (or the PM2 `accumula-bot` schedule).
+If no users have completed `/start`, hourly runs still save LLM decisions but log `No active portfolios — execution skipped` and send no Telegram messages.
 
 ## What gets sent
 
-Sent on every completed run (executed, risk-blocked, or hold). Includes:
+### Run report (hourly / `pnpm start`)
+
+Sent to **each active user's chat** on every completed run (executed, risk-blocked, or hold). Includes:
 
 * Derived actions and per-asset outlooks (direction score, confidence, reason)
-* **Social media** — retrieved/relevant counts, themes, top signals, per-asset sentiment (when Stage 1 succeeded); fallback counts when analysis unavailable
+* **Effective min confidence** for that user's risk tolerance
+* **Social media** — retrieved/relevant counts, themes, top signals, per-asset sentiment (when Stage 1 succeeded)
 * Prediction-market directional scores (when enabled)
 * Trades (if any), execution status, portfolio summary in accumulate-asset terms
 
-Legacy note: an older doc version described notifications as trade-only; the run report is always sent when Telegram is configured.
+When `TELEGRAM_CHAT_ID` is set, the same report is mirrored to the admin chat (unless the user *is* that chat).
 
 ### Daily briefing
 
-Sent automatically after `pnpm macro:briefing` (PM2 `accumula-bot-macro-briefing`) when Telegram is configured in `.env.macro`. Also available manually via `pnpm telegram:daily-summary` (uses `.env`; includes the latest saved macro text from the DB when present). Includes:
+Sent to **each active user** after `pnpm macro:briefing` (PM2 `accumula-bot-macro-briefing`) when `TELEGRAM_BOT_TOKEN` is set in `.env.macro`. Also available manually via `pnpm telegram:daily-summary` (uses `.env`; includes the latest saved macro text from the DB when present). Includes:
 
 * **Full macro briefing text** (when generated / stored)
 * **BTC-denominated** returns for 24h, 7d, and all-time (the bot's primary benchmark — not USD PnL)
@@ -931,13 +996,62 @@ Sent automatically after `pnpm macro:briefing` (PM2 `accumula-bot-macro-briefing
 
 **Note:** USD value can rise while BTC return is negative if BTC price moved up but the strategy holds less BTC than the starting baseline. The percentage lines measure performance in **BTC terms**, matching the project's success criteria.
 
-## Scheduling the daily briefing
+## Scheduling notifications
 
 | Method | Command / config |
 |--------|------------------|
-| Automatic | PM2 `accumula-bot-macro-briefing` in `ecosystem.config.cjs` (runs macro job + Telegram daily briefing) |
-| Manual (macro + Telegram) | `pnpm macro:briefing` (requires Telegram in `.env.macro`) |
-| Manual (portfolio only / re-send) | `pnpm telegram:daily-summary` |
+| Hourly run reports | PM2 `accumula-bot` or cron `pnpm start` |
+| Interactive bot | PM2 `accumula-bot-telegram` or `pnpm telegram:bot` |
+| Daily briefing | PM2 `accumula-bot-macro-briefing` or `pnpm macro:briefing` |
+| Manual daily summary | `pnpm telegram:daily-summary` |
+
+## Upgrading from a single-user install
+
+Older versions used a **singleton portfolio** (auto-created on first hourly run) and sent all Telegram messages to one `TELEGRAM_CHAT_ID`.
+
+After upgrading:
+
+1. **Migrate the database:**
+
+   ```bash
+   pnpm db:migrate
+   ```
+
+   This adds `telegram_users` and links portfolios to Telegram users (`0007_dark_nextwave.sql`).
+
+2. **Legacy portfolio rows** (no `telegram_user_id`) remain in the DB for history but are **not executed** on hourly runs. To remove them without touching tweets or macro data:
+
+   ```bash
+   cp data/accumula.db data/accumula.db.bak   # backup first
+   pnpm db:cleanup-legacy                     # dry run — shows counts
+   pnpm db:cleanup-legacy -- --yes            # delete orphan portfolios, trades, positions
+   ```
+
+   To wipe **all** portfolio and Telegram user rows (fresh `/start` for everyone; still keeps `decisions`, `social_media_posts`, `macro_briefings`):
+
+   ```bash
+   pnpm db:cleanup-legacy -- --all --yes
+   ```
+
+3. **Each person who wants a portfolio** must message the bot and complete `/start` (including the operator — set `TELEGRAM_CHAT_ID` only if you want an admin mirror in addition to your own user chat).
+
+4. **Start the Telegram bot process** (`pnpm telegram:bot` or PM2 `accumula-bot-telegram`) — hourly cron alone does not handle `/start`.
+
+5. **`TELEGRAM_CHAT_ID` is now optional.** Keep it if you want operator copies; remove it if you only need per-user delivery via the bot token.
+
+## Verification checklist
+
+Use this after deploy or upgrade:
+
+- [ ] `pnpm db:migrate` applied without errors
+- [ ] `pnpm check` green
+- [ ] `TELEGRAM_BOT_TOKEN` set in `.env`
+- [ ] `pnpm telegram:bot` running (or PM2 `accumula-bot-telegram` online)
+- [ ] `/start` → onboarding → portfolio created; `/status` shows holdings
+- [ ] `pnpm start` with at least one active user → run report received in Telegram
+- [ ] Optional: `TELEGRAM_CHAT_ID` set → admin receives mirrored copy
+- [ ] `pnpm telegram:daily-summary` → each active user receives summary
+- [ ] Zero active users: `pnpm start` completes, logs `No active portfolios — execution skipped`
 
 ---
 

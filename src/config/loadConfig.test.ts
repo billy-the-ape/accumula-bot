@@ -208,13 +208,24 @@ describe("loadConfig", () => {
 		).toThrow(/both be set or both be omitted/i);
 	});
 
-	it("rejects partial Telegram credentials", () => {
+	it("allows Telegram bot token without chat id", () => {
+		const config = loadConfig({
+			...validEnv,
+			TELEGRAM_BOT_TOKEN: "bot-token",
+		});
+
+		expect(config.telegram).toEqual({
+			botToken: "bot-token",
+		});
+	});
+
+	it("rejects Telegram chat id without bot token", () => {
 		expect(() =>
 			loadConfig({
 				...validEnv,
-				TELEGRAM_BOT_TOKEN: "bot-token",
+				TELEGRAM_CHAT_ID: "12345",
 			}),
-		).toThrow(/both be set or both be omitted/i);
+		).toThrow(/TELEGRAM_CHAT_ID requires TELEGRAM_BOT_TOKEN/i);
 	});
 
 	it("rejects invalid LLM base URL", () => {

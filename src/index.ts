@@ -4,37 +4,28 @@ import {
 	getPredictionSignalsFromContext,
 	getSocialMediaSectionFromContext,
 } from "@/analysis/index.js";
+
 import { loadConfig } from "@/config/index.js";
-import {
-	computePortfolioAccumulateValue,
-	computeReturnFraction,
-	getTotalPortfolioQuoteValue,
-} from "@/domain/index.js";
-import {
-	createPaperExecutionConfig,
-	PaperExecution,
-} from "@/execution/index.js";
-import { buildPriceMap } from "@/execution/priceMap.js";
+
+import { executeActivePortfolios } from "@/execution/executeActivePortfolios.js";
 
 import { getAnalyzableAssets, runAnalysis } from "@/llm/index.js";
 
-import {
-	notifyRun,
-	notifyRunFailure,
-	type RunOutcome,
-} from "@/notifications/telegram/index.js";
+import { notifyRun, notifyRunFailure } from "@/notifications/telegram/index.js";
+
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
+
 import { summarizeRecommendation } from "@/schemas/TradeRecommendation.js";
 
 import { createDatabase } from "@/storage/db.js";
 
 import { saveDecision } from "@/storage/repositories/decisionRepository.js";
 
-import { getLatestPortfolio } from "@/storage/repositories/portfolioRepository.js";
 import { formatDuration } from "@/utils";
 
 async function main() {
 	const mainStart = Date.now();
+
 	const config = loadConfig();
 
 	console.info("Accumula Bot starting");
@@ -50,6 +41,7 @@ async function main() {
 	console.info(
 		`LLM: ${config.llm.provider} / ${config.llm.model} @ ${config.llm.baseUrl}`,
 	);
+
 	console.info(
 		`LLM limits: context=${config.llm.contextTokens} tokens, max_output=${config.llm.maxOutputTokens} tokens`,
 	);
@@ -60,19 +52,27 @@ async function main() {
 
 	if (config.telegram) {
 		console.info("Telegram notifications: enabled");
+
+		if (config.telegram.chatId) {
+			console.info("Telegram admin mirror: enabled");
+		}
 	}
 
 	if (config.predictionMarkets.enabled) {
 		console.info("Prediction markets: enabled");
+
 		console.info(
 			`Prediction markets: Kalshi @ ${config.predictionMarkets.kalshiBaseUrl}`,
 		);
+
 		console.info(
 			`Prediction markets: Polymarket Gamma @ ${config.predictionMarkets.polymarketGammaBaseUrl}`,
 		);
+
 		console.info(
 			`Prediction markets: Polymarket CLOB @ ${config.predictionMarkets.polymarketClobBaseUrl}`,
 		);
+
 		console.info(
 			`Prediction markets: Target horizon: ${config.predictionMarkets.targetHorizonHours} hours`,
 		);
@@ -90,20 +90,25 @@ async function main() {
 		const analyzableAssets = getAnalyzableAssets(config);
 
 		const analysisStart = Date.now();
+
 		console.info("Building analysis context...");
 
 		const analysisContext = await buildAnalysisContext(
 			config,
+
 			analyzableAssets,
 		);
 
 		const analysisDuration = Date.now() - analysisStart;
+
 		console.info(
 			`Analysis context built in ${formatDuration(analysisDuration)}`,
 		);
 
 		const marketData = getMarketSnapshotsFromContext(analysisContext);
+
 		const predictionSignals = getPredictionSignalsFromContext(analysisContext);
+
 		const socialMediaSection =
 			getSocialMediaSectionFromContext(analysisContext);
 
@@ -111,9 +116,11 @@ async function main() {
 			if (socialMediaSection?.scoringStats) {
 				const { fetched, newlyScored, skippedAlreadyScored } =
 					socialMediaSection.scoringStats;
+
 				console.info(
 					`Social media: fetched=${fetched} newly_scored=${newlyScored} already_scored=${skippedAlreadyScored}`,
 				);
+
 				console.info(
 					`Social media prompt: ${socialMediaSection.topPostsForPrompt?.length ?? 0} top posts (24h, score>=4)`,
 				);
@@ -131,6 +138,7 @@ async function main() {
 		const recommendationSummary = summarizeRecommendation(recommendation);
 
 		const llmDuration = Date.now() - llmStart;
+
 		console.info(
 			`Trade recommendation LLM analysis completed in ${formatDuration(llmDuration)}`,
 		);
@@ -150,129 +158,144 @@ async function main() {
 		const connection = await createDatabase(config.databasePath);
 
 		try {
-			// We intentionally do NOT persist the full analysis context: it grows
-			// fast as data sources (social media, news) are added. The verbose
-			// per-run Telegram report below is the audit trail instead.
 			const saved = await saveDecision(connection.db, {
 				assetToAccumulate: config.assetToAccumulate.symbol,
+
 				recommendation,
+
 				marketSnapshots: marketData,
+
 				llm: {
 					provider: config.llm.provider,
+
 					model: config.llm.model,
+
 					...(llmAnalysis.thinking ? { thinking: llmAnalysis.thinking } : {}),
 				},
 			});
 
 			console.info(`Decision saved (id=${saved.id})`);
 
-			console.info("Running paper execution...");
+			console.info("Running paper execution for active portfolios...");
 
-			const paperExecution = new PaperExecution(
+			const portfolioRuns = await executeActivePortfolios(
 				connection.db,
-				createPaperExecutionConfig(config),
+
+				config,
+
+				{
+					recommendation,
+
+					marketSnapshots: marketData,
+
+					decisionId: saved.id,
+				},
 			);
 
-			const execution = await paperExecution.executeRecommendation({
-				recommendation,
-				marketSnapshots: marketData,
-				decisionId: saved.id,
-			});
-
-			if (execution.executed) {
-				console.info(`Paper execution: ${execution.reason}`);
-				console.info(`Trades recorded: ${execution.trades.length}`);
-			} else if (execution.riskBlocked) {
-				console.info(`Paper execution blocked by risk: ${execution.reason}`);
-			} else {
-				console.info(`Paper execution skipped: ${execution.reason}`);
+			if (portfolioRuns.length === 0) {
+				console.info("No active portfolios — execution skipped");
 			}
 
-			const outcome: RunOutcome = execution.executed
-				? "executed"
-				: execution.riskBlocked
-					? "risk_blocked"
-					: "hold";
+			for (const run of portfolioRuns) {
+				const { portfolio, execution, outcome, portfolioReport } = run;
 
-			let portfolioReport:
-				| {
-						btcValue: number;
-						usdValue: number;
-						returnPct: number;
-						usdAllTimeReturnPct: number;
-				  }
-				| undefined;
-			const portfolio = await getLatestPortfolio(connection.db);
+				if (execution.executed) {
+					console.info(
+						`Portfolio ${portfolio.id} (chat ${portfolio.telegramChatId}): ${execution.reason}`,
+					);
 
-			if (portfolio) {
-				const accumulateSymbol = portfolio.assetToAccumulate;
-				const prices = buildPriceMap(marketData, config.assetStarting.symbol, {
-					accumulateSymbol,
-				});
-
-				const accumulateValue = computePortfolioAccumulateValue(
-					portfolio.holdings,
-					prices,
-					accumulateSymbol,
-				);
-				const usdValue = getTotalPortfolioQuoteValue(
-					portfolio.holdings,
-					prices,
-				);
-
-				const returnPct =
-					computeReturnFraction(accumulateValue, portfolio.initialBtcBaseline) *
-					100;
-				const usdAllTimeReturnPct =
-					computeReturnFraction(usdValue, portfolio.initialQuoteBaseline) * 100;
+					console.info(`Trades recorded: ${execution.trades.length}`);
+				} else if (execution.riskBlocked) {
+					console.info(
+						`Portfolio ${portfolio.id} blocked by risk: ${execution.reason}`,
+					);
+				} else {
+					console.info(
+						`Portfolio ${portfolio.id} skipped: ${execution.reason}`,
+					);
+				}
 
 				console.info("Portfolio holdings:", portfolio.holdings);
+
 				console.info(
-					`Portfolio ${accumulateSymbol} value: ${accumulateValue.toFixed(8)} ${accumulateSymbol}`,
-				);
-				console.info(`Return vs initial baseline: ${returnPct.toFixed(2)}%`);
-				console.info(
-					`Portfolio USD value: ${usdValue.toFixed(2)} (${usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+					`Portfolio ${portfolio.assetToAccumulate} value: ${portfolioReport.btcValue.toFixed(8)} ${portfolio.assetToAccumulate}`,
 				);
 
-				portfolioReport = {
-					btcValue: accumulateValue,
-					usdValue,
-					returnPct,
-					usdAllTimeReturnPct,
+				console.info(
+					`Return vs initial baseline: ${portfolioReport.returnPct.toFixed(2)}%`,
+				);
+
+				console.info(
+					`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+				);
+
+				if (!config.telegram?.botToken) {
+					continue;
+				}
+
+				const reportInput = {
+					outcome,
+
+					portfolio,
+
+					headline: recommendationSummary.headline,
+
+					averageConfidence: recommendationSummary.averageConfidence,
+
+					outlooks: recommendation.outlooks,
+
+					summary: recommendation.summary,
+
+					trades: execution.trades,
+
+					executionReason: execution.reason,
+
+					predictionSignals,
+
+					...(socialMediaSection?.topPostsForReport
+						? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
+						: {}),
+
+					...(socialMediaSection?.scoringStats
+						? { socialMediaScoringStats: socialMediaSection.scoringStats }
+						: {}),
+
+					accumulateSymbol: portfolio.assetToAccumulate,
+
+					outlookThresholds: run.effectiveOutlookThresholds,
+
+					portfolioReport,
 				};
-			}
 
-			// Always notify on a completed run — executed, blocked, or hold.
-			if (portfolio && config.telegram) {
 				try {
-					await notifyRun(config.telegram, {
-						outcome,
-						portfolio,
-						headline: recommendationSummary.headline,
-						averageConfidence: recommendationSummary.averageConfidence,
-						outlooks: recommendation.outlooks,
-						summary: recommendation.summary,
-						trades: execution.trades,
-						executionReason: execution.reason,
-						predictionSignals,
-						...(socialMediaSection?.topPostsForReport
-							? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
-							: {}),
-						...(socialMediaSection?.scoringStats
-							? { socialMediaScoringStats: socialMediaSection.scoringStats }
-							: {}),
-						accumulateSymbol: portfolio.assetToAccumulate,
-						outlookThresholds: config.outlookThresholds,
-						...(portfolioReport ? { portfolioReport } : {}),
-					});
+					await notifyRun(
+						config.telegram.botToken,
 
-					console.info("Telegram run report sent");
+						portfolio.telegramChatId,
+
+						reportInput,
+					);
+
+					console.info(
+						`Telegram run report sent to chat ${portfolio.telegramChatId}`,
+					);
+
+					const adminChatId = config.telegram.chatId;
+
+					if (adminChatId && adminChatId !== portfolio.telegramChatId) {
+						await notifyRun(config.telegram.botToken, adminChatId, reportInput);
+
+						console.info(
+							`Telegram run report mirrored to admin chat ${adminChatId}`,
+						);
+					}
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : "unknown error";
 
-					console.error(`Failed to send Telegram run report: ${message}`);
+					console.error(
+						`Failed to send Telegram run report to chat ${portfolio.telegramChatId}: ${message}`,
+					);
 				}
 			}
 		} finally {
@@ -281,27 +304,31 @@ async function main() {
 	} catch (error) {
 		const message = error instanceof Error ? error.message : "unknown error";
 
-		// Surface failures to Telegram too, so every run produces a message.
-		if (config.telegram) {
+		if (config.telegram?.botToken && config.telegram.chatId) {
 			try {
 				await notifyRunFailure(config.telegram, message);
 			} catch (notifyError) {
 				const detail =
 					notifyError instanceof Error ? notifyError.message : "unknown error";
+
 				console.error(`Failed to send Telegram failure alert: ${detail}`);
 			}
 		}
 
 		throw error;
 	}
+
 	return Date.now() - mainStart;
 }
 
 main()
+
 	.then((duration) => {
 		console.info(`Accumula Bot run completed in ${formatDuration(duration)}`);
+
 		process.exit(0);
 	})
+
 	.catch((error: unknown) => {
 		console.error("Failed to start:", error);
 

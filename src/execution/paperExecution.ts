@@ -1,7 +1,4 @@
 import type { AppConfig } from "@/config/index.js";
-import { computePortfolioAccumulateValue } from "@/domain/accumulateBenchmark.js";
-import { getTotalPortfolioQuoteValue } from "@/domain/allocation.js";
-import type { PriceMap } from "@/domain/types.js";
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import { planTrades } from "@/execution/planTrades.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
@@ -13,34 +10,25 @@ import type {
 } from "@/execution/types.js";
 import { validatePlannedPaperTrades } from "@/execution/validatePlannedTrades.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
+import { resolveOutlookThresholds } from "@/risk/riskTolerance.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { AppDatabase } from "@/storage/db.js";
-import {
-	getOrCreatePortfolio,
-	type StoredPortfolio,
-} from "@/storage/repositories/portfolioRepository.js";
+import type { StoredPortfolio } from "@/storage/repositories/portfolioRepository.js";
 
 export const DEFAULT_PAPER_STARTING_CASH_USD = 10_000;
 
 export type PaperExecutionConfig = {
-	assetToAccumulate: string;
-	cashSymbol: string;
 	tradeableSymbols: readonly string[];
-	initialCashUsd: number;
+	outlookThresholds: OutlookThresholds;
 	maxPurchaseFraction?: number;
 	maxPositionFraction?: number;
-	outlookThresholds: OutlookThresholds;
 };
 
 export function createPaperExecutionConfig(
 	config: AppConfig,
-	overrides: Partial<Pick<PaperExecutionConfig, "initialCashUsd">> = {},
 ): PaperExecutionConfig {
 	return {
-		assetToAccumulate: config.assetToAccumulate.symbol,
-		cashSymbol: config.assetStarting.symbol,
 		tradeableSymbols: config.assetTradeable.map((asset) => asset.symbol),
-		initialCashUsd: overrides.initialCashUsd ?? DEFAULT_PAPER_STARTING_CASH_USD,
 		outlookThresholds: config.outlookThresholds,
 	};
 }
@@ -54,29 +42,43 @@ export class PaperExecution implements ExecutionEngine {
 	async executeRecommendation(
 		input: ExecuteRecommendationInput,
 	): Promise<ExecutionResult> {
+		if (!input.portfolio) {
+			return {
+				executed: false,
+				reason: "No portfolio provided",
+				trades: [],
+			};
+		}
+
+		return this.executeForPortfolio(input.portfolio, input);
+	}
+
+	async executeForPortfolio(
+		portfolio: StoredPortfolio,
+		input: ExecuteRecommendationInput,
+	): Promise<ExecutionResult> {
 		const maxPurchaseFraction =
 			this.config.maxPurchaseFraction ??
 			DEFAULT_RISK_LIMITS.maxAllocationPerPurchase;
 		const maxPositionFraction =
 			this.config.maxPositionFraction ??
 			DEFAULT_RISK_LIMITS.maxAllocationPerAsset;
-
-		const prices = buildPriceMap(
-			input.marketSnapshots,
-			this.config.cashSymbol,
-			{
-				accumulateSymbol: this.config.assetToAccumulate,
-			},
+		const thresholds = resolveOutlookThresholds(
+			this.config.outlookThresholds,
+			portfolio.riskTolerance,
 		);
-		const portfolio = await this.ensurePortfolio(prices);
+
+		const prices = buildPriceMap(input.marketSnapshots, portfolio.cashSymbol, {
+			accumulateSymbol: portfolio.assetToAccumulate,
+		});
 		const plan = planTrades({
 			holdings: portfolio.holdings,
 			prices,
 			outlooks: input.recommendation.outlooks,
-			cashSymbol: this.config.cashSymbol,
+			cashSymbol: portfolio.cashSymbol,
 			maxPurchaseFraction,
 			maxPositionFraction,
-			thresholds: this.config.outlookThresholds,
+			thresholds,
 			riskLimits: DEFAULT_RISK_LIMITS,
 		});
 
@@ -96,7 +98,7 @@ export class PaperExecution implements ExecutionEngine {
 			accumulateSymbol: portfolio.assetToAccumulate,
 			dailyBaselineBtcValue: portfolio.dailyBaselineBtcValue,
 			weeklyBaselineBtcValue: portfolio.weeklyBaselineBtcValue,
-			cashSymbol: this.config.cashSymbol,
+			cashSymbol: portfolio.cashSymbol,
 			tradeableSymbols: this.config.tradeableSymbols,
 			fills: plan.fills,
 		});
@@ -118,7 +120,7 @@ export class PaperExecution implements ExecutionEngine {
 				this.db,
 				portfolio.id,
 				fill,
-				this.config.cashSymbol,
+				portfolio.cashSymbol,
 				input.decisionId,
 			);
 			trades.push(...settled);
@@ -129,26 +131,5 @@ export class PaperExecution implements ExecutionEngine {
 			reason: `Executed ${plan.fills.length} planned fill(s)`,
 			trades,
 		};
-	}
-
-	private async ensurePortfolio(prices: PriceMap): Promise<StoredPortfolio> {
-		const initialHoldings = {
-			[this.config.cashSymbol]: this.config.initialCashUsd,
-		};
-
-		return getOrCreatePortfolio(this.db, {
-			assetToAccumulate: this.config.assetToAccumulate,
-			cashSymbol: this.config.cashSymbol,
-			initialHoldings,
-			initialBtcBaseline: computePortfolioAccumulateValue(
-				initialHoldings,
-				prices,
-				this.config.assetToAccumulate,
-			),
-			initialQuoteBaseline: getTotalPortfolioQuoteValue(
-				initialHoldings,
-				prices,
-			),
-		});
 	}
 }

@@ -1,11 +1,13 @@
 import type { MarketSnapshot } from "@/schemas/MarketSnapshot.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
 import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
+import type { StoredPortfolio } from "@/storage/repositories/portfolioRepository.js";
 
 export type ExecuteRecommendationInput = {
 	recommendation: TradeRecommendation;
 	marketSnapshots: readonly MarketSnapshot[];
 	decisionId?: number;
+	portfolio?: StoredPortfolio;
 };
 
 export type ExecutionResult = {

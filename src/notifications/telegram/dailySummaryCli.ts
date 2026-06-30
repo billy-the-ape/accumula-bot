@@ -6,10 +6,8 @@ import { getLatestMacroBriefing } from "@/storage/repositories/macroBriefingRepo
 async function main() {
 	const config = loadConfig();
 
-	if (!config.telegram) {
-		console.error(
-			"Telegram is not configured. Set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID in .env",
-		);
+	if (!config.telegram?.botToken) {
+		console.error("Telegram is not configured. Set TELEGRAM_BOT_TOKEN in .env");
 		process.exit(1);
 	}
 
@@ -17,7 +15,7 @@ async function main() {
 
 	try {
 		const latestBriefing = await getLatestMacroBriefing(connection.db);
-		await sendDailySummary(config, connection.db, {
+		const result = await sendDailySummary(config, connection.db, {
 			...(latestBriefing
 				? {
 						macroBriefing: {
@@ -27,10 +25,16 @@ async function main() {
 					}
 				: {}),
 		});
+
+		if (result.sentCount === 0) {
+			console.info("No active portfolios — daily summary skipped");
+			return;
+		}
+
 		console.info(
 			latestBriefing
-				? "Daily briefing sent to Telegram (macro + portfolio summary)"
-				: "Daily summary sent to Telegram",
+				? `Daily briefing sent to ${result.sentCount} user(s): ${result.recipientChatIds.join(", ")}`
+				: `Daily summary sent to ${result.sentCount} user(s): ${result.recipientChatIds.join(", ")}`,
 		);
 	} finally {
 		connection.client.close();

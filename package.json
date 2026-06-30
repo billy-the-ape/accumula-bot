@@ -6,6 +6,7 @@
 	"scripts": {
 		"dev": "tsx --env-file=.env watch src/index.ts",
 		"start": "tsx --env-file=.env src/index.ts",
+		"telegram:bot": "tsx --env-file=.env src/notifications/telegram/botCli.ts",
 		"telegram:daily-summary": "tsx --env-file=.env src/notifications/telegram/dailySummaryCli.ts",
 		"macro:briefing": "tsx --env-file=.env.macro src/macro/macroBriefingCli.ts",
 		"test": "vitest run",
@@ -16,6 +17,7 @@
 		"check": "pnpm run lint && pnpm run type-check && pnpm run test",
 		"db:generate": "drizzle-kit generate",
 		"db:migrate": "drizzle-kit migrate",
+		"db:cleanup-legacy": "tsx --env-file=.env src/storage/cleanupPortfoliosCli.ts",
 		"db:push": "drizzle-kit push",
 		"db:studio": "drizzle-kit studio",
 		"start-pm2": "pm2 start ecosystem.config.cjs"

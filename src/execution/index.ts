@@ -1,4 +1,11 @@
 export {
+	type ActivePortfolioRunResult,
+	buildPortfolioReport,
+	type ExecuteActivePortfoliosInput,
+	executeActivePortfolios,
+	type PortfolioReport,
+} from "@/execution/executeActivePortfolios.js";
+export {
 	createPaperExecutionConfig,
 	DEFAULT_PAPER_STARTING_CASH_USD,
 	PaperExecution,
