@@ -10,7 +10,11 @@ import {
 } from "@/storage/telegramUserSettings.js";
 
 function formatSettingValue(value: boolean): string {
-	return value ? bold("true") : bold("false");
+	return value === true
+		? bold("ON")
+		: value === false
+			? bold("OFF")
+			: bold(String(value));
 }
 
 export function formatSettingsMessage(settings: TelegramUserSettings): string {
