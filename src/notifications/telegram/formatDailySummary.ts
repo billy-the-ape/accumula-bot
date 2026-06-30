@@ -1,4 +1,4 @@
-import { computeReturnFraction } from "@/domain/btcBenchmark.js";
+import { computeReturnFraction } from "@/domain/accumulateBenchmark.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingContent.js";
 import {

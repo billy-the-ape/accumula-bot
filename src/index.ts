@@ -6,7 +6,7 @@ import {
 } from "@/analysis/index.js";
 import { loadConfig } from "@/config/index.js";
 import {
-	computePortfolioBtcValue,
+	computePortfolioAccumulateValue,
 	computeReturnFraction,
 	getTotalPortfolioQuoteValue,
 } from "@/domain/index.js";
@@ -205,12 +205,15 @@ async function main() {
 			const portfolio = await getLatestPortfolio(connection.db);
 
 			if (portfolio) {
-				const prices = buildPriceMap(marketData, config.assetStarting.symbol);
+				const accumulateSymbol = portfolio.assetToAccumulate;
+				const prices = buildPriceMap(marketData, config.assetStarting.symbol, {
+					accumulateSymbol,
+				});
 
-				const btcValue = computePortfolioBtcValue(
+				const accumulateValue = computePortfolioAccumulateValue(
 					portfolio.holdings,
 					prices,
-					config.assetToAccumulate.symbol,
+					accumulateSymbol,
 				);
 				const usdValue = getTotalPortfolioQuoteValue(
 					portfolio.holdings,
@@ -218,13 +221,14 @@ async function main() {
 				);
 
 				const returnPct =
-					computeReturnFraction(btcValue, portfolio.initialBtcBaseline) * 100;
+					computeReturnFraction(accumulateValue, portfolio.initialBtcBaseline) *
+					100;
 				const usdAllTimeReturnPct =
 					computeReturnFraction(usdValue, portfolio.initialQuoteBaseline) * 100;
 
 				console.info("Portfolio holdings:", portfolio.holdings);
 				console.info(
-					`Portfolio ${config.assetToAccumulate.symbol} value: ${btcValue.toFixed(8)} ${config.assetToAccumulate.symbol}`,
+					`Portfolio ${accumulateSymbol} value: ${accumulateValue.toFixed(8)} ${accumulateSymbol}`,
 				);
 				console.info(`Return vs initial baseline: ${returnPct.toFixed(2)}%`);
 				console.info(
@@ -232,7 +236,7 @@ async function main() {
 				);
 
 				portfolioReport = {
-					btcValue,
+					btcValue: accumulateValue,
 					usdValue,
 					returnPct,
 					usdAllTimeReturnPct,
@@ -258,7 +262,7 @@ async function main() {
 						...(socialMediaSection?.scoringStats
 							? { socialMediaScoringStats: socialMediaSection.scoringStats }
 							: {}),
-						accumulateSymbol: config.assetToAccumulate.symbol,
+						accumulateSymbol: portfolio.assetToAccumulate,
 						outlookThresholds: config.outlookThresholds,
 						...(portfolioReport ? { portfolioReport } : {}),
 					});

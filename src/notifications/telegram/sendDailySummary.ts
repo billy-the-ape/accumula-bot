@@ -37,7 +37,7 @@ export async function sendDailySummary(
 		usdValue,
 		startingBtcValue: portfolio.initialBtcBaseline,
 		startingUsdValue: portfolio.initialQuoteBaseline,
-		accumulateSymbol: config.assetToAccumulate.symbol,
+		accumulateSymbol: portfolio.assetToAccumulate,
 		dailyReturnPct,
 		weeklyReturnPct,
 		allTimeReturnPct,

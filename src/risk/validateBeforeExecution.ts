@@ -1,12 +1,12 @@
 import {
+	computePortfolioAccumulateValue,
+	computeReturnFraction,
+} from "@/domain/accumulateBenchmark.js";
+import {
 	countOpenPositions,
 	getTotalPortfolioQuoteValue,
 	wouldExceedMaxAllocation,
 } from "@/domain/allocation.js";
-import {
-	computePortfolioBtcValue,
-	computeReturnFraction,
-} from "@/domain/btcBenchmark.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
 import type {
 	RiskAssessment,
@@ -37,33 +37,38 @@ function assessKillSwitch(tradingEnabled: boolean): RiskViolation[] {
 function assessLossLimits(
 	holdings: ValidateBeforeExecutionInput["holdings"],
 	prices: ValidateBeforeExecutionInput["prices"],
+	accumulateSymbol: string,
 	dailyBaselineBtcValue: number,
 	weeklyBaselineBtcValue: number,
 	limits: ValidateBeforeExecutionInput["limits"],
 ): RiskViolation[] {
 	const resolvedLimits = limits ?? DEFAULT_RISK_LIMITS;
-	const currentBtcValue = computePortfolioBtcValue(holdings, prices);
+	const currentAccumulateValue = computePortfolioAccumulateValue(
+		holdings,
+		prices,
+		accumulateSymbol,
+	);
 	const violations: RiskViolation[] = [];
 
 	const dailyReturn = computeReturnFraction(
-		currentBtcValue,
+		currentAccumulateValue,
 		dailyBaselineBtcValue,
 	);
 	if (dailyReturn <= -resolvedLimits.maxDailyLossFraction) {
 		violations.push({
 			code: "DAILY_LOSS_LIMIT",
-			message: `Daily BTC-denominated loss ${(Math.abs(dailyReturn) * 100).toFixed(2)}% exceeds ${resolvedLimits.maxDailyLossFraction * 100}% limit`,
+			message: `Daily ${accumulateSymbol}-denominated loss ${(Math.abs(dailyReturn) * 100).toFixed(2)}% exceeds ${resolvedLimits.maxDailyLossFraction * 100}% limit`,
 		});
 	}
 
 	const weeklyReturn = computeReturnFraction(
-		currentBtcValue,
+		currentAccumulateValue,
 		weeklyBaselineBtcValue,
 	);
 	if (weeklyReturn <= -resolvedLimits.maxWeeklyLossFraction) {
 		violations.push({
 			code: "WEEKLY_LOSS_LIMIT",
-			message: `Weekly BTC-denominated loss ${(Math.abs(weeklyReturn) * 100).toFixed(2)}% exceeds ${resolvedLimits.maxWeeklyLossFraction * 100}% limit`,
+			message: `Weekly ${accumulateSymbol}-denominated loss ${(Math.abs(weeklyReturn) * 100).toFixed(2)}% exceeds ${resolvedLimits.maxWeeklyLossFraction * 100}% limit`,
 		});
 	}
 
@@ -215,6 +220,7 @@ export function validateBeforeExecution(
 		...assessLossLimits(
 			input.holdings,
 			input.prices,
+			input.accumulateSymbol,
 			input.dailyBaselineBtcValue,
 			input.weeklyBaselineBtcValue,
 			limits,

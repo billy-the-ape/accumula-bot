@@ -73,6 +73,7 @@ export function validatePlannedPaperTrades(input: {
 	holdings: PortfolioHoldings;
 	prices: PriceMap;
 	tradingEnabled: boolean;
+	accumulateSymbol: string;
 	dailyBaselineBtcValue: number;
 	weeklyBaselineBtcValue: number;
 	cashSymbol: string;
@@ -90,6 +91,7 @@ export function validatePlannedPaperTrades(input: {
 		holdings: validationHoldings,
 		prices: input.prices,
 		tradingEnabled: input.tradingEnabled,
+		accumulateSymbol: input.accumulateSymbol,
 		dailyBaselineBtcValue: input.dailyBaselineBtcValue,
 		weeklyBaselineBtcValue: input.weeklyBaselineBtcValue,
 		cashSymbol: input.cashSymbol,

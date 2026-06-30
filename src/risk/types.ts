@@ -30,6 +30,7 @@ export type ValidateBeforeExecutionInput = {
 	holdings: PortfolioHoldings;
 	prices: PriceMap;
 	tradingEnabled: boolean;
+	accumulateSymbol: string;
 	dailyBaselineBtcValue: number;
 	weeklyBaselineBtcValue: number;
 	cashSymbol: string;

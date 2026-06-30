@@ -9,17 +9,18 @@ function requirePrice(prices: PriceMap, symbol: string): number {
 	return price;
 }
 
-export function computePortfolioBtcValue(
+/** Portfolio value expressed in units of the configured accumulation asset. */
+export function computePortfolioAccumulateValue(
 	holdings: PortfolioHoldings,
 	prices: PriceMap,
-	btcSymbol = "BTC",
+	accumulateSymbol: string,
 ): number {
 	const totalQuoteValue = getTotalPortfolioQuoteValue(holdings, prices);
 	if (totalQuoteValue === 0) {
 		return 0;
 	}
-	const btcPrice = requirePrice(prices, btcSymbol);
-	return totalQuoteValue / btcPrice;
+	const accumulatePrice = requirePrice(prices, accumulateSymbol);
+	return totalQuoteValue / accumulatePrice;
 }
 
 export function computeReturnFraction(

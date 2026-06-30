@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config/index.js";
+import { computePortfolioAccumulateValue } from "@/domain/accumulateBenchmark.js";
 import { getTotalPortfolioQuoteValue } from "@/domain/allocation.js";
-import { computePortfolioBtcValue } from "@/domain/btcBenchmark.js";
 import type { PriceMap } from "@/domain/types.js";
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import { planTrades } from "@/execution/planTrades.js";
@@ -61,7 +61,13 @@ export class PaperExecution implements ExecutionEngine {
 			this.config.maxPositionFraction ??
 			DEFAULT_RISK_LIMITS.maxAllocationPerAsset;
 
-		const prices = buildPriceMap(input.marketSnapshots, this.config.cashSymbol);
+		const prices = buildPriceMap(
+			input.marketSnapshots,
+			this.config.cashSymbol,
+			{
+				accumulateSymbol: this.config.assetToAccumulate,
+			},
+		);
 		const portfolio = await this.ensurePortfolio(prices);
 		const plan = planTrades({
 			holdings: portfolio.holdings,
@@ -87,6 +93,7 @@ export class PaperExecution implements ExecutionEngine {
 			holdings: portfolio.holdings,
 			prices,
 			tradingEnabled: portfolio.tradingEnabled,
+			accumulateSymbol: portfolio.assetToAccumulate,
 			dailyBaselineBtcValue: portfolio.dailyBaselineBtcValue,
 			weeklyBaselineBtcValue: portfolio.weeklyBaselineBtcValue,
 			cashSymbol: this.config.cashSymbol,
@@ -133,7 +140,11 @@ export class PaperExecution implements ExecutionEngine {
 			assetToAccumulate: this.config.assetToAccumulate,
 			cashSymbol: this.config.cashSymbol,
 			initialHoldings,
-			initialBtcBaseline: computePortfolioBtcValue(initialHoldings, prices),
+			initialBtcBaseline: computePortfolioAccumulateValue(
+				initialHoldings,
+				prices,
+				this.config.assetToAccumulate,
+			),
 			initialQuoteBaseline: getTotalPortfolioQuoteValue(
 				initialHoldings,
 				prices,

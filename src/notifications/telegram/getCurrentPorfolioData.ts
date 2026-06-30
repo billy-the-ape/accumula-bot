@@ -1,6 +1,6 @@
 import type { AppConfig } from "@/config";
 import {
-	computePortfolioBtcValue,
+	computePortfolioAccumulateValue,
 	computeReturnFraction,
 	getTotalPortfolioQuoteValue,
 } from "@/domain";
@@ -28,11 +28,14 @@ export async function getCurrentPortfolioData(
 		...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 	});
 
-	const prices = buildPriceMap(marketData, config.assetStarting.symbol);
-	const btcValue = computePortfolioBtcValue(
+	const accumulateSymbol = portfolio.assetToAccumulate;
+	const prices = buildPriceMap(marketData, config.assetStarting.symbol, {
+		accumulateSymbol,
+	});
+	const accumulateValue = computePortfolioAccumulateValue(
 		portfolio.holdings,
 		prices,
-		config.assetToAccumulate.symbol,
+		accumulateSymbol,
 	);
 	const usdValue = getTotalPortfolioQuoteValue(portfolio.holdings, prices);
 
@@ -42,16 +45,20 @@ export async function getCurrentPortfolioData(
 	return {
 		portfolio,
 		tradesLast24h,
-		btcValue,
+		btcValue: accumulateValue,
 		usdValue,
 		prices,
 		analyzableAssets,
 		marketData,
+		accumulateSymbol,
 		dailyReturnPct:
-			computeReturnFraction(btcValue, portfolio.dailyBaselineBtcValue) * 100,
+			computeReturnFraction(accumulateValue, portfolio.dailyBaselineBtcValue) *
+			100,
 		weeklyReturnPct:
-			computeReturnFraction(btcValue, portfolio.weeklyBaselineBtcValue) * 100,
+			computeReturnFraction(accumulateValue, portfolio.weeklyBaselineBtcValue) *
+			100,
 		allTimeReturnPct:
-			computeReturnFraction(btcValue, portfolio.initialBtcBaseline) * 100,
+			computeReturnFraction(accumulateValue, portfolio.initialBtcBaseline) *
+			100,
 	};
 }

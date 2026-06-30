@@ -41,6 +41,7 @@ function baseInput(
 		holdings: { USDC: 10_000 },
 		prices,
 		tradingEnabled: true,
+		accumulateSymbol: "BTC",
 		dailyBaselineBtcValue: 0.1,
 		weeklyBaselineBtcValue: 0.1,
 		cashSymbol: "USDC",
@@ -80,6 +81,23 @@ describe("validateBeforeExecution", () => {
 		expect(result.violations.map((violation) => violation.code)).toContain(
 			"DAILY_LOSS_LIMIT",
 		);
+		expect(result.violations[0]?.message).toContain("BTC-denominated");
+	});
+
+	it("blocks when daily USDC-denominated loss exceeds the limit", () => {
+		const result = validateBeforeExecution(
+			baseInput({
+				accumulateSymbol: "USDC",
+				holdings: { USDC: 8_999 },
+				dailyBaselineBtcValue: 10_000,
+			}),
+		);
+
+		expect(result.allowed).toBe(false);
+		expect(result.violations.map((violation) => violation.code)).toContain(
+			"DAILY_LOSS_LIMIT",
+		);
+		expect(result.violations[0]?.message).toContain("USDC-denominated");
 	});
 
 	it("blocks when weekly BTC-denominated loss exceeds the limit", () => {
