@@ -18,7 +18,7 @@ function formatSettingValue(value: boolean): string {
 }
 
 export function formatSettingsMessage(settings: TelegramUserSettings): string {
-	const lines: string[] = [boldUnderline("Settings"), ""];
+	const lines: string[] = [boldUnderline("User Settings"), ""];
 
 	for (const definition of TELEGRAM_USER_SETTING_DEFINITIONS) {
 		const value = settings[definition.key];

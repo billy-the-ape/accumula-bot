@@ -3,6 +3,7 @@ import {
 	bold,
 	boldLink,
 	boldUnderline,
+	code,
 	escapeMarkdownV2,
 	italic,
 	underline,
@@ -219,7 +220,7 @@ export function formatRunReport(input: RunReportInput): string {
 	const lines: string[] = [OUTCOME_HEADERS[input.outcome], ""];
 
 	if (input.decisionId !== undefined) {
-		lines.push(`${bold("Decision:")} #${input.decisionId}`, "");
+		lines.push(`${bold("Decision:")} \\#${code(String(input.decisionId))}`, "");
 	}
 
 	lines.push(
