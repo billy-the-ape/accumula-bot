@@ -271,6 +271,6 @@ describe("handleBotMessage settings", () => {
 		});
 
 		expect(result.effects?.settingsPatch).toEqual({ verbose: true });
-		expect(result.text).toContain("true");
+		expect(result.text).toContain("ON");
 	});
 });

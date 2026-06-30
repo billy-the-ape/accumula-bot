@@ -102,7 +102,7 @@ describe("formatRunReport", () => {
 	it("includes the decision id when provided", () => {
 		const message = formatRunReport(baseInput({ decisionId: 42 }));
 		expect(message).toContain("Decision:");
-		expect(message).toContain("#42");
+		expect(message).toContain("\\#`42`");
 	});
 
 	it("renders an executed run with trades, outlooks, and portfolio", () => {
