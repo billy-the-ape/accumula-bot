@@ -189,3 +189,22 @@ export async function listTradesSince(
 
 	return rows.map(mapTradeRow);
 }
+
+export async function listTradesForDecisionAndPortfolio(
+	db: AppDatabase,
+	portfolioId: number,
+	decisionId: number,
+): Promise<StoredTrade[]> {
+	const rows = await db
+		.select()
+		.from(trades)
+		.where(
+			and(
+				eq(trades.portfolioId, portfolioId),
+				eq(trades.decisionId, decisionId),
+			),
+		)
+		.orderBy(desc(trades.createdAt), desc(trades.id));
+
+	return rows.map(mapTradeRow);
+}

@@ -22,6 +22,7 @@ export {
 	type RunReportInput,
 } from "@/notifications/telegram/formatRunReport.js";
 export {
+	notifyCompactTrades,
 	notifyRun,
 	notifyRunFailure,
 } from "@/notifications/telegram/notifyRun.js";

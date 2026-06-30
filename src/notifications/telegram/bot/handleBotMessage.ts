@@ -16,11 +16,20 @@ import {
 	formatUnknownRiskSelectionMessage,
 	NO_ACTIVE_PORTFOLIO_MESSAGE,
 } from "@/notifications/telegram/bot/onboardingMessages.js";
+import { parseSettingsCommandArgs } from "@/notifications/telegram/bot/parseSettingsCommand.js";
 import { parseStartingValueInput } from "@/notifications/telegram/bot/parseStartingValue.js";
 import {
 	buildRiskToleranceKeyboard,
 	parseRiskToleranceCallback,
 } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
+import {
+	buildSettingsKeyboard,
+	parseSettingCallback,
+} from "@/notifications/telegram/bot/settingsKeyboard.js";
+import {
+	formatSettingsMessage,
+	formatSettingsUpdatedMessage,
+} from "@/notifications/telegram/bot/settingsMessages.js";
 import {
 	buildStartingValueKeyboard,
 	parseStartingValueCallback,
@@ -159,13 +168,78 @@ function handleAwaitingRiskTolerance(
 	return completeOnboarding(startingValueUsd, riskTolerance);
 }
 
+function handleSettingsCommand(
+	settings: BotHandlerContext["settings"],
+	args: string | undefined,
+): BotHandlerOutput {
+	const parsed = parseSettingsCommandArgs(args);
+	if (parsed.kind === "error") {
+		return { text: parsed.message };
+	}
+
+	if (parsed.kind === "set") {
+		const nextSettings = { ...settings, ...parsed.patch };
+		const updatedKey = Object.keys(
+			parsed.patch,
+		)[0] as keyof typeof parsed.patch;
+		const updatedValue = parsed.patch[updatedKey];
+		if (updatedKey === undefined || updatedValue === undefined) {
+			return {
+				text: formatSettingsMessage(nextSettings),
+				replyMarkup: buildSettingsKeyboard(nextSettings),
+			};
+		}
+
+		return {
+			text: formatSettingsUpdatedMessage(updatedKey, updatedValue),
+			replyMarkup: buildSettingsKeyboard(nextSettings),
+			effects: { settingsPatch: parsed.patch },
+		};
+	}
+
+	return {
+		text: formatSettingsMessage(settings),
+		replyMarkup: buildSettingsKeyboard(settings),
+	};
+}
+
+function handleSettingCallback(
+	settings: BotHandlerContext["settings"],
+	data: string,
+): BotHandlerOutput {
+	const parsed = parseSettingCallback(data);
+	if (!parsed) {
+		return {
+			text: formatSettingsMessage(settings),
+			replyMarkup: buildSettingsKeyboard(settings),
+		};
+	}
+
+	const nextSettings = { ...settings, [parsed.key]: parsed.value };
+	return {
+		text: formatSettingsUpdatedMessage(parsed.key, parsed.value),
+		replyMarkup: buildSettingsKeyboard(nextSettings),
+		effects: { settingsPatch: { [parsed.key]: parsed.value } },
+	};
+}
+
 export function handleBotMessage(
 	context: BotHandlerContext,
 	message: BotIncomingMessage,
 	summary?: PortfolioSummaryInput,
 ): BotHandlerOutput {
+	if (message.kind === "callback") {
+		const settingCallback = parseSettingCallback(message.data);
+		if (settingCallback) {
+			return handleSettingCallback(context.settings, message.data);
+		}
+	}
+
 	if (message.kind === "command") {
 		switch (message.command) {
+			case "settings":
+				return handleSettingsCommand(context.settings, message.args);
+
 			case "reset":
 				return beginOnboarding();
 

@@ -48,6 +48,7 @@ export type StoredPortfolio = {
 
 export type ActivePortfolio = StoredPortfolio & {
 	telegramChatId: string;
+	verbose: boolean;
 };
 
 export type PortfolioBaselines = {
@@ -230,6 +231,7 @@ export async function listActivePortfolios(
 		.select({
 			portfolio: portfolios,
 			telegramChatId: telegramUsers.telegramChatId,
+			verbose: telegramUsers.verbose,
 		})
 		.from(portfolios)
 		.innerJoin(telegramUsers, eq(portfolios.telegramUserId, telegramUsers.id))
@@ -239,11 +241,12 @@ export async function listActivePortfolios(
 		.orderBy(desc(portfolios.createdAt), desc(portfolios.id));
 
 	const results: ActivePortfolio[] = [];
-	for (const { portfolio: row, telegramChatId } of rows) {
+	for (const { portfolio: row, telegramChatId, verbose } of rows) {
 		const portfolio = await loadPortfolio(db, row);
 		results.push({
 			...portfolio,
 			telegramChatId,
+			verbose,
 		});
 	}
 

@@ -125,6 +125,7 @@ export async function executeActivePortfolios(
 			portfolio: {
 				...portfolio,
 				telegramChatId: activePortfolio.telegramChatId,
+				verbose: activePortfolio.verbose,
 			},
 			execution,
 			outcome: toRunOutcome(execution),

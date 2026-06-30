@@ -1,7 +1,14 @@
 import type { RiskTolerance } from "@/risk/riskTolerance.js";
 import type { OnboardingState } from "@/storage/repositories/telegramUserRepository.js";
+import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
 
-export type BotCommand = "start" | "status" | "summary" | "reset";
+export type BotCommand =
+	| "start"
+	| "status"
+	| "summary"
+	| "reset"
+	| "settings"
+	| "decision";
 
 export type TelegramInlineKeyboard = {
 	inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
@@ -18,6 +25,7 @@ export type BotUserPatch = {
 
 export type BotEffects = {
 	userPatch?: BotUserPatch;
+	settingsPatch?: Partial<TelegramUserSettings>;
 	deactivatePortfolios?: boolean;
 	createPortfolio?: {
 		startingValueUsd: number;
@@ -32,7 +40,7 @@ export type BotHandlerOutput = {
 };
 
 export type BotIncomingMessage =
-	| { kind: "command"; command: BotCommand }
+	| { kind: "command"; command: BotCommand; args?: string }
 	| { kind: "text"; text: string }
 	| { kind: "callback"; data: string };
 
@@ -40,4 +48,5 @@ export type BotHandlerContext = {
 	onboardingState: OnboardingState | null;
 	onboardingDraftJson: string | null;
 	hasActivePortfolio: boolean;
+	settings: TelegramUserSettings;
 };

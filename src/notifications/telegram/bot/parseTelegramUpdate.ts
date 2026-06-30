@@ -1,4 +1,7 @@
-import { parseBotCommand } from "@/notifications/telegram/bot/parseBotCommand.js";
+import {
+	parseBotCommand,
+	parseBotCommandArgs,
+} from "@/notifications/telegram/bot/parseBotCommand.js";
 import type { BotIncomingMessage } from "@/notifications/telegram/bot/types.js";
 import type { TelegramUpdate } from "@/notifications/telegram/telegramClient.js";
 
@@ -48,10 +51,15 @@ export function parseTelegramUpdate(
 
 	const command = parseBotCommand(text);
 	if (command) {
+		const args = parseBotCommandArgs(text);
 		return {
 			updateId: update.update_id,
 			chatId,
-			incoming: { kind: "command", command },
+			incoming: {
+				kind: "command",
+				command,
+				...(args ? { args } : {}),
+			},
 		};
 	}
 

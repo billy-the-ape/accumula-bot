@@ -1,6 +1,10 @@
 import { eq } from "drizzle-orm";
 import type { AppDatabase } from "@/storage/db.js";
 import { type TelegramUserRow, telegramUsers } from "@/storage/schema.js";
+import {
+	resolveTelegramUserSettings,
+	type TelegramUserSettings,
+} from "@/storage/telegramUserSettings.js";
 
 export type OnboardingState =
 	| "awaiting_starting_value"
@@ -11,6 +15,7 @@ export type StoredTelegramUser = {
 	telegramChatId: string;
 	onboardingState: OnboardingState | null;
 	onboardingDraftJson: string | null;
+	settings: TelegramUserSettings;
 	createdAt: Date;
 	updatedAt: Date;
 };
@@ -21,6 +26,7 @@ function mapTelegramUserRow(row: TelegramUserRow): StoredTelegramUser {
 		telegramChatId: row.telegramChatId,
 		onboardingState: row.onboardingState as OnboardingState | null,
 		onboardingDraftJson: row.onboardingDraftJson,
+		settings: resolveTelegramUserSettings(row.verbose),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
@@ -83,6 +89,42 @@ export async function updateTelegramUserOnboarding(
 			...(patch.onboardingDraftJson !== undefined
 				? { onboardingDraftJson: patch.onboardingDraftJson }
 				: {}),
+			updatedAt: new Date(),
+		})
+		.where(eq(telegramUsers.id, userId))
+		.returning();
+
+	if (!row) {
+		throw new Error(`Telegram user ${userId} not found`);
+	}
+
+	return mapTelegramUserRow(row);
+}
+
+export async function updateTelegramUserSettings(
+	db: AppDatabase,
+	userId: number,
+	settings: Partial<TelegramUserSettings>,
+): Promise<StoredTelegramUser> {
+	const existing = await db
+		.select()
+		.from(telegramUsers)
+		.where(eq(telegramUsers.id, userId))
+		.get();
+
+	if (!existing) {
+		throw new Error(`Telegram user ${userId} not found`);
+	}
+
+	const nextSettings = resolveTelegramUserSettings(existing.verbose);
+	if (settings.verbose !== undefined) {
+		nextSettings.verbose = settings.verbose;
+	}
+
+	const [row] = await db
+		.update(telegramUsers)
+		.set({
+			verbose: nextSettings.verbose,
 			updatedAt: new Date(),
 		})
 		.where(eq(telegramUsers.id, userId))

@@ -17,6 +17,7 @@ import {
 } from "@/notifications/telegram/bot/startingValueKeyboard.js";
 import type { BotHandlerContext } from "@/notifications/telegram/bot/types.js";
 import { MIN_CONFIDENCE_BY_RISK_TOLERANCE } from "@/risk/riskTolerance.js";
+import { DEFAULT_TELEGRAM_USER_SETTINGS } from "@/storage/telegramUserSettings.js";
 
 const sampleSummary = {
 	accumulateSymbol: "BTC",
@@ -34,6 +35,7 @@ const onboardedContext: BotHandlerContext = {
 	onboardingState: null,
 	onboardingDraftJson: null,
 	hasActivePortfolio: true,
+	settings: DEFAULT_TELEGRAM_USER_SETTINGS,
 };
 
 describe("parseStartingValueInput", () => {
@@ -57,6 +59,8 @@ describe("parseBotCommand", () => {
 		expect(parseBotCommand("/summary")).toBe("summary");
 		expect(parseBotCommand("/status")).toBe("status");
 		expect(parseBotCommand("/reset")).toBe("reset");
+		expect(parseBotCommand("/settings")).toBe("settings");
+		expect(parseBotCommand("/decision")).toBe("decision");
 	});
 
 	it("returns undefined for unknown commands", () => {
@@ -116,6 +120,7 @@ describe("handleBotMessage onboarding", () => {
 		onboardingState: "awaiting_starting_value",
 		onboardingDraftJson: null,
 		hasActivePortfolio: false,
+		settings: DEFAULT_TELEGRAM_USER_SETTINGS,
 	};
 
 	it("prompts for starting value on /start for new user", () => {
@@ -174,6 +179,7 @@ describe("handleBotMessage onboarding", () => {
 				startingValueUsd: 10_000,
 			}),
 			hasActivePortfolio: false,
+			settings: DEFAULT_TELEGRAM_USER_SETTINGS,
 		};
 
 		const result = handleBotMessage(riskContext, {
@@ -234,10 +240,37 @@ describe("handleBotMessage summary commands", () => {
 				onboardingState: null,
 				onboardingDraftJson: null,
 				hasActivePortfolio: false,
+				settings: DEFAULT_TELEGRAM_USER_SETTINGS,
 			},
 			{ kind: "command", command: "status" },
 		);
 
 		expect(result.text).toContain("/start");
+	});
+});
+
+describe("handleBotMessage settings", () => {
+	it("shows settings with toggle keyboard on /settings", () => {
+		const result = handleBotMessage(onboardedContext, {
+			kind: "command",
+			command: "settings",
+		});
+
+		expect(result.text).toContain("Settings");
+		expect(result.text).toContain("Verbose hourly reports");
+		expect(result.replyMarkup?.inline_keyboard[0]?.[0]?.text).toContain(
+			"Verbose: OFF",
+		);
+	});
+
+	it("updates verbose via /settings verbose=true", () => {
+		const result = handleBotMessage(onboardedContext, {
+			kind: "command",
+			command: "settings",
+			args: "verbose=true",
+		});
+
+		expect(result.effects?.settingsPatch).toEqual({ verbose: true });
+		expect(result.text).toContain("true");
 	});
 });

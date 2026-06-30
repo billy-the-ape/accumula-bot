@@ -11,7 +11,11 @@ import { executeActivePortfolios } from "@/execution/executeActivePortfolios.js"
 
 import { getAnalyzableAssets, runAnalysis } from "@/llm/index.js";
 
-import { notifyRun, notifyRunFailure } from "@/notifications/telegram/index.js";
+import {
+	notifyCompactTrades,
+	notifyRun,
+	notifyRunFailure,
+} from "@/notifications/telegram/index.js";
 
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
@@ -165,6 +169,8 @@ async function main() {
 
 				marketSnapshots: marketData,
 
+				analysisContext,
+
 				llm: {
 					provider: config.llm.provider,
 
@@ -234,6 +240,8 @@ async function main() {
 				}
 
 				const reportInput = {
+					decisionId: saved.id,
+
 					outcome,
 
 					portfolio,
@@ -268,6 +276,46 @@ async function main() {
 				};
 
 				try {
+					const adminChatId = config.telegram.chatId;
+					const userVerbose = portfolio.verbose;
+
+					if (!userVerbose) {
+						if (execution.trades.length === 0) {
+							if (adminChatId && adminChatId !== portfolio.telegramChatId) {
+								await notifyRun(
+									config.telegram.botToken,
+									adminChatId,
+									reportInput,
+								);
+								console.info(
+									`Telegram run report mirrored to admin chat ${adminChatId}`,
+								);
+							}
+							continue;
+						}
+
+						await notifyCompactTrades(
+							config.telegram.botToken,
+							portfolio.telegramChatId,
+							execution.trades,
+						);
+						console.info(
+							`Telegram compact trade report sent to chat ${portfolio.telegramChatId}`,
+						);
+
+						if (adminChatId && adminChatId !== portfolio.telegramChatId) {
+							await notifyRun(
+								config.telegram.botToken,
+								adminChatId,
+								reportInput,
+							);
+							console.info(
+								`Telegram run report mirrored to admin chat ${adminChatId}`,
+							);
+						}
+						continue;
+					}
+
 					await notifyRun(
 						config.telegram.botToken,
 
@@ -279,8 +327,6 @@ async function main() {
 					console.info(
 						`Telegram run report sent to chat ${portfolio.telegramChatId}`,
 					);
-
-					const adminChatId = config.telegram.chatId;
 
 					if (adminChatId && adminChatId !== portfolio.telegramChatId) {
 						await notifyRun(config.telegram.botToken, adminChatId, reportInput);

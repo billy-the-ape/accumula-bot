@@ -14,6 +14,7 @@ export const telegramUsers = sqliteTable(
 		telegramChatId: text("telegram_chat_id").notNull(),
 		onboardingState: text("onboarding_state"),
 		onboardingDraftJson: text("onboarding_draft_json"),
+		verbose: integer("verbose", { mode: "boolean" }).notNull().default(false),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 	},

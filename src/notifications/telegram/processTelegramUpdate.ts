@@ -6,8 +6,11 @@ import {
 import { buildPriceMap } from "@/execution/priceMap.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { handleBotMessage } from "@/notifications/telegram/bot/handleBotMessage.js";
+import { parseDecisionCommandArgs } from "@/notifications/telegram/bot/parseDecisionCommand.js";
 import type { ParsedTelegramEvent } from "@/notifications/telegram/bot/parseTelegramUpdate.js";
+import { DECISION_NOT_FOUND_MESSAGE } from "@/notifications/telegram/bot/settingsMessages.js";
 import type { BotHandlerOutput } from "@/notifications/telegram/bot/types.js";
+import { buildDecisionReportForUser } from "@/notifications/telegram/buildDecisionReport.js";
 import {
 	type BuildPortfolioSummaryInputOptions,
 	buildPortfolioSummaryInput,
@@ -26,6 +29,7 @@ import {
 import {
 	getOrCreateTelegramUser,
 	updateTelegramUserOnboarding,
+	updateTelegramUserSettings,
 } from "@/storage/repositories/telegramUserRepository.js";
 
 export type ProcessTelegramUpdateDeps = BuildPortfolioSummaryInputOptions & {
@@ -102,6 +106,33 @@ async function applyBotEffects(
 	if (effects.userPatch) {
 		await updateTelegramUserOnboarding(db, userId, effects.userPatch);
 	}
+
+	if (effects.settingsPatch) {
+		await updateTelegramUserSettings(db, userId, effects.settingsPatch);
+	}
+}
+
+async function resolveDecisionCommandOutput(
+	db: AppDatabase,
+	config: AppConfig,
+	userId: number,
+	args: string | undefined,
+): Promise<BotHandlerOutput> {
+	const parsed = parseDecisionCommandArgs(args);
+	if (parsed.kind === "error") {
+		return { text: parsed.message };
+	}
+
+	const target =
+		parsed.kind === "last"
+			? { kind: "last" as const }
+			: { kind: "id" as const, id: parsed.id };
+	const report = await buildDecisionReportForUser(db, config, userId, target);
+	if (!report) {
+		return { text: DECISION_NOT_FOUND_MESSAGE };
+	}
+
+	return { text: report };
 }
 
 export async function processTelegramUpdate(
@@ -118,20 +149,34 @@ export async function processTelegramUpdate(
 	const user = await getOrCreateTelegramUser(db, event.chatId);
 	const activePortfolio = await getActivePortfolioForUser(db, user.id);
 
-	let summary: PortfolioSummaryInput | undefined;
-	if (activePortfolio && needsPortfolioSummary(event.incoming)) {
-		summary = await buildPortfolioSummaryInput(config, activePortfolio, deps);
-	}
+	let output: BotHandlerOutput;
+	if (
+		event.incoming.kind === "command" &&
+		event.incoming.command === "decision"
+	) {
+		output = await resolveDecisionCommandOutput(
+			db,
+			config,
+			user.id,
+			event.incoming.args,
+		);
+	} else {
+		let summary: PortfolioSummaryInput | undefined;
+		if (activePortfolio && needsPortfolioSummary(event.incoming)) {
+			summary = await buildPortfolioSummaryInput(config, activePortfolio, deps);
+		}
 
-	const output = handleBotMessage(
-		{
-			onboardingState: user.onboardingState,
-			onboardingDraftJson: user.onboardingDraftJson,
-			hasActivePortfolio: activePortfolio !== undefined,
-		},
-		event.incoming,
-		summary,
-	);
+		output = handleBotMessage(
+			{
+				onboardingState: user.onboardingState,
+				onboardingDraftJson: user.onboardingDraftJson,
+				hasActivePortfolio: activePortfolio !== undefined,
+				settings: user.settings,
+			},
+			event.incoming,
+			summary,
+		);
+	}
 
 	await applyBotEffects(db, config, user.id, output, deps);
 

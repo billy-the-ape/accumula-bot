@@ -1,0 +1,1 @@
+ALTER TABLE `telegram_users` ADD `verbose` integer DEFAULT false NOT NULL;

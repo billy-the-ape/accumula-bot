@@ -5,6 +5,8 @@ const BOT_COMMANDS = new Set<BotCommand>([
 	"status",
 	"summary",
 	"reset",
+	"settings",
+	"decision",
 ]);
 
 export function parseBotCommand(text: string): BotCommand | undefined {
@@ -22,4 +24,18 @@ export function parseBotCommand(text: string): BotCommand | undefined {
 	return BOT_COMMANDS.has(command as BotCommand)
 		? (command as BotCommand)
 		: undefined;
+}
+
+export function parseBotCommandArgs(text: string): string | undefined {
+	const trimmed = text.trim();
+	if (!trimmed.startsWith("/")) {
+		return undefined;
+	}
+
+	const parts = trimmed.slice(1).split(/\s+/);
+	if (parts.length <= 1) {
+		return undefined;
+	}
+
+	return parts.slice(1).join(" ").trim() || undefined;
 }

@@ -1,10 +1,12 @@
 import type { TelegramConfig } from "@/config/appConfigSchema.js";
+import { formatCompactTradeReport } from "@/notifications/telegram/formatCompactTradeReport.js";
 import {
 	formatRunFailure,
 	formatRunReport,
 	type RunReportInput,
 } from "@/notifications/telegram/formatRunReport.js";
 import { sendTelegramMessage } from "@/notifications/telegram/telegramClient.js";
+import type { StoredTrade } from "@/schemas/Trade.js";
 
 type NotifyOptions = { fetchImpl?: typeof fetch };
 
@@ -33,6 +35,36 @@ export async function notifyRun(
 		console.error("=========== BEGIN FULL REPORT TEXT ============");
 		console.error(fullReportText);
 		console.error("=========== END FULL REPORT TEXT ============");
+	}
+}
+
+/** Send a compact trade-only report when verbose mode is off. */
+export async function notifyCompactTrades(
+	botToken: string,
+	chatId: string,
+	trades: readonly StoredTrade[],
+	options: NotifyOptions = {},
+): Promise<void> {
+	const text = formatCompactTradeReport(trades);
+	if (!text) {
+		return;
+	}
+
+	try {
+		await sendTelegramMessage(
+			{
+				botToken,
+				chatId,
+				...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
+			},
+			text,
+		);
+	} catch (error) {
+		const message = error instanceof Error ? error.message : "unknown error";
+		console.error(`Failed to notify compact trades in Telegram: ${message}`);
+		console.error("=========== BEGIN COMPACT TRADE TEXT ============");
+		console.error(text);
+		console.error("=========== END COMPACT TRADE TEXT ============");
 	}
 }
 

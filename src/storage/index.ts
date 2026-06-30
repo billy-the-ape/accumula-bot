@@ -39,9 +39,11 @@ export {
 	type OnboardingState,
 	type StoredTelegramUser,
 	updateTelegramUserOnboarding,
+	updateTelegramUserSettings,
 } from "@/storage/repositories/telegramUserRepository.js";
 export {
 	findTradeById,
+	listTradesForDecisionAndPortfolio,
 	listTradesForPortfolio,
 	type RecordTradeInput,
 	recordTrade,

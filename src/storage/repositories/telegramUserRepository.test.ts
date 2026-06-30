@@ -11,6 +11,7 @@ import {
 	findTelegramUserByChatId,
 	getOrCreateTelegramUser,
 	updateTelegramUserOnboarding,
+	updateTelegramUserSettings,
 } from "@/storage/repositories/telegramUserRepository.js";
 
 describe("telegramUserRepository", () => {
@@ -34,6 +35,7 @@ describe("telegramUserRepository", () => {
 		expect(user.telegramChatId).toBe("12345");
 		expect(user.onboardingState).toBe("awaiting_starting_value");
 		expect(user.onboardingDraftJson).toBeNull();
+		expect(user.settings.verbose).toBe(false);
 	});
 
 	it("returns the same user on subsequent getOrCreate", async () => {
@@ -63,6 +65,19 @@ describe("telegramUserRepository", () => {
 		expect(updated.onboardingDraftJson).toBe(
 			JSON.stringify({ startingValueUsd: 10_000 }),
 		);
+	});
+
+	it("updates user settings", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const user = await getOrCreateTelegramUser(db, "777");
+		const updated = await updateTelegramUserSettings(db, user.id, {
+			verbose: true,
+		});
+
+		expect(updated.settings.verbose).toBe(true);
 	});
 });
 

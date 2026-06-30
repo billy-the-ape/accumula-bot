@@ -19,6 +19,7 @@ import type { StoredPortfolio } from "@/storage";
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
 
 export type RunReportInput = {
+	decisionId?: number;
 	outcome: RunOutcome;
 	/** Derived actions headline, e.g. "BTC:BUY,ETH:SELL" or "HOLD". */
 	headline: string;
@@ -215,9 +216,13 @@ export function formatRunReport(input: RunReportInput): string {
 					.join("\n")
 			: italic("None");
 
-	const lines: string[] = [
-		OUTCOME_HEADERS[input.outcome],
-		"",
+	const lines: string[] = [OUTCOME_HEADERS[input.outcome], ""];
+
+	if (input.decisionId !== undefined) {
+		lines.push(`${bold("Decision:")} #${input.decisionId}`, "");
+	}
+
+	lines.push(
 		boldUnderline("Actions:"),
 		...input.outlooks.flatMap(
 			(outlook) =>
@@ -233,7 +238,7 @@ export function formatRunReport(input: RunReportInput): string {
 		...input.outlooks.flatMap((outlook) =>
 			formatOutlookBlock(outlook, input.outlookThresholds),
 		),
-	];
+	);
 
 	if (input.trades.length > 0) {
 		lines.push(
