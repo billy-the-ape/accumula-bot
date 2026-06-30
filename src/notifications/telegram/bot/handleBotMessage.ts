@@ -53,7 +53,7 @@ function promptForStartingValue(): BotHandlerOutput {
 
 function promptForRiskTolerance(startingValueUsd: number): BotHandlerOutput {
 	return {
-		text: formatRiskTolerancePrompt(),
+		text: formatRiskTolerancePrompt(startingValueUsd),
 		replyMarkup: buildRiskToleranceKeyboard(),
 		effects: {
 			userPatch: {
@@ -162,7 +162,7 @@ export function handleBotMessage(
 				}
 				return formatSummaryReply(summary, false);
 
-			case "start":
+			case "start": {
 				if (
 					context.onboardingState === null &&
 					context.hasActivePortfolio &&
@@ -173,16 +173,22 @@ export function handleBotMessage(
 				if (context.onboardingState === null && !context.hasActivePortfolio) {
 					return beginOnboarding();
 				}
-				if (context.onboardingState === "awaiting_starting_value") {
+				const draft = parseOnboardingDraft(context.onboardingDraftJson);
+				const startingValueUsd = draft?.startingValueUsd;
+				if (
+					context.onboardingState === "awaiting_starting_value" ||
+					!startingValueUsd
+				) {
 					return promptForStartingValue();
 				}
 				if (context.onboardingState === "awaiting_risk_tolerance") {
 					return {
-						text: formatRiskTolerancePrompt(),
+						text: formatRiskTolerancePrompt(startingValueUsd ?? 0),
 						replyMarkup: buildRiskToleranceKeyboard(),
 					};
 				}
 				return beginOnboarding();
+			}
 
 			case "default":
 				if (context.onboardingState === "awaiting_starting_value") {

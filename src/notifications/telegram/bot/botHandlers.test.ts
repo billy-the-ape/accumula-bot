@@ -193,7 +193,7 @@ describe("handleBotMessage onboarding", () => {
 		expect(result.effects?.userPatch?.onboardingState).toBe(
 			"awaiting_starting_value",
 		);
-		expect(result.text).toContain("starting portfolio value");
+		expect(result.text).toContain("initial starting value");
 	});
 });
 
