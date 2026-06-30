@@ -40,6 +40,7 @@ const CRYPTO_ACCOUNTS = [
 	"CoinDesk",
 	"TheBlockCo",
 	"glassnode",
+	"Kalshi_Crypto",
 ];
 
 const MACRO_ACCOUNTS = ["KobeissiLetter"];
@@ -124,6 +125,8 @@ export const getTwitterSearchMultipleResults = async ({
 	return flattenedResults;
 };
 
+const REMOVE_TEXT_FROM_TWEETS = /^(just in|breaking):?\s/i;
+
 export const getTwitterSearchResult = async ({
 	earliestDate,
 	pagesToScrape: pagesToScrapeFromProps,
@@ -186,7 +189,7 @@ export const getTwitterSearchResult = async ({
 		id: tweet.id,
 		username: tweet.user,
 		tweetedDate: tweet.tweetedDate,
-		fullText: tweet.fullText,
+		fullText: tweet.fullText.replace(REMOVE_TEXT_FROM_TWEETS, "").trim(),
 		views: tweet.views ?? { count: "0", state: "Disabled" },
 	}));
 
