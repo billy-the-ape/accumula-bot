@@ -38,6 +38,7 @@ export type LiveExecutionConfig = {
 	gasBootstrapUsd: number;
 	assets: AppConfig["assetTradeable"];
 	cdpPaymasterRpcUrl?: string;
+	cdpGasPolicyId?: string;
 	cdpGasPaymentMode: CdpGasPaymentMode;
 	maxRiskOnFraction: number;
 };
@@ -63,6 +64,9 @@ export function createLiveExecutionConfig(
 		cdpGasPaymentMode: config.live.cdpGasPaymentMode,
 		...(config.live.cdpPaymasterRpcUrl
 			? { cdpPaymasterRpcUrl: config.live.cdpPaymasterRpcUrl }
+			: {}),
+		...(config.live.cdpGasPolicyId
+			? { cdpGasPolicyId: config.live.cdpGasPolicyId }
 			: {}),
 	};
 }
@@ -196,6 +200,9 @@ export class LiveExecution implements ExecutionEngine {
 					cdpGasPaymentMode: this.config.cdpGasPaymentMode,
 					...(this.config.cdpPaymasterRpcUrl
 						? { cdpPaymasterRpcUrl: this.config.cdpPaymasterRpcUrl }
+						: {}),
+					...(this.config.cdpGasPolicyId
+						? { cdpGasPolicyId: this.config.cdpGasPolicyId }
 						: {}),
 				},
 				this.fetchImpl,

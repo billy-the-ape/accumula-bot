@@ -208,6 +208,11 @@ export const RawEnvSchema = z
 			.regex(/^0x[a-fA-F0-9]{40}$/, "Invalid treasury address")
 			.optional(),
 		CDP_PAYMASTER_RPC_URL: z.url().optional(),
+		CDP_GAS_POLICY_ID: z
+			.string()
+			.trim()
+			.uuid("CDP_GAS_POLICY_ID must be a UUID from Paymaster → Configuration")
+			.optional(),
 		CDP_GAS_PAYMENT_MODE: z
 			.preprocess(
 				(value) => (typeof value === "string" ? value.trim() : value),
@@ -286,6 +291,7 @@ export const RawEnvSchema = z
 		withdrawalProfitFeeBps: env.WITHDRAWAL_PROFIT_FEE_BPS,
 		withdrawalTreasuryAddress: env.WITHDRAWAL_TREASURY_ADDRESS,
 		cdpPaymasterRpcUrl: env.CDP_PAYMASTER_RPC_URL,
+		cdpGasPolicyId: env.CDP_GAS_POLICY_ID,
 		cdpGasPaymentMode: env.CDP_GAS_PAYMENT_MODE,
 		categoryMaxRiskOnFraction: env.CATEGORY_MAX_RISK_ON_FRACTION,
 	}));

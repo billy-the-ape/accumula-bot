@@ -12,6 +12,7 @@ import {
 	prependPaymasterApprovalIfNeeded,
 	readErc20Allowance,
 	resolveGasPaymentUsdcToken,
+	resolvePaymasterContext,
 } from "@/live/cdpPaymaster.js";
 import {
 	createPortfolioWalletClients,
@@ -46,6 +47,7 @@ export type PortfolioTransactionContext = {
 	chainId: SupportedDepositChainId;
 	depositRpcUrl: string;
 	cdpPaymasterRpcUrl?: string;
+	cdpGasPolicyId?: string;
 	cdpGasPaymentMode?: CdpGasPaymentMode;
 	gasPaymentUsdc?: `0x${string}`;
 };
@@ -80,6 +82,7 @@ export function buildPortfolioTransactionContext(params: {
 	depositRpcUrl: string;
 	cashSymbol: string;
 	cdpPaymasterRpcUrl?: string;
+	cdpGasPolicyId?: string;
 	cdpGasPaymentMode?: CdpGasPaymentMode;
 }): PortfolioTransactionContext {
 	const cdpGasPaymentMode = params.cdpGasPaymentMode ?? "sponsor";
@@ -102,6 +105,7 @@ export function buildPortfolioTransactionContext(params: {
 		...(params.cdpPaymasterRpcUrl
 			? { cdpPaymasterRpcUrl: params.cdpPaymasterRpcUrl }
 			: {}),
+		...(params.cdpGasPolicyId ? { cdpGasPolicyId: params.cdpGasPolicyId } : {}),
 		...(gasPaymentUsdc ? { gasPaymentUsdc } : {}),
 	};
 }
@@ -228,9 +232,13 @@ async function sendSmartAccountCallsInner(
 			value: call.value ?? 0n,
 		})),
 		paymaster: true,
-		...(gasPaymentUsdc && gasPaymentMode === "usdc"
-			? { paymasterContext: { erc20: gasPaymentUsdc } }
-			: {}),
+		paymasterContext: resolvePaymasterContext({
+			gasPaymentMode,
+			...(gasPaymentUsdc ? { gasPaymentUsdc } : {}),
+			...(context.cdpGasPolicyId
+				? { gasPolicyId: context.cdpGasPolicyId }
+				: {}),
+		}),
 	});
 
 	const receipt = await bundlerClient.waitForUserOperationReceipt({

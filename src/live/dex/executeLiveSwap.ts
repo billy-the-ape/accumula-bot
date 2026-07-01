@@ -42,6 +42,7 @@ export type ExecuteLiveSwapInput = {
 	assets: readonly Cryptocurrency[];
 	gasBootstrapUsd: number;
 	cdpPaymasterRpcUrl?: string;
+	cdpGasPolicyId?: string;
 	cdpGasPaymentMode?: CdpGasPaymentMode;
 };
 
@@ -74,6 +75,7 @@ function buildTransactionContext(
 		...(input.cdpPaymasterRpcUrl
 			? { cdpPaymasterRpcUrl: input.cdpPaymasterRpcUrl }
 			: {}),
+		...(input.cdpGasPolicyId ? { cdpGasPolicyId: input.cdpGasPolicyId } : {}),
 		...(input.cdpGasPaymentMode
 			? { cdpGasPaymentMode: input.cdpGasPaymentMode }
 			: {}),

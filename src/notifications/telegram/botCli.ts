@@ -29,8 +29,11 @@ async function main() {
 	console.info("Telegram bot starting (long poll)");
 	console.info(`Database: ${config.databasePath}`);
 	if (config.live.cdpPaymasterRpcUrl) {
+		const policyHint = config.live.cdpGasPolicyId
+			? `policy=${config.live.cdpGasPolicyId}`
+			: "policy=unset";
 		console.info(
-			`CDP paymaster: enabled (CDP_GAS_PAYMENT_MODE=${config.live.cdpGasPaymentMode})`,
+			`CDP paymaster: enabled (CDP_GAS_PAYMENT_MODE=${config.live.cdpGasPaymentMode}, ${policyHint})`,
 		);
 	} else {
 		console.info("CDP paymaster: not configured (CDP_PAYMASTER_RPC_URL unset)");

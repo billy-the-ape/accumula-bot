@@ -7,6 +7,7 @@ import {
 	parseCdpGasPaymentMode,
 	prependPaymasterApprovalIfNeeded,
 	resolveGasPaymentUsdcToken,
+	resolvePaymasterContext,
 } from "@/live/cdpPaymaster.js";
 
 describe("parseCdpGasPaymentMode", () => {
@@ -36,8 +37,35 @@ describe("humanizePaymasterError", () => {
 			"sponsor",
 		);
 
-		expect(message).toContain("pm2 restart accumula-bot-telegram");
+		expect(message).toContain("CDP_GAS_POLICY_ID");
 		expect(message).not.toContain("Set CDP_GAS_PAYMENT_MODE=sponsor");
+	});
+});
+
+describe("resolvePaymasterContext", () => {
+	it("returns policyId context for sponsor mode", () => {
+		expect(
+			resolvePaymasterContext({
+				gasPaymentMode: "sponsor",
+				gasPolicyId: "631528b0-d444-4a9b-a575-40dd3aa4a13a",
+			}),
+		).toEqual({ policyId: "631528b0-d444-4a9b-a575-40dd3aa4a13a" });
+	});
+
+	it("returns erc20 context for usdc mode", () => {
+		const usdc = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913" as const;
+		expect(
+			resolvePaymasterContext({
+				gasPaymentMode: "usdc",
+				gasPaymentUsdc: usdc,
+			}),
+		).toEqual({ erc20: usdc });
+	});
+
+	it("requires policy id in sponsor mode", () => {
+		expect(() =>
+			resolvePaymasterContext({ gasPaymentMode: "sponsor" }),
+		).toThrow("CDP_GAS_POLICY_ID");
 	});
 });
 

@@ -135,6 +135,9 @@ export async function executeLiquidation(
 			...(config.live.cdpPaymasterRpcUrl
 				? { cdpPaymasterRpcUrl: config.live.cdpPaymasterRpcUrl }
 				: {}),
+			...(config.live.cdpGasPolicyId
+				? { cdpGasPolicyId: config.live.cdpGasPolicyId }
+				: {}),
 		};
 
 		for (const [symbol, quantity] of Object.entries(holdings)) {
@@ -195,6 +198,9 @@ export async function executeLiquidation(
 			cdpGasPaymentMode: config.live.cdpGasPaymentMode,
 			...(config.live.cdpPaymasterRpcUrl
 				? { cdpPaymasterRpcUrl: config.live.cdpPaymasterRpcUrl }
+				: {}),
+			...(config.live.cdpGasPolicyId
+				? { cdpGasPolicyId: config.live.cdpGasPolicyId }
 				: {}),
 		});
 

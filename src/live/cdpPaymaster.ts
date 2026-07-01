@@ -81,6 +81,34 @@ export function resolveGasPaymentUsdcToken(
 	return usdc.contractAddress as `0x${string}`;
 }
 
+/** Context passed as the 4th arg to pm_getPaymasterStubData / pm_getPaymasterData. */
+export type CdpPaymasterContext =
+	| { policyId: string }
+	| { erc20: `0x${string}` };
+
+export function resolvePaymasterContext(params: {
+	gasPaymentMode: CdpGasPaymentMode;
+	gasPaymentUsdc?: `0x${string}`;
+	gasPolicyId?: string;
+}): CdpPaymasterContext {
+	if (params.gasPaymentMode === "usdc") {
+		if (!params.gasPaymentUsdc) {
+			throw new Error(
+				"USDC gas payment requires portfolio cash symbol USDC on this chain",
+			);
+		}
+		return { erc20: params.gasPaymentUsdc };
+	}
+
+	if (!params.gasPolicyId) {
+		throw new Error(
+			"CDP_GAS_POLICY_ID is required when CDP_GAS_PAYMENT_MODE=sponsor",
+		);
+	}
+
+	return { policyId: params.gasPolicyId };
+}
+
 export function buildPaymasterUsdcApprovalCall(params: {
 	usdcToken: `0x${string}`;
 	chainId: SupportedDepositChainId;
@@ -162,10 +190,9 @@ export function humanizePaymasterError(
 
 		return (
 			"CDP paymaster rejected the transaction (payment method not found). " +
-			"If you just changed CDP_GAS_PAYMENT_MODE in .env, restart the Telegram bot " +
-			"(pm2 restart accumula-bot-telegram) so it reloads config. " +
-			"Otherwise check Paymaster → Configuration: paymaster enabled, contract allowlist " +
-			"(USDC, 0x router, treasury), and gas policy limits."
+			"Set CDP_GAS_POLICY_ID in .env to your Gas policy ID from Paymaster → Configuration " +
+			"in the CDP portal, then restart the bot. Also confirm paymaster is enabled, contracts " +
+			"are allowlisted (USDC, 0x router, treasury), and gas limits are high enough."
 		);
 	}
 

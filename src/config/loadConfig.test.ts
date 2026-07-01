@@ -310,4 +310,31 @@ describe("loadConfig", () => {
 			/DEPOSIT_CHAIN_ID must be 8453 \(Base mainnet\) or 84532 \(Base Sepolia\)/,
 		);
 	});
+
+	it("requires CDP_GAS_POLICY_ID when paymaster URL is set in sponsor mode", () => {
+		expect(() =>
+			loadConfig({
+				...validEnv,
+				CDP_PAYMASTER_RPC_URL:
+					"https://api.developer.coinbase.com/rpc/v1/base/test-token",
+			}),
+		).toThrow(/CDP_GAS_POLICY_ID is required/i);
+	});
+
+	it("loads CDP paymaster config with gas policy id", () => {
+		const config = loadConfig({
+			...validEnv,
+			CDP_PAYMASTER_RPC_URL:
+				"https://api.developer.coinbase.com/rpc/v1/base/test-token",
+			CDP_GAS_POLICY_ID: "631528b0-d444-4a9b-a575-40dd3aa4a13a",
+		});
+
+		expect(config.live.cdpPaymasterRpcUrl).toBe(
+			"https://api.developer.coinbase.com/rpc/v1/base/test-token",
+		);
+		expect(config.live.cdpGasPolicyId).toBe(
+			"631528b0-d444-4a9b-a575-40dd3aa4a13a",
+		);
+		expect(config.live.cdpGasPaymentMode).toBe("sponsor");
+	});
 });
