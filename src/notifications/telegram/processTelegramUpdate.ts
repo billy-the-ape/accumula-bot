@@ -20,6 +20,7 @@ import {
 	encryptPrivateKey,
 	parseWalletEncryptionKey,
 } from "@/live/walletEncryption.js";
+import { parseDecisionCallback } from "@/notifications/telegram/bot/decisionReportKeyboard.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { handleBotMessage } from "@/notifications/telegram/bot/handleBotMessage.js";
 import {
@@ -57,6 +58,7 @@ import {
 	getActivePortfolioForUser,
 	revertLivePortfolioAwaitingDeposit,
 	type StoredPortfolio,
+	updatePortfolioRiskTolerance,
 } from "@/storage/repositories/portfolioRepository.js";
 import {
 	getOrCreateTelegramUser,
@@ -123,7 +125,17 @@ function needsPortfolioSummary(
 		return (
 			incoming.command === "start" ||
 			incoming.command === "status" ||
-			incoming.command === "summary"
+			incoming.command === "summary" ||
+			incoming.command === "portfolio"
+		);
+	}
+
+	if (incoming.kind === "callback") {
+		return (
+			incoming.data.startsWith("portfolio_risk:") ||
+			incoming.data.startsWith("nav:") ||
+			incoming.data.startsWith("setting_menu:") ||
+			incoming.data.startsWith("setting:")
 		);
 	}
 
@@ -218,6 +230,14 @@ async function applyBotEffects(
 
 	if (effects.settingsPatch) {
 		await updateTelegramUserSettings(db, userId, effects.settingsPatch);
+	}
+
+	if (effects.portfolioPatch) {
+		await updatePortfolioRiskTolerance(
+			db,
+			effects.portfolioPatch.portfolioId,
+			effects.portfolioPatch.riskTolerance,
+		);
 	}
 
 	if (effects.executeLiquidation) {
@@ -336,6 +356,17 @@ export async function processTelegramUpdate(
 
 	let output: BotHandlerOutput;
 	if (
+		event.incoming.kind === "callback" &&
+		parseDecisionCallback(event.incoming.data) !== undefined
+	) {
+		const decisionId = parseDecisionCallback(event.incoming.data);
+		output = await resolveDecisionCommandOutput(
+			db,
+			config,
+			user.id,
+			decisionId !== undefined ? String(decisionId) : undefined,
+		);
+	} else if (
 		event.incoming.kind === "command" &&
 		event.incoming.command === "decision"
 	) {

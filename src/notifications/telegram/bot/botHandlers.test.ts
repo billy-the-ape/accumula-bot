@@ -65,6 +65,7 @@ describe("parseBotCommand", () => {
 		expect(parseBotCommand("/reset")).toBe("reset");
 		expect(parseBotCommand("/liquidate")).toBe("liquidate");
 		expect(parseBotCommand("/settings")).toBe("settings");
+		expect(parseBotCommand("/portfolio")).toBe("portfolio");
 		expect(parseBotCommand("/decision")).toBe("decision");
 	});
 
@@ -174,7 +175,7 @@ describe("handleBotMessage onboarding", () => {
 		);
 	});
 
-	it("advances to risk tolerance after valid starting value", () => {
+	it("creates paper portfolio after valid starting value", () => {
 		const paperContext: BotHandlerContext = {
 			...newUserContext,
 			onboardingState: "awaiting_starting_value",
@@ -184,19 +185,12 @@ describe("handleBotMessage onboarding", () => {
 			text: "15000",
 		});
 
-		expect(result.text).toContain("risk tolerance");
-		expect(result.replyMarkup?.inline_keyboard).toHaveLength(3);
-		expect(result.effects?.userPatch?.onboardingState).toBe(
-			"awaiting_risk_tolerance",
-		);
-		expect(
-			parseOnboardingDraft(
-				result.effects?.userPatch?.onboardingDraftJson ?? null,
-			),
-		).toEqual({
-			mode: "paper",
+		expect(result.text).toContain("paper portfolio is ready");
+		expect(result.effects?.createPortfolio).toEqual({
 			startingValueUsd: 15_000,
+			riskTolerance: "medium",
 		});
+		expect(result.effects?.userPatch?.onboardingState).toBeNull();
 	});
 
 	it("uses default starting value via Default button", () => {
@@ -209,14 +203,11 @@ describe("handleBotMessage onboarding", () => {
 			data: STARTING_VALUE_DEFAULT_CALLBACK,
 		});
 
-		expect(result.effects?.userPatch?.onboardingState).toBe(
-			"awaiting_risk_tolerance",
-		);
-		expect(
-			parseOnboardingDraft(
-				result.effects?.userPatch?.onboardingDraftJson ?? null,
-			)?.startingValueUsd,
-		).toBe(10_000);
+		expect(result.effects?.createPortfolio).toEqual({
+			startingValueUsd: 10_000,
+			riskTolerance: "medium",
+		});
+		expect(result.effects?.userPatch?.onboardingState).toBeNull();
 	});
 
 	it("completes paper onboarding on risk callback", () => {
@@ -405,5 +396,53 @@ describe("handleBotMessage settings", () => {
 
 		expect(result.effects?.settingsPatch).toEqual({ verbose: true });
 		expect(result.text).toContain("ON");
+	});
+});
+
+describe("handleBotMessage portfolio", () => {
+	it("shows portfolio settings on /portfolio", () => {
+		const result = handleBotMessage(
+			onboardedContext,
+			{ kind: "command", command: "portfolio" },
+			sampleSummary,
+		);
+
+		expect(result.text).toContain("Portfolio Settings");
+		expect(result.text).toContain("Risk tolerance");
+	});
+
+	it("shows risk buttons on /portfolio risk", () => {
+		const result = handleBotMessage(
+			onboardedContext,
+			{ kind: "command", command: "portfolio", args: "risk" },
+			sampleSummary,
+		);
+
+		expect(result.text).toContain("Portfolio risk tolerance");
+		expect(result.replyMarkup?.inline_keyboard).toHaveLength(3);
+	});
+
+	it("updates risk via /portfolio risk=high", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 7,
+					mode: "paper",
+					fundingStatus: "funded",
+					walletAddress: null,
+					minDepositUsd: 0,
+					totalDepositedUsd: 0,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "command", command: "portfolio", args: "risk=high" },
+			sampleSummary,
+		);
+
+		expect(result.effects?.portfolioPatch).toEqual({
+			portfolioId: 7,
+			riskTolerance: "high",
+		});
 	});
 });

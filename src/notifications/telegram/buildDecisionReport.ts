@@ -15,6 +15,7 @@ import {
 	listRecentDecisions,
 } from "@/storage/repositories/decisionRepository.js";
 import { getActivePortfolioForUser } from "@/storage/repositories/portfolioRepository.js";
+import { findTelegramUserById } from "@/storage/repositories/telegramUserRepository.js";
 import { listTradesForDecisionAndPortfolio } from "@/storage/repositories/tradeRepository.js";
 
 export type DecisionLookup = { kind: "last" } | { kind: "id"; id: number };
@@ -82,9 +83,17 @@ export async function buildDecisionReportForUser(
 
 	const decision = await findDecisionById(db, decisionId);
 	const portfolio = await getActivePortfolioForUser(db, telegramUserId);
+	const telegramUser = await findTelegramUserById(db, telegramUserId);
 	if (!decision || !portfolio) {
 		return undefined;
 	}
+
+	const userDateTimeSettings = telegramUser
+		? {
+				locale: telegramUser.settings.locale,
+				timezone: telegramUser.settings.timezone,
+			}
+		: { locale: null, timezone: null };
 
 	const trades = await listTradesForDecisionAndPortfolio(
 		db,
@@ -109,6 +118,8 @@ export async function buildDecisionReportForUser(
 
 	return formatRunReport({
 		decisionId: decision.id,
+		decisionCreatedAt: decision.createdAt,
+		userDateTimeSettings,
 		outcome,
 		headline: recommendationSummary.headline,
 		averageConfidence: recommendationSummary.averageConfidence,

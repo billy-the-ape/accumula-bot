@@ -10,7 +10,8 @@ export type BotCommand =
 	| "reset"
 	| "liquidate"
 	| "settings"
-	| "decision";
+	| "decision"
+	| "portfolio";
 
 export type TelegramInlineKeyboard = {
 	inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
@@ -39,6 +40,10 @@ export type BotEffects = {
 	executeLiquidation?: {
 		portfolioId: number;
 		destinationAddress: `0x${string}`;
+	};
+	portfolioPatch?: {
+		portfolioId: number;
+		riskTolerance: RiskTolerance;
 	};
 };
 

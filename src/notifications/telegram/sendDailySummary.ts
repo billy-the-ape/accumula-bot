@@ -90,6 +90,7 @@ export async function sendDailySummary(
 			weeklyReturnPct,
 			allTimeReturnPct,
 			holdings: portfolio.holdings,
+			userDateTimeSettings: activePortfolio.userDateTimeSettings,
 			...(options.macroBriefing
 				? { macroBriefing: options.macroBriefing }
 				: {}),

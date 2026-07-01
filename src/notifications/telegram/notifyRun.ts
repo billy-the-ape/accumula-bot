@@ -1,4 +1,5 @@
 import type { TelegramConfig } from "@/config/appConfigSchema.js";
+import { buildDecisionReportKeyboard } from "@/notifications/telegram/bot/decisionReportKeyboard.js";
 import { formatCompactTradeReport } from "@/notifications/telegram/formatCompactTradeReport.js";
 import {
 	formatRunFailure,
@@ -43,6 +44,7 @@ export async function notifyCompactTrades(
 	botToken: string,
 	chatId: string,
 	trades: readonly StoredTrade[],
+	decisionId?: number,
 	options: NotifyOptions = {},
 ): Promise<void> {
 	const text = formatCompactTradeReport(trades);
@@ -50,11 +52,17 @@ export async function notifyCompactTrades(
 		return;
 	}
 
+	const replyMarkup =
+		decisionId !== undefined
+			? buildDecisionReportKeyboard(decisionId)
+			: undefined;
+
 	try {
 		await sendTelegramMessage(
 			{
 				botToken,
 				chatId,
+				...(replyMarkup ? { replyMarkup } : {}),
 				...(options.fetchImpl ? { fetchImpl: options.fetchImpl } : {}),
 			},
 			text,

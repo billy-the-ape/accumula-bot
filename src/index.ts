@@ -241,6 +241,8 @@ async function main() {
 
 				const reportInput = {
 					decisionId: saved.id,
+					decisionCreatedAt: saved.createdAt,
+					userDateTimeSettings: portfolio.userDateTimeSettings,
 
 					outcome,
 
@@ -298,6 +300,7 @@ async function main() {
 							config.telegram.botToken,
 							portfolio.telegramChatId,
 							execution.trades,
+							saved.id,
 						);
 						console.info(
 							`Telegram compact trade report sent to chat ${portfolio.telegramChatId}`,

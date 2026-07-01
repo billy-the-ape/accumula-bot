@@ -13,6 +13,9 @@ export type TelegramApiOptions = {
 /** @deprecated Use SendBotReplyOptions for multi-user bots. Kept for notifyRun. */
 export type TelegramClientOptions = TelegramApiOptions & {
 	chatId: string;
+	replyMarkup?: {
+		inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+	};
 };
 
 type TelegramApiResponse<T> = {
@@ -88,6 +91,7 @@ export async function sendTelegramMessage(
 		text,
 		parse_mode: "MarkdownV2",
 		disable_web_page_preview: true,
+		...(options.replyMarkup ? { reply_markup: options.replyMarkup } : {}),
 	});
 }
 

@@ -167,6 +167,7 @@ export async function executeActivePortfolios(
 				...portfolio,
 				telegramChatId: activePortfolio.telegramChatId,
 				verbose: activePortfolio.verbose,
+				userDateTimeSettings: activePortfolio.userDateTimeSettings,
 			},
 			execution,
 			outcome: toRunOutcome(execution),

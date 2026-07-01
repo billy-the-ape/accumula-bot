@@ -42,34 +42,59 @@ import {
 	formatUnknownRiskSelectionMessage,
 	NO_ACTIVE_PORTFOLIO_MESSAGE,
 } from "@/notifications/telegram/bot/onboardingMessages.js";
-import { parseSettingsCommandArgs } from "@/notifications/telegram/bot/parseSettingsCommand.js";
+import { parsePortfolioCommandArgs } from "@/notifications/telegram/bot/parsePortfolioCommand.js";
+import {
+	parseSettingsCommandArgs,
+	parseSettingsTextInput,
+} from "@/notifications/telegram/bot/parseSettingsCommand.js";
 import { parseStartingValueInput } from "@/notifications/telegram/bot/parseStartingValue.js";
 import {
 	buildPortfolioModeKeyboard,
 	parsePortfolioModeCallback,
 } from "@/notifications/telegram/bot/portfolioModeKeyboard.js";
 import {
+	buildPortfolioRiskKeyboard,
+	parsePortfolioRiskCallback,
+} from "@/notifications/telegram/bot/portfolioRiskKeyboard.js";
+import {
+	formatPortfolioRiskPromptMessage,
+	formatPortfolioRiskUpdatedMessage,
+	formatPortfolioSettingsMessage,
+	NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND,
+} from "@/notifications/telegram/bot/portfolioSettingsMessages.js";
+import {
 	buildRiskToleranceKeyboard,
 	parseRiskToleranceCallback,
 } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
 import {
+	buildDefaultRiskKeyboard,
+	buildLocaleKeyboard,
 	buildSettingsKeyboard,
+	buildTimezoneKeyboard,
 	parseSettingCallback,
+	parseSettingMenuCallback,
 } from "@/notifications/telegram/bot/settingsKeyboard.js";
 import {
+	formatLocalePromptMessage,
 	formatSettingsMessage,
 	formatSettingsUpdatedMessage,
+	formatTimezonePromptMessage,
 } from "@/notifications/telegram/bot/settingsMessages.js";
 import {
 	buildStartingValueKeyboard,
 	parseStartingValueCallback,
 } from "@/notifications/telegram/bot/startingValueKeyboard.js";
+import {
+	buildStatusNavKeyboard,
+	parseNavCallback,
+} from "@/notifications/telegram/bot/statusNavKeyboard.js";
 import type {
 	ActivePortfolioContext,
 	BotHandlerContext,
 	BotHandlerOutput,
 	BotIncomingMessage,
 } from "@/notifications/telegram/bot/types.js";
+import type { RiskTolerance } from "@/risk/riskTolerance.js";
 
 function beginOnboarding(): BotHandlerOutput {
 	return {
@@ -145,25 +170,6 @@ function promptForStartingValue(): BotHandlerOutput {
 	};
 }
 
-function promptForRiskTolerance(
-	startingValueUsd: number,
-	mode: "paper" | "live",
-): BotHandlerOutput {
-	return {
-		text: formatRiskTolerancePrompt(startingValueUsd),
-		replyMarkup: buildRiskToleranceKeyboard(),
-		effects: {
-			userPatch: {
-				onboardingState: "awaiting_risk_tolerance",
-				onboardingDraftJson: serializeOnboardingDraft({
-					mode,
-					startingValueUsd,
-				}),
-			},
-		},
-	};
-}
-
 function completePaperOnboarding(
 	startingValueUsd: number,
 	riskTolerance: NonNullable<ReturnType<typeof parseRiskToleranceCallback>>,
@@ -194,6 +200,11 @@ function formatSummaryReply(
 			includeResetHint: includeHint && !isLive,
 			includeLiquidateHint: includeHint && isLive,
 		}),
+		...(!includeHint
+			? {
+					replyMarkup: buildStatusNavKeyboard({ isLive: isLive === true }),
+				}
+			: {}),
 	};
 }
 
@@ -369,11 +380,12 @@ function handleAwaitingModeSelection(
 
 function handleAwaitingStartingValue(
 	message: BotIncomingMessage,
+	defaultRiskTolerance: RiskTolerance,
 ): BotHandlerOutput {
 	if (message.kind === "callback") {
 		const defaultValueUsd = parseStartingValueCallback(message.data);
 		if (defaultValueUsd !== undefined) {
-			return promptForRiskTolerance(defaultValueUsd, "paper");
+			return completePaperOnboarding(defaultValueUsd, defaultRiskTolerance);
 		}
 
 		return {
@@ -397,7 +409,7 @@ function handleAwaitingStartingValue(
 		};
 	}
 
-	return promptForRiskTolerance(parsed.valueUsd, "paper");
+	return completePaperOnboarding(parsed.valueUsd, defaultRiskTolerance);
 }
 
 function handleAwaitingLiveDeposit(
@@ -427,35 +439,64 @@ function handleAwaitingLiveDeposit(
 function handleAwaitingRiskTolerance(
 	message: BotIncomingMessage,
 	draftJson: string | null,
+	defaultRiskTolerance: RiskTolerance,
 ): BotHandlerOutput {
-	if (message.kind !== "callback") {
-		return {
-			text: formatRiskToleranceReminderMessage(),
-			replyMarkup: buildRiskToleranceKeyboard(),
-		};
-	}
+	if (message.kind === "callback") {
+		const riskTolerance = parseRiskToleranceCallback(message.data);
+		if (!riskTolerance) {
+			return {
+				text: formatUnknownRiskSelectionMessage(),
+				replyMarkup: buildRiskToleranceKeyboard(),
+			};
+		}
 
-	const riskTolerance = parseRiskToleranceCallback(message.data);
-	if (!riskTolerance) {
-		return {
-			text: formatUnknownRiskSelectionMessage(),
-			replyMarkup: buildRiskToleranceKeyboard(),
-		};
+		const draft = parseOnboardingDraft(draftJson);
+		const startingValueUsd = draft?.startingValueUsd;
+		if (startingValueUsd === undefined || startingValueUsd <= 0) {
+			return draft?.mode === "live"
+				? { text: formatLiveDepositReminderMessage() }
+				: promptForStartingValue();
+		}
+
+		if (draft?.mode === "live") {
+			return { text: formatLiveDepositReminderMessage() };
+		}
+
+		return completePaperOnboarding(startingValueUsd, riskTolerance);
 	}
 
 	const draft = parseOnboardingDraft(draftJson);
 	const startingValueUsd = draft?.startingValueUsd;
-	if (startingValueUsd === undefined || startingValueUsd <= 0) {
-		return draft?.mode === "live"
-			? { text: formatLiveDepositReminderMessage() }
-			: promptForStartingValue();
+	if (
+		draft?.mode === "paper" &&
+		startingValueUsd !== undefined &&
+		startingValueUsd > 0
+	) {
+		return completePaperOnboarding(startingValueUsd, defaultRiskTolerance);
 	}
 
-	if (draft?.mode === "live") {
-		return { text: formatLiveDepositReminderMessage() };
+	return {
+		text: formatRiskToleranceReminderMessage(),
+		replyMarkup: buildRiskToleranceKeyboard(),
+	};
+}
+
+function settingsPatchFromCallback(
+	parsed: NonNullable<ReturnType<typeof parseSettingCallback>>,
+): Partial<BotHandlerContext["settings"]> {
+	if (parsed.key === "verbose") {
+		return { verbose: parsed.value };
 	}
 
-	return completePaperOnboarding(startingValueUsd, riskTolerance);
+	if (parsed.key === "defaultRiskTolerance") {
+		return { defaultRiskTolerance: parsed.value as RiskTolerance };
+	}
+
+	if (parsed.key === "locale") {
+		return { locale: parsed.value };
+	}
+
+	return { timezone: parsed.value };
 }
 
 function handleSettingsCommand(
@@ -465,6 +506,26 @@ function handleSettingsCommand(
 	const parsed = parseSettingsCommandArgs(args);
 	if (parsed.kind === "error") {
 		return { text: parsed.message };
+	}
+
+	if (parsed.kind === "prompt") {
+		if (parsed.key === "locale") {
+			return {
+				text: formatLocalePromptMessage(),
+				replyMarkup: buildLocaleKeyboard(settings.locale),
+				effects: {
+					userPatch: { onboardingState: "awaiting_settings_locale" },
+				},
+			};
+		}
+
+		return {
+			text: formatTimezonePromptMessage(),
+			replyMarkup: buildTimezoneKeyboard(settings.timezone),
+			effects: {
+				userPatch: { onboardingState: "awaiting_settings_timezone" },
+			},
+		};
 	}
 
 	if (parsed.kind === "set") {
@@ -483,7 +544,48 @@ function handleSettingsCommand(
 		return {
 			text: formatSettingsUpdatedMessage(updatedKey, updatedValue),
 			replyMarkup: buildSettingsKeyboard(nextSettings),
-			effects: { settingsPatch: parsed.patch },
+			effects: {
+				settingsPatch: parsed.patch,
+				userPatch: { onboardingState: null },
+			},
+		};
+	}
+
+	return {
+		text: formatSettingsMessage(settings),
+		replyMarkup: buildSettingsKeyboard(settings),
+	};
+}
+
+function handleSettingMenuCallback(
+	settings: BotHandlerContext["settings"],
+	data: string,
+): BotHandlerOutput {
+	const menu = parseSettingMenuCallback(data);
+	if (menu === "defaultRisk") {
+		return {
+			text: formatSettingsMessage(settings),
+			replyMarkup: buildDefaultRiskKeyboard(settings.defaultRiskTolerance),
+		};
+	}
+
+	if (menu === "locale") {
+		return {
+			text: formatLocalePromptMessage(),
+			replyMarkup: buildLocaleKeyboard(settings.locale),
+			effects: {
+				userPatch: { onboardingState: "awaiting_settings_locale" },
+			},
+		};
+	}
+
+	if (menu === "timezone") {
+		return {
+			text: formatTimezonePromptMessage(),
+			replyMarkup: buildTimezoneKeyboard(settings.timezone),
+			effects: {
+				userPatch: { onboardingState: "awaiting_settings_timezone" },
+			},
 		};
 	}
 
@@ -505,11 +607,157 @@ function handleSettingCallback(
 		};
 	}
 
-	const nextSettings = { ...settings, [parsed.key]: parsed.value };
+	const patch = settingsPatchFromCallback(parsed);
+	const nextSettings = { ...settings, ...patch };
+	const updatedKey = Object.keys(patch)[0] as keyof typeof patch;
+	const updatedValue = patch[updatedKey];
+	if (updatedKey === undefined || updatedValue === undefined) {
+		return {
+			text: formatSettingsMessage(nextSettings),
+			replyMarkup: buildSettingsKeyboard(nextSettings),
+		};
+	}
+
 	return {
-		text: formatSettingsUpdatedMessage(parsed.key, parsed.value),
+		text: formatSettingsUpdatedMessage(updatedKey, updatedValue),
 		replyMarkup: buildSettingsKeyboard(nextSettings),
-		effects: { settingsPatch: { [parsed.key]: parsed.value } },
+		effects: {
+			settingsPatch: patch,
+			userPatch: { onboardingState: null },
+		},
+	};
+}
+
+function handleAwaitingSettingsInput(
+	context: BotHandlerContext,
+	message: BotIncomingMessage,
+): BotHandlerOutput {
+	const onboardingState = context.onboardingState;
+	if (
+		message.kind !== "text" ||
+		(onboardingState !== "awaiting_settings_locale" &&
+			onboardingState !== "awaiting_settings_timezone")
+	) {
+		return handleSettingsCommand(context.settings, undefined);
+	}
+
+	const parsed = parseSettingsTextInput(onboardingState, message.text);
+	if (parsed.kind === "error") {
+		return { text: parsed.message };
+	}
+
+	if (parsed.kind !== "set") {
+		return handleSettingsCommand(context.settings, undefined);
+	}
+
+	const nextSettings = { ...context.settings, ...parsed.patch };
+	const updatedKey = Object.keys(parsed.patch)[0] as keyof typeof parsed.patch;
+	const updatedValue = parsed.patch[updatedKey];
+	if (updatedKey === undefined || updatedValue === undefined) {
+		return handleSettingsCommand(context.settings, undefined);
+	}
+
+	return {
+		text: formatSettingsUpdatedMessage(updatedKey, updatedValue),
+		replyMarkup: buildSettingsKeyboard(nextSettings),
+		effects: {
+			settingsPatch: parsed.patch,
+			userPatch: { onboardingState: null },
+		},
+	};
+}
+
+function handleNavCallback(
+	context: BotHandlerContext,
+	summary: PortfolioSummaryInput | undefined,
+	nav: "liquidate" | "portfolio" | "settings",
+	options: HandleBotMessageOptions,
+): BotHandlerOutput {
+	switch (nav) {
+		case "liquidate":
+			if (!isLiveFundedPortfolio(context)) {
+				return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
+			}
+			if (!options.liquidationConfigured) {
+				return { text: formatMissingTreasuryAddressMessage() };
+			}
+			return beginLiquidation();
+		case "portfolio":
+			return handlePortfolioCommand(context, summary, undefined);
+		case "settings":
+			return handleSettingsCommand(context.settings, undefined);
+	}
+}
+
+function handlePortfolioCommand(
+	context: BotHandlerContext,
+	summary: PortfolioSummaryInput | undefined,
+	args: string | undefined,
+): BotHandlerOutput {
+	if (!context.hasActivePortfolio || !summary) {
+		return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
+	}
+
+	const parsed = parsePortfolioCommandArgs(args);
+	if (parsed.kind === "error") {
+		return { text: parsed.message };
+	}
+
+	if (parsed.kind === "show_risk") {
+		return {
+			text: formatPortfolioRiskPromptMessage(summary.riskTolerance),
+			replyMarkup: buildPortfolioRiskKeyboard(summary.riskTolerance),
+		};
+	}
+
+	if (parsed.kind === "set") {
+		const portfolioId = context.activePortfolio?.id;
+		if (portfolioId === undefined) {
+			return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
+		}
+
+		return {
+			text: formatPortfolioRiskUpdatedMessage(parsed.riskTolerance),
+			replyMarkup: buildPortfolioRiskKeyboard(parsed.riskTolerance),
+			effects: {
+				portfolioPatch: {
+					portfolioId,
+					riskTolerance: parsed.riskTolerance,
+				},
+			},
+		};
+	}
+
+	return {
+		text: formatPortfolioSettingsMessage(summary.riskTolerance),
+	};
+}
+
+function handlePortfolioRiskCallback(
+	context: BotHandlerContext,
+	summary: PortfolioSummaryInput | undefined,
+	data: string,
+): BotHandlerOutput {
+	if (!context.hasActivePortfolio || !summary) {
+		return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
+	}
+
+	const riskTolerance = parsePortfolioRiskCallback(data);
+	if (!riskTolerance) {
+		return {
+			text: formatPortfolioSettingsMessage(summary.riskTolerance),
+		};
+	}
+
+	return {
+		text: formatPortfolioRiskUpdatedMessage(riskTolerance),
+		replyMarkup: buildPortfolioRiskKeyboard(riskTolerance),
+		effects: {
+			portfolioPatch: {
+				portfolioId: context.activePortfolio?.id ?? 0,
+				riskTolerance,
+			},
+		},
 	};
 }
 
@@ -538,9 +786,28 @@ export function handleBotMessage(
 			return handleAwaitingLiquidateConfirm(message, context, profitFeeBps);
 		}
 
+		const settingMenu = parseSettingMenuCallback(message.data);
+		if (settingMenu) {
+			return handleSettingMenuCallback(context.settings, message.data);
+		}
+
 		const settingCallback = parseSettingCallback(message.data);
 		if (settingCallback) {
 			return handleSettingCallback(context.settings, message.data);
+		}
+
+		const navCallback = parseNavCallback(message.data);
+		if (navCallback) {
+			return handleNavCallback(context, summary, navCallback, {
+				liveTradingConfigured,
+				liquidationConfigured,
+				profitFeeBps,
+			});
+		}
+
+		const portfolioRiskCallback = parsePortfolioRiskCallback(message.data);
+		if (portfolioRiskCallback) {
+			return handlePortfolioRiskCallback(context, summary, message.data);
 		}
 	}
 
@@ -548,6 +815,9 @@ export function handleBotMessage(
 		switch (message.command) {
 			case "settings":
 				return handleSettingsCommand(context.settings, message.args);
+
+			case "portfolio":
+				return handlePortfolioCommand(context, summary, message.args);
 
 			case "reset":
 				return handleReset(context);
@@ -640,7 +910,17 @@ export function handleBotMessage(
 	}
 
 	if (context.onboardingState === "awaiting_starting_value") {
-		return handleAwaitingStartingValue(message);
+		return handleAwaitingStartingValue(
+			message,
+			context.settings.defaultRiskTolerance,
+		);
+	}
+
+	if (
+		context.onboardingState === "awaiting_settings_locale" ||
+		context.onboardingState === "awaiting_settings_timezone"
+	) {
+		return handleAwaitingSettingsInput(context, message);
 	}
 
 	if (context.onboardingState === "awaiting_live_deposit") {
@@ -648,7 +928,11 @@ export function handleBotMessage(
 	}
 
 	if (context.onboardingState === "awaiting_risk_tolerance") {
-		return handleAwaitingRiskTolerance(message, context.onboardingDraftJson);
+		return handleAwaitingRiskTolerance(
+			message,
+			context.onboardingDraftJson,
+			context.settings.defaultRiskTolerance,
+		);
 	}
 
 	if (context.hasActivePortfolio && summary) {

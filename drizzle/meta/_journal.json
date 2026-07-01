@@ -92,6 +92,13 @@
 			"when": 1783200000000,
 			"tag": "0012_portfolio_wallet_kind",
 			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "6",
+			"when": 1782945371558,
+			"tag": "0013_tired_wonder_man",
+			"breakpoints": true
 		}
 	]
 }

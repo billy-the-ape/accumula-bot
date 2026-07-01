@@ -10,11 +10,14 @@ import {
 	finalizeLivePortfolioRisk,
 	type StoredPortfolio,
 } from "@/storage/repositories/portfolioRepository.js";
-import { updateTelegramUserOnboarding } from "@/storage/repositories/telegramUserRepository.js";
+import {
+	findTelegramUserById,
+	updateTelegramUserOnboarding,
+} from "@/storage/repositories/telegramUserRepository.js";
 
 export type CompleteLiveDepositDeps = BuildPortfolioSummaryInputOptions;
 
-/** Activates a funded live portfolio with default medium risk tolerance. */
+/** Activates a funded live portfolio using the user's default risk tolerance. */
 export async function completeLiveDeposit(
 	db: AppDatabase,
 	config: AppConfig,
@@ -29,11 +32,13 @@ export async function completeLiveDeposit(
 	});
 	const cashSymbol = config.assetStarting.symbol;
 	const initialHoldings = { [cashSymbol]: depositUsd };
+	const telegramUser = await findTelegramUserById(db, telegramUserId);
+	const riskTolerance = telegramUser?.settings.defaultRiskTolerance ?? "medium";
 
 	const updated = await finalizeLivePortfolioRisk(
 		db,
 		portfolio.id,
-		"medium",
+		riskTolerance,
 		computePortfolioAccumulateValue(
 			initialHoldings,
 			prices,

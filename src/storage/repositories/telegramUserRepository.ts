@@ -12,7 +12,9 @@ export type OnboardingState =
 	| "awaiting_live_deposit"
 	| "awaiting_risk_tolerance"
 	| "awaiting_liquidate_address"
-	| "awaiting_liquidate_confirm";
+	| "awaiting_liquidate_confirm"
+	| "awaiting_settings_locale"
+	| "awaiting_settings_timezone";
 
 export type StoredTelegramUser = {
 	id: number;
@@ -30,10 +32,28 @@ function mapTelegramUserRow(row: TelegramUserRow): StoredTelegramUser {
 		telegramChatId: row.telegramChatId,
 		onboardingState: row.onboardingState as OnboardingState | null,
 		onboardingDraftJson: row.onboardingDraftJson,
-		settings: resolveTelegramUserSettings(row.verbose),
+		settings: resolveTelegramUserSettings({
+			verbose: row.verbose,
+			defaultRiskTolerance: row.defaultRiskTolerance,
+			locale: row.locale,
+			timezone: row.timezone,
+		}),
 		createdAt: row.createdAt,
 		updatedAt: row.updatedAt,
 	};
+}
+
+export async function findTelegramUserById(
+	db: AppDatabase,
+	userId: number,
+): Promise<StoredTelegramUser | undefined> {
+	const row = await db
+		.select()
+		.from(telegramUsers)
+		.where(eq(telegramUsers.id, userId))
+		.get();
+
+	return row ? mapTelegramUserRow(row) : undefined;
 }
 
 export async function findTelegramUserByChatId(
@@ -120,15 +140,23 @@ export async function updateTelegramUserSettings(
 		throw new Error(`Telegram user ${userId} not found`);
 	}
 
-	const nextSettings = resolveTelegramUserSettings(existing.verbose);
-	if (settings.verbose !== undefined) {
-		nextSettings.verbose = settings.verbose;
-	}
+	const nextSettings = {
+		...resolveTelegramUserSettings({
+			verbose: existing.verbose,
+			defaultRiskTolerance: existing.defaultRiskTolerance,
+			locale: existing.locale,
+			timezone: existing.timezone,
+		}),
+		...settings,
+	};
 
 	const [row] = await db
 		.update(telegramUsers)
 		.set({
 			verbose: nextSettings.verbose,
+			defaultRiskTolerance: nextSettings.defaultRiskTolerance,
+			locale: nextSettings.locale,
+			timezone: nextSettings.timezone,
 			updatedAt: new Date(),
 		})
 		.where(eq(telegramUsers.id, userId))

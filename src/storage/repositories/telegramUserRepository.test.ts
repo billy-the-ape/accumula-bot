@@ -36,6 +36,9 @@ describe("telegramUserRepository", () => {
 		expect(user.onboardingState).toBe("awaiting_mode_selection");
 		expect(user.onboardingDraftJson).toBeNull();
 		expect(user.settings.verbose).toBe(false);
+		expect(user.settings.defaultRiskTolerance).toBe("medium");
+		expect(user.settings.locale).toBeNull();
+		expect(user.settings.timezone).toBeNull();
 	});
 
 	it("returns the same user on subsequent getOrCreate", async () => {
@@ -78,6 +81,23 @@ describe("telegramUserRepository", () => {
 		});
 
 		expect(updated.settings.verbose).toBe(true);
+	});
+
+	it("updates default risk, locale, and timezone settings", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const user = await getOrCreateTelegramUser(db, "888");
+		const updated = await updateTelegramUserSettings(db, user.id, {
+			defaultRiskTolerance: "high",
+			locale: "en-GB",
+			timezone: "Europe/London",
+		});
+
+		expect(updated.settings.defaultRiskTolerance).toBe("high");
+		expect(updated.settings.locale).toBe("en-GB");
+		expect(updated.settings.timezone).toBe("Europe/London");
 	});
 });
 

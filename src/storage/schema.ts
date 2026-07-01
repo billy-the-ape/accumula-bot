@@ -15,6 +15,11 @@ export const telegramUsers = sqliteTable(
 		onboardingState: text("onboarding_state"),
 		onboardingDraftJson: text("onboarding_draft_json"),
 		verbose: integer("verbose", { mode: "boolean" }).notNull().default(false),
+		defaultRiskTolerance: text("default_risk_tolerance")
+			.notNull()
+			.default("medium"),
+		locale: text("locale"),
+		timezone: text("timezone"),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 	},

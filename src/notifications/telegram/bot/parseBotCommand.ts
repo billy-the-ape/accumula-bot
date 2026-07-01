@@ -8,6 +8,7 @@ const BOT_COMMANDS = new Set<BotCommand>([
 	"liquidate",
 	"settings",
 	"decision",
+	"portfolio",
 ]);
 
 export function parseBotCommand(text: string): BotCommand | undefined {

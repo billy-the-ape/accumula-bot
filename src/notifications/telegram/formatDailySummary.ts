@@ -8,7 +8,9 @@ import {
 	underline,
 	underlineBold,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
+import { formatUserDateTime } from "@/notifications/telegram/formatUserDateTime.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
+import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
 
 export type DailySummaryMacroBriefing = {
 	content: string;
@@ -27,14 +29,20 @@ export type DailySummaryInput = {
 	allTimeReturnPct: number;
 	holdings: PortfolioHoldings;
 	macroBriefing?: DailySummaryMacroBriefing;
+	userDateTimeSettings?: Pick<TelegramUserSettings, "locale" | "timezone">;
 };
 
 function formatMacroBriefingSection(
 	macroBriefing: DailySummaryMacroBriefing,
+	userDateTimeSettings?: Pick<TelegramUserSettings, "locale" | "timezone">,
 ): string[] {
+	const generatedAt = formatUserDateTime(
+		macroBriefing.generatedAt,
+		userDateTimeSettings ?? { locale: null, timezone: null },
+	);
 	return [
 		underline("Macro briefing:"),
-		italic(`Generated ${macroBriefing.generatedAt.toISOString()}`),
+		italic(`Generated ${generatedAt}`),
 		formatMacroBriefingContentForTelegram(macroBriefing.content),
 		"",
 	];
@@ -72,7 +80,10 @@ export function formatDailySummary(input: DailySummaryInput): string {
 		title,
 		"",
 		...(input.macroBriefing
-			? formatMacroBriefingSection(input.macroBriefing)
+			? formatMacroBriefingSection(
+					input.macroBriefing,
+					input.userDateTimeSettings,
+				)
 			: []),
 		underline("Current BTC Amount vs Starting BTC Value:"),
 		`24h: ${bold(formatReturnPct(input.dailyReturnPct))} · ${input.tradesLast24h.length} trade\\(s\\)`,

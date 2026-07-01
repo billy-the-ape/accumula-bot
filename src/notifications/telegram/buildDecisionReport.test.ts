@@ -4,6 +4,7 @@ import type { AnalysisContext } from "@/analysis/types.js";
 import { loadTestConfig } from "@/config/loadTestConfig.js";
 import { buildDecisionReportForUser } from "@/notifications/telegram/buildDecisionReport.js";
 import { code } from "@/notifications/telegram/escapeMarkdownV2";
+import { escapeUserDateTimeForMarkdown } from "@/notifications/telegram/formatUserDateTime.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
@@ -149,6 +150,13 @@ describe("buildDecisionReportForUser", () => {
 
 		expect(report).toContain(`Decision:`);
 		expect(report).toContain(`\\#${code(String(saved.id))}`);
+		expect(report).toContain("Time:");
+		expect(report).toContain(
+			escapeUserDateTimeForMarkdown(saved.createdAt, {
+				locale: null,
+				timezone: null,
+			}),
+		);
 		expect(report).toContain("Buy BTC");
 	});
 

@@ -8,6 +8,7 @@ import {
 	italic,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
+import { escapeUserDateTimeForMarkdown } from "@/notifications/telegram/formatUserDateTime.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
@@ -16,11 +17,14 @@ import { formatPredictionSignalDisplay } from "@/sources/prediction_markets/form
 import type { SocialMediaScoringStats } from "@/sources/social_media/processSocialMediaSignals.js";
 import { SOCIAL_MEDIA_MIN_RELEVANCE_SCORE } from "@/sources/social_media/socialMediaScoringConstants.js";
 import type { StoredPortfolio } from "@/storage";
+import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
 
 export type RunOutcome = "executed" | "risk_blocked" | "hold";
 
 export type RunReportInput = {
 	decisionId?: number;
+	decisionCreatedAt?: Date;
+	userDateTimeSettings?: Pick<TelegramUserSettings, "locale" | "timezone">;
 	outcome: RunOutcome;
 	/** Derived actions headline, e.g. "BTC:BUY,ETH:SELL" or "HOLD". */
 	headline: string;
@@ -220,7 +224,19 @@ export function formatRunReport(input: RunReportInput): string {
 	const lines: string[] = [OUTCOME_HEADERS[input.outcome], ""];
 
 	if (input.decisionId !== undefined) {
-		lines.push(`${bold("Decision:")} \\#${code(String(input.decisionId))}`, "");
+		lines.push(`${bold("Decision:")} \\#${code(String(input.decisionId))}`);
+	}
+
+	if (input.decisionCreatedAt !== undefined) {
+		const formattedTime = escapeUserDateTimeForMarkdown(
+			input.decisionCreatedAt,
+			input.userDateTimeSettings ?? { locale: null, timezone: null },
+		);
+		lines.push(`${bold("Time:")} ${formattedTime}`);
+	}
+
+	if (input.decisionId !== undefined || input.decisionCreatedAt !== undefined) {
+		lines.push("");
 	}
 
 	lines.push(

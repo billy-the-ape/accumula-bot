@@ -4,6 +4,7 @@ import {
 	formatRunReport,
 	type RunReportInput,
 } from "@/notifications/telegram/formatRunReport.js";
+import { escapeUserDateTimeForMarkdown } from "@/notifications/telegram/formatUserDateTime.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
@@ -103,6 +104,42 @@ describe("formatRunReport", () => {
 		const message = formatRunReport(baseInput({ decisionId: 42 }));
 		expect(message).toContain("Decision:");
 		expect(message).toContain("\\#`42`");
+	});
+
+	it("includes the decision timestamp in UTC when locale and timezone are unset", () => {
+		const createdAt = new Date("2026-06-16T15:30:00.000Z");
+		const message = formatRunReport(
+			baseInput({
+				decisionId: 42,
+				decisionCreatedAt: createdAt,
+				userDateTimeSettings: { locale: null, timezone: null },
+			}),
+		);
+
+		expect(message).toContain("Time:");
+		expect(message).toContain("2026\\-06\\-16T15:30:00\\.000Z");
+	});
+
+	it("formats the decision timestamp with user locale and timezone", () => {
+		const createdAt = new Date("2026-06-16T15:30:00.000Z");
+		const message = formatRunReport(
+			baseInput({
+				decisionId: 42,
+				decisionCreatedAt: createdAt,
+				userDateTimeSettings: {
+					locale: "en-US",
+					timezone: "America/New_York",
+				},
+			}),
+		);
+
+		const expected = escapeUserDateTimeForMarkdown(createdAt, {
+			locale: "en-US",
+			timezone: "America/New_York",
+		});
+
+		expect(message).toContain("Time:");
+		expect(message).toContain(expected);
 	});
 
 	it("renders an executed run with trades, outlooks, and portfolio", () => {

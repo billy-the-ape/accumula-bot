@@ -84,9 +84,12 @@ export type StoredPortfolio = {
 	minDepositUsd: number | null;
 };
 
+import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
+
 export type ActivePortfolio = StoredPortfolio & {
 	telegramChatId: string;
 	verbose: boolean;
+	userDateTimeSettings: Pick<TelegramUserSettings, "locale" | "timezone">;
 };
 
 export type PortfolioBaselines = {
@@ -405,6 +408,27 @@ export async function finalizeLivePortfolioRisk(
 	return loadPortfolio(db, row);
 }
 
+export async function updatePortfolioRiskTolerance(
+	db: AppDatabase,
+	portfolioId: number,
+	riskTolerance: RiskTolerance,
+): Promise<StoredPortfolio> {
+	const [row] = await db
+		.update(portfolios)
+		.set({
+			riskTolerance,
+			updatedAt: new Date(),
+		})
+		.where(eq(portfolios.id, portfolioId))
+		.returning();
+
+	if (!row) {
+		throw new Error(`Portfolio ${portfolioId} not found`);
+	}
+
+	return loadPortfolio(db, row);
+}
+
 export async function getActivePortfolioForUser(
 	db: AppDatabase,
 	telegramUserId: number,
@@ -433,6 +457,8 @@ export async function listActivePortfolios(
 			portfolio: portfolios,
 			telegramChatId: telegramUsers.telegramChatId,
 			verbose: telegramUsers.verbose,
+			locale: telegramUsers.locale,
+			timezone: telegramUsers.timezone,
 		})
 		.from(portfolios)
 		.innerJoin(telegramUsers, eq(portfolios.telegramUserId, telegramUsers.id))
@@ -446,12 +472,19 @@ export async function listActivePortfolios(
 		.orderBy(desc(portfolios.createdAt), desc(portfolios.id));
 
 	const results: ActivePortfolio[] = [];
-	for (const { portfolio: row, telegramChatId, verbose } of rows) {
+	for (const {
+		portfolio: row,
+		telegramChatId,
+		verbose,
+		locale,
+		timezone,
+	} of rows) {
 		const portfolio = await loadPortfolio(db, row);
 		results.push({
 			...portfolio,
 			telegramChatId,
 			verbose,
+			userDateTimeSettings: { locale, timezone },
 		});
 	}
 
