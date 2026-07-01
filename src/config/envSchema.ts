@@ -13,6 +13,11 @@ const DEFAULT_ASSET_TRADEABLE = "BTC,ETH,SOL,USDC,EURC,LINK";
 const DEFAULT_LIVE_MIN_DEPOSIT_USD = 1000;
 const DEFAULT_DEPOSIT_RPC_URL = "https://mainnet.base.org";
 const DEFAULT_DEPOSIT_CHAIN_ID = BASE_CHAIN_ID;
+const DEFAULT_LIVE_MAX_SLIPPAGE_BPS = 100;
+const DEFAULT_LIVE_GAS_BOOTSTRAP_USD = 3;
+const DEFAULT_WITHDRAWAL_PROFIT_FEE_BPS = 500;
+const DEFAULT_CATEGORY_MAX_RISK_ON_FRACTION = 0.85;
+const DEFAULT_CDP_GAS_PAYMENT_MODE = "usdc";
 const DEFAULT_LLM_MODEL = "qwen3:8b";
 const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_LLM_TEMPERATURE = 0.2;
@@ -179,6 +184,38 @@ export const RawEnvSchema = z
 			})
 			.default(DEFAULT_DEPOSIT_CHAIN_ID),
 		WALLET_ENCRYPTION_KEY: z.string().trim().min(1).optional(),
+		ZEROX_API_KEY: z.string().trim().min(1).optional(),
+		LIVE_MAX_SLIPPAGE_BPS: z.coerce
+			.number()
+			.int()
+			.min(1)
+			.max(1000)
+			.default(DEFAULT_LIVE_MAX_SLIPPAGE_BPS),
+		LIVE_GAS_BOOTSTRAP_USD: z.coerce
+			.number()
+			.positive()
+			.max(50)
+			.default(DEFAULT_LIVE_GAS_BOOTSTRAP_USD),
+		WITHDRAWAL_PROFIT_FEE_BPS: z.coerce
+			.number()
+			.int()
+			.min(0)
+			.max(10_000)
+			.default(DEFAULT_WITHDRAWAL_PROFIT_FEE_BPS),
+		WITHDRAWAL_TREASURY_ADDRESS: z
+			.string()
+			.trim()
+			.regex(/^0x[a-fA-F0-9]{40}$/, "Invalid treasury address")
+			.optional(),
+		CDP_PAYMASTER_RPC_URL: z.url().optional(),
+		CDP_GAS_PAYMENT_MODE: z
+			.enum(["sponsor", "usdc"])
+			.default(DEFAULT_CDP_GAS_PAYMENT_MODE),
+		CATEGORY_MAX_RISK_ON_FRACTION: z.coerce
+			.number()
+			.min(0)
+			.max(1)
+			.default(DEFAULT_CATEGORY_MAX_RISK_ON_FRACTION),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -240,6 +277,14 @@ export const RawEnvSchema = z
 		depositRpcUrl: env.DEPOSIT_RPC_URL,
 		depositChainId: env.DEPOSIT_CHAIN_ID,
 		walletEncryptionKey: env.WALLET_ENCRYPTION_KEY,
+		zeroXApiKey: env.ZEROX_API_KEY,
+		liveMaxSlippageBps: env.LIVE_MAX_SLIPPAGE_BPS,
+		liveGasBootstrapUsd: env.LIVE_GAS_BOOTSTRAP_USD,
+		withdrawalProfitFeeBps: env.WITHDRAWAL_PROFIT_FEE_BPS,
+		withdrawalTreasuryAddress: env.WITHDRAWAL_TREASURY_ADDRESS,
+		cdpPaymasterRpcUrl: env.CDP_PAYMASTER_RPC_URL,
+		cdpGasPaymentMode: env.CDP_GAS_PAYMENT_MODE,
+		categoryMaxRiskOnFraction: env.CATEGORY_MAX_RISK_ON_FRACTION,
 	}));
 
 export type ParsedEnv = z.infer<typeof RawEnvSchema>;

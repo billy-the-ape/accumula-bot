@@ -27,6 +27,12 @@ export function parseOnboardingDraft(
 		) {
 			return undefined;
 		}
+		if (
+			draft.liquidateDestinationAddress !== undefined &&
+			typeof draft.liquidateDestinationAddress !== "string"
+		) {
+			return undefined;
+		}
 
 		return draft;
 	} catch {

@@ -1,6 +1,8 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import type { FundingStatus, PortfolioMode } from "@/live/portfolioMode.js";
+import type { PortfolioWalletKind } from "@/live/portfolioWalletKind.js";
+import { parsePortfolioWalletKind } from "@/live/portfolioWalletKind.js";
 import type { RiskTolerance } from "@/risk/riskTolerance.js";
 import type { AppDatabase } from "@/storage/db.js";
 import {
@@ -26,6 +28,7 @@ export type CreatePortfolioInput = {
 	mode?: PortfolioMode;
 	chainId?: number;
 	walletAddress?: string;
+	walletKind?: PortfolioWalletKind;
 	encryptedPrivateKey?: string;
 	fundingStatus?: FundingStatus;
 	totalDepositedUsd?: number;
@@ -37,6 +40,7 @@ export type CreateLivePortfolioInput = {
 	assetToAccumulate: string;
 	cashSymbol: string;
 	walletAddress: string;
+	walletKind?: PortfolioWalletKind;
 	encryptedPrivateKey: string;
 	chainId: number;
 	minDepositUsd: number;
@@ -73,8 +77,10 @@ export type StoredPortfolio = {
 	mode: PortfolioMode;
 	chainId: number | null;
 	walletAddress: string | null;
+	walletKind: PortfolioWalletKind;
 	fundingStatus: FundingStatus | null;
 	totalDepositedUsd: number;
+	totalWithdrawnUsd: number;
 	minDepositUsd: number | null;
 };
 
@@ -122,8 +128,10 @@ function mapPortfolioRow(
 		mode: (row.mode ?? "paper") as PortfolioMode,
 		chainId: row.chainId ?? null,
 		walletAddress: row.walletAddress ?? null,
+		walletKind: parsePortfolioWalletKind(row.walletKind),
 		fundingStatus: (row.fundingStatus as FundingStatus | null) ?? null,
 		totalDepositedUsd: row.totalDepositedUsd ?? 0,
+		totalWithdrawnUsd: row.totalWithdrawnUsd ?? 0,
 		minDepositUsd: row.minDepositUsd ?? null,
 	};
 }
@@ -193,6 +201,9 @@ export async function createPortfolio(
 			...(input.chainId !== undefined ? { chainId: input.chainId } : {}),
 			...(input.walletAddress !== undefined
 				? { walletAddress: input.walletAddress }
+				: {}),
+			...(input.walletKind !== undefined
+				? { walletKind: input.walletKind }
 				: {}),
 			...(input.encryptedPrivateKey !== undefined
 				? { encryptedPrivateKey: input.encryptedPrivateKey }
@@ -277,6 +288,7 @@ export async function createLivePortfolioAwaitingDeposit(
 		mode: "live",
 		chainId: input.chainId,
 		walletAddress: input.walletAddress,
+		walletKind: input.walletKind ?? "eoa",
 		encryptedPrivateKey: input.encryptedPrivateKey,
 		fundingStatus: "awaiting_deposit",
 		minDepositUsd: input.minDepositUsd,
@@ -522,4 +534,32 @@ export async function getPortfolioHoldings(
 		.where(eq(positions.portfolioId, portfolioId));
 
 	return mapPositionsToHoldings(positionRows);
+}
+
+export async function finalizeLiquidatedPortfolio(
+	db: AppDatabase,
+	params: {
+		portfolioId: number;
+		withdrawnUsd: number;
+	},
+): Promise<void> {
+	const now = new Date();
+	const portfolio = await findPortfolioById(db, params.portfolioId);
+	if (!portfolio) {
+		throw new Error(`Portfolio ${params.portfolioId} not found`);
+	}
+
+	await db
+		.delete(positions)
+		.where(eq(positions.portfolioId, params.portfolioId));
+	await db
+		.update(portfolios)
+		.set({
+			isActive: false,
+			tradingEnabled: false,
+			fundingStatus: "paused",
+			totalWithdrawnUsd: portfolio.totalWithdrawnUsd + params.withdrawnUsd,
+			updatedAt: now,
+		})
+		.where(eq(portfolios.id, params.portfolioId));
 }

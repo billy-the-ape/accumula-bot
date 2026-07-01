@@ -1,5 +1,24 @@
+import { computeLiquidationBreakdown } from "@/live/computeLiquidationBreakdown.js";
+import {
+	isSameWalletAddress,
+	parseDestinationWalletAddress,
+} from "@/live/validateWalletAddress.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { formatPortfolioSummary } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
+import {
+	buildLiquidationConfirmKeyboard,
+	parseLiquidationCallback,
+} from "@/notifications/telegram/bot/liquidationKeyboard.js";
+import {
+	formatInvalidLiquidationAddressMessage,
+	formatLiquidationAddressPrompt,
+	formatLiquidationCancelledMessage,
+	formatLiquidationInProgressMessage,
+	formatLiquidationSameWalletMessage,
+	formatLiquidationSummaryMessage,
+	formatLiveResetRejectedMessage,
+	formatMissingTreasuryAddressMessage,
+} from "@/notifications/telegram/bot/liquidationMessages.js";
 import {
 	parseOnboardingDraft,
 	serializeOnboardingDraft,
@@ -65,7 +84,11 @@ function beginOnboarding(): BotHandlerOutput {
 	};
 }
 
-function handleReset(): BotHandlerOutput {
+function handleReset(context: BotHandlerContext): BotHandlerOutput {
+	if (context.activePortfolio?.mode === "live") {
+		return { text: formatLiveResetRejectedMessage() };
+	}
+
 	return {
 		text: formatPortfolioResetMessage(),
 		effects: {
@@ -76,6 +99,25 @@ function handleReset(): BotHandlerOutput {
 			deactivatePortfolios: true,
 		},
 	};
+}
+
+function beginLiquidation(): BotHandlerOutput {
+	return {
+		text: formatLiquidationAddressPrompt(),
+		effects: {
+			userPatch: {
+				onboardingState: "awaiting_liquidate_address",
+				onboardingDraftJson: null,
+			},
+		},
+	};
+}
+
+function isLiveFundedPortfolio(context: BotHandlerContext): boolean {
+	return (
+		context.activePortfolio?.mode === "live" &&
+		context.activePortfolio.fundingStatus === "funded"
+	);
 }
 
 function promptForModeSelection(): BotHandlerOutput {
@@ -143,10 +185,137 @@ function completePaperOnboarding(
 
 function formatSummaryReply(
 	summary: PortfolioSummaryInput,
-	includeResetHint: boolean,
+	context: BotHandlerContext,
+	includeHint: boolean,
 ): BotHandlerOutput {
+	const isLive = context.activePortfolio?.mode === "live";
 	return {
-		text: formatPortfolioSummary(summary, { includeResetHint }),
+		text: formatPortfolioSummary(summary, {
+			includeResetHint: includeHint && !isLive,
+			includeLiquidateHint: includeHint && isLive,
+		}),
+	};
+}
+
+function handleAwaitingLiquidateAddress(
+	message: BotIncomingMessage,
+	context: BotHandlerContext,
+	summary: PortfolioSummaryInput | undefined,
+	profitFeeBps: number,
+): BotHandlerOutput {
+	if (message.kind !== "text") {
+		return { text: formatLiquidationAddressPrompt() };
+	}
+
+	const parsed = parseDestinationWalletAddress(message.text);
+	if (!parsed.ok) {
+		return { text: formatInvalidLiquidationAddressMessage(parsed.reason) };
+	}
+
+	const portfolioWallet = context.activePortfolio?.walletAddress;
+	if (portfolioWallet && isSameWalletAddress(parsed.address, portfolioWallet)) {
+		return { text: formatLiquidationSameWalletMessage() };
+	}
+
+	const estimatedGrossUsdc = summary?.currentUsdValue ?? 0;
+	const breakdown = computeLiquidationBreakdown({
+		totalDepositedUsd: context.activePortfolio?.totalDepositedUsd ?? 0,
+		totalWithdrawnUsd: context.activePortfolio?.totalWithdrawnUsd ?? 0,
+		grossUsdc: estimatedGrossUsdc,
+		profitFeeBps,
+	});
+
+	return {
+		text: formatLiquidationSummaryMessage({
+			destinationAddress: parsed.address,
+			estimatedGrossUsdc,
+			breakdown,
+			profitFeeBps,
+		}),
+		replyMarkup: buildLiquidationConfirmKeyboard(),
+		effects: {
+			userPatch: {
+				onboardingState: "awaiting_liquidate_confirm",
+				onboardingDraftJson: serializeOnboardingDraft({
+					liquidateDestinationAddress: parsed.address,
+				}),
+			},
+		},
+	};
+}
+
+function handleAwaitingLiquidateConfirm(
+	message: BotIncomingMessage,
+	context: BotHandlerContext,
+	profitFeeBps: number,
+): BotHandlerOutput {
+	if (message.kind !== "callback") {
+		const draft = parseOnboardingDraft(context.onboardingDraftJson);
+		const destinationAddress = draft?.liquidateDestinationAddress ?? "0x";
+		const estimatedGrossUsdc = 0;
+		const breakdown = computeLiquidationBreakdown({
+			totalDepositedUsd: context.activePortfolio?.totalDepositedUsd ?? 0,
+			totalWithdrawnUsd: context.activePortfolio?.totalWithdrawnUsd ?? 0,
+			grossUsdc: estimatedGrossUsdc,
+			profitFeeBps,
+		});
+
+		return {
+			text: formatLiquidationSummaryMessage({
+				destinationAddress,
+				estimatedGrossUsdc,
+				breakdown,
+				profitFeeBps,
+			}),
+			replyMarkup: buildLiquidationConfirmKeyboard(),
+		};
+	}
+
+	const action = parseLiquidationCallback(message.data);
+	if (action === "cancel" || action === undefined) {
+		return {
+			text: formatLiquidationCancelledMessage(),
+			effects: {
+				userPatch: {
+					onboardingState: null,
+					onboardingDraftJson: null,
+				},
+			},
+		};
+	}
+
+	const draft = parseOnboardingDraft(context.onboardingDraftJson);
+	const destinationAddress = draft?.liquidateDestinationAddress;
+	const portfolioId = context.activePortfolio?.id;
+	if (!destinationAddress || portfolioId === undefined) {
+		return {
+			text: formatLiquidationCancelledMessage(),
+			effects: {
+				userPatch: {
+					onboardingState: null,
+					onboardingDraftJson: null,
+				},
+			},
+		};
+	}
+
+	const parsed = parseDestinationWalletAddress(destinationAddress);
+	if (!parsed.ok) {
+		return beginLiquidation();
+	}
+
+	return {
+		text: formatLiquidationInProgressMessage(),
+		effects: {
+			userPatch: {
+				onboardingState: null,
+				onboardingDraftJson: null,
+			},
+			executeLiquidation: {
+				portfolioId,
+				destinationAddress: parsed.address,
+			},
+		},
 	};
 }
 
@@ -346,6 +515,8 @@ function handleSettingCallback(
 
 export type HandleBotMessageOptions = {
 	liveTradingConfigured?: boolean;
+	liquidationConfigured?: boolean;
+	profitFeeBps?: number;
 };
 
 export function handleBotMessage(
@@ -355,8 +526,18 @@ export function handleBotMessage(
 	options: HandleBotMessageOptions = {},
 ): BotHandlerOutput {
 	const liveTradingConfigured = options.liveTradingConfigured ?? false;
+	const liquidationConfigured = options.liquidationConfigured ?? false;
+	const profitFeeBps = options.profitFeeBps ?? 500;
 
 	if (message.kind === "callback") {
+		const liquidationCallback = parseLiquidationCallback(message.data);
+		if (
+			liquidationCallback &&
+			context.onboardingState === "awaiting_liquidate_confirm"
+		) {
+			return handleAwaitingLiquidateConfirm(message, context, profitFeeBps);
+		}
+
 		const settingCallback = parseSettingCallback(message.data);
 		if (settingCallback) {
 			return handleSettingCallback(context.settings, message.data);
@@ -369,7 +550,16 @@ export function handleBotMessage(
 				return handleSettingsCommand(context.settings, message.args);
 
 			case "reset":
-				return handleReset();
+				return handleReset(context);
+
+			case "liquidate":
+				if (!isLiveFundedPortfolio(context)) {
+					return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
+				}
+				if (!liquidationConfigured) {
+					return { text: formatMissingTreasuryAddressMessage() };
+				}
+				return beginLiquidation();
 
 			case "status":
 			case "summary":
@@ -390,7 +580,7 @@ export function handleBotMessage(
 				if (!context.hasActivePortfolio || !summary) {
 					return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
 				}
-				return formatSummaryReply(summary, false);
+				return formatSummaryReply(summary, context, false);
 
 			case "start": {
 				if (
@@ -399,7 +589,7 @@ export function handleBotMessage(
 					summary &&
 					context.activePortfolio?.fundingStatus !== "awaiting_deposit"
 				) {
-					return formatSummaryReply(summary, true);
+					return formatSummaryReply(summary, context, true);
 				}
 				if (
 					context.activePortfolio?.mode === "live" &&
@@ -430,6 +620,19 @@ export function handleBotMessage(
 				return beginOnboarding();
 			}
 		}
+	}
+
+	if (context.onboardingState === "awaiting_liquidate_address") {
+		return handleAwaitingLiquidateAddress(
+			message,
+			context,
+			summary,
+			profitFeeBps,
+		);
+	}
+
+	if (context.onboardingState === "awaiting_liquidate_confirm") {
+		return handleAwaitingLiquidateConfirm(message, context, profitFeeBps);
 	}
 
 	if (context.onboardingState === "awaiting_mode_selection") {

@@ -63,9 +63,11 @@ export const portfolios = sqliteTable(
 		mode: text("mode").notNull().default("paper"),
 		chainId: integer("chain_id"),
 		walletAddress: text("wallet_address"),
+		walletKind: text("wallet_kind").notNull().default("eoa"),
 		encryptedPrivateKey: text("encrypted_private_key"),
 		fundingStatus: text("funding_status"),
 		totalDepositedUsd: real("total_deposited_usd").notNull().default(0),
+		totalWithdrawnUsd: real("total_withdrawn_usd").notNull().default(0),
 		minDepositUsd: real("min_deposit_usd"),
 	},
 	(table) => [
@@ -106,6 +108,21 @@ export const trades = sqliteTable("trades", {
 	quantity: real("quantity").notNull(),
 	priceUsd: real("price_usd").notNull(),
 	quoteValueUsd: real("quote_value_usd").notNull(),
+	txHash: text("tx_hash"),
+});
+
+export const withdrawals = sqliteTable("withdrawals", {
+	id: integer("id").primaryKey({ autoIncrement: true }),
+	portfolioId: integer("portfolio_id")
+		.notNull()
+		.references(() => portfolios.id),
+	destinationAddress: text("destination_address").notNull(),
+	grossAmountUsd: real("gross_amount_usd").notNull(),
+	feeAmountUsd: real("fee_amount_usd").notNull(),
+	netAmountUsd: real("net_amount_usd").notNull(),
+	feeTxHash: text("fee_tx_hash"),
+	netTxHash: text("net_tx_hash"),
+	createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 });
 
 export const macroBriefings = sqliteTable("macro_briefings", {
@@ -150,6 +167,8 @@ export type PositionRow = typeof positions.$inferSelect;
 export type NewPositionRow = typeof positions.$inferInsert;
 export type TradeRow = typeof trades.$inferSelect;
 export type NewTradeRow = typeof trades.$inferInsert;
+export type WithdrawalRow = typeof withdrawals.$inferSelect;
+export type NewWithdrawalRow = typeof withdrawals.$inferInsert;
 export type MacroBriefingRow = typeof macroBriefings.$inferSelect;
 export type NewMacroBriefingRow = typeof macroBriefings.$inferInsert;
 export type SocialMediaPostRow = typeof socialMediaPosts.$inferSelect;

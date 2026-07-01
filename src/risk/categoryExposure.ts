@@ -1,5 +1,6 @@
 import { getCryptocurrency, normalizeRegistrySymbol } from "@/config/assets.js";
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
+import type { RiskViolation } from "@/risk/types.js";
 import type { MacroRiskCategory } from "@/schemas/AssetTaxonomy.js";
 
 export type CategoryExposure = Record<MacroRiskCategory, number>;
@@ -81,4 +82,26 @@ export function summarizeCategoryExposure(
 		`neutral ${(exposure.neutral * 100).toFixed(1)}%, ` +
 		`risk_on ${(exposure.risk_on * 100).toFixed(1)}%`
 	);
+}
+
+export function assessMaxRiskOnExposure(
+	holdings: PortfolioHoldings,
+	prices: PriceMap,
+	maxRiskOnFraction: number,
+): RiskViolation | null {
+	const report = computeCategoryExposure(holdings, prices);
+	if (report.totalUsd <= 0) {
+		return null;
+	}
+
+	if (report.exposure.risk_on > maxRiskOnFraction) {
+		return {
+			code: "CATEGORY_RISK_ON_LIMIT",
+			message:
+				`risk_on exposure ${(report.exposure.risk_on * 100).toFixed(1)}% ` +
+				`exceeds ${(maxRiskOnFraction * 100).toFixed(0)}% limit`,
+		};
+	}
+
+	return null;
 }

@@ -63,6 +63,7 @@ describe("parseBotCommand", () => {
 		expect(parseBotCommand("/summary")).toBe("summary");
 		expect(parseBotCommand("/status")).toBe("status");
 		expect(parseBotCommand("/reset")).toBe("reset");
+		expect(parseBotCommand("/liquidate")).toBe("liquidate");
 		expect(parseBotCommand("/settings")).toBe("settings");
 		expect(parseBotCommand("/decision")).toBe("decision");
 	});
@@ -116,6 +117,15 @@ describe("formatPortfolioSummary", () => {
 
 		expect(withHint).toContain("/reset");
 		expect(withoutHint).not.toContain("/reset");
+	});
+
+	it("adds liquidate hint for live portfolios when requested", () => {
+		const withHint = formatPortfolioSummary(sampleSummary, {
+			includeLiquidateHint: true,
+		});
+
+		expect(withHint).toContain("/liquidate");
+		expect(withHint).not.toContain("/reset");
 	});
 });
 
@@ -262,10 +272,56 @@ describe("handleBotMessage onboarding", () => {
 		expect(result.text).toContain("/start");
 		expect(result.text).not.toContain("Choose how you want to trade");
 	});
+
+	it("/reset is rejected for live portfolios", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 1,
+					mode: "live",
+					fundingStatus: "funded",
+					walletAddress: "0x1111111111111111111111111111111111111111",
+					minDepositUsd: 1000,
+					totalDepositedUsd: 1000,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "command", command: "reset" },
+		);
+
+		expect(result.effects?.deactivatePortfolios).toBeUndefined();
+		expect(result.text).toContain("/liquidate");
+	});
+
+	it("/liquidate starts address collection for funded live portfolios", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 1,
+					mode: "live",
+					fundingStatus: "funded",
+					walletAddress: "0x1111111111111111111111111111111111111111",
+					minDepositUsd: 1000,
+					totalDepositedUsd: 1000,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "command", command: "liquidate" },
+			undefined,
+			{ liquidationConfigured: true },
+		);
+
+		expect(result.effects?.userPatch?.onboardingState).toBe(
+			"awaiting_liquidate_address",
+		);
+		expect(result.text).toContain("0x");
+	});
 });
 
 describe("handleBotMessage summary commands", () => {
-	it("/start shows summary with reset hint for onboarded user", () => {
+	it("/start shows summary with reset hint for onboarded paper user", () => {
 		const result = handleBotMessage(
 			onboardedContext,
 			{ kind: "command", command: "start" },
@@ -274,6 +330,28 @@ describe("handleBotMessage summary commands", () => {
 
 		expect(result.text).toContain("Portfolio summary");
 		expect(result.text).toContain("/reset");
+	});
+
+	it("/start shows liquidate hint for live user", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 1,
+					mode: "live",
+					fundingStatus: "funded",
+					walletAddress: "0x1111111111111111111111111111111111111111",
+					minDepositUsd: 1000,
+					totalDepositedUsd: 1000,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "command", command: "start" },
+			sampleSummary,
+		);
+
+		expect(result.text).toContain("/liquidate");
+		expect(result.text).not.toContain("/reset");
 	});
 
 	it("/status and /summary show summary without reset hint", () => {

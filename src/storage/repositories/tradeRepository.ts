@@ -26,6 +26,7 @@ export type RecordTradeInput = {
 	quantity: number;
 	priceUsd: number;
 	quoteValueUsd: number;
+	txHash?: string;
 };
 
 function mapTradeRow(row: TradeRow): StoredTrade {
@@ -39,6 +40,7 @@ function mapTradeRow(row: TradeRow): StoredTrade {
 		quantity: row.quantity,
 		priceUsd: row.priceUsd,
 		quoteValueUsd: row.quoteValueUsd,
+		...(row.txHash ? { txHash: row.txHash } : {}),
 	});
 }
 
@@ -127,6 +129,7 @@ export async function recordTrade(
 			quantity: input.quantity,
 			priceUsd: input.priceUsd,
 			quoteValueUsd: input.quoteValueUsd,
+			...(input.txHash !== undefined ? { txHash: input.txHash } : {}),
 		})
 		.returning();
 

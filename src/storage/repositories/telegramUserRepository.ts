@@ -10,7 +10,9 @@ export type OnboardingState =
 	| "awaiting_mode_selection"
 	| "awaiting_starting_value"
 	| "awaiting_live_deposit"
-	| "awaiting_risk_tolerance";
+	| "awaiting_risk_tolerance"
+	| "awaiting_liquidate_address"
+	| "awaiting_liquidate_confirm";
 
 export type StoredTelegramUser = {
 	id: number;

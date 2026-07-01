@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+	assessMaxRiskOnExposure,
 	computeCategoryExposure,
 	logCategoryExposure,
 	summarizeCategoryExposure,
@@ -60,5 +61,28 @@ describe("logCategoryExposure", () => {
 		).toContain("risk_off 50.0%");
 
 		info.mockRestore();
+	});
+});
+
+describe("assessMaxRiskOnExposure", () => {
+	it("returns null when risk_on is within limit", () => {
+		const violation = assessMaxRiskOnExposure(
+			{ USDC: 5000, BTC: 3000, ETH: 2000 },
+			{ USDC: 1, BTC: 1, ETH: 1 },
+			0.85,
+		);
+
+		expect(violation).toBeNull();
+	});
+
+	it("blocks when risk_on exceeds limit", () => {
+		const violation = assessMaxRiskOnExposure(
+			{ ETH: 9000, SOL: 1000 },
+			{ ETH: 1, SOL: 1 },
+			0.85,
+		);
+
+		expect(violation?.code).toBe("CATEGORY_RISK_ON_LIMIT");
+		expect(violation?.message).toContain("100.0%");
 	});
 });

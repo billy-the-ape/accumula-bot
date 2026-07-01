@@ -8,7 +8,8 @@ export type RiskViolationCode =
 	| "WEEKLY_LOSS_LIMIT"
 	| "UNTRADEABLE_ASSET"
 	| "MAX_ALLOCATION"
-	| "MAX_POSITIONS";
+	| "MAX_POSITIONS"
+	| "CATEGORY_RISK_ON_LIMIT";
 
 export type RiskViolation = {
 	code: RiskViolationCode;

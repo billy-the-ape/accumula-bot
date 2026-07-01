@@ -5,6 +5,7 @@ const BOT_COMMANDS = new Set<BotCommand>([
 	"status",
 	"summary",
 	"reset",
+	"liquidate",
 	"settings",
 	"decision",
 ]);

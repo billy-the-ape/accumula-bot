@@ -47,6 +47,7 @@ function formatRiskToleranceLabel(tolerance: RiskTolerance): string {
 
 export type FormatPortfolioSummaryOptions = {
 	includeResetHint?: boolean;
+	includeLiquidateHint?: boolean;
 };
 
 export function formatPortfolioSummary(
@@ -74,6 +75,15 @@ export function formatPortfolioSummary(
 			"",
 			escapeMarkdownV2(
 				"Send /reset to deactivate this portfolio. Use /start to create a new one.",
+			),
+		);
+	}
+
+	if (options.includeLiquidateHint) {
+		lines.push(
+			"",
+			escapeMarkdownV2(
+				"Send /liquidate to close this live portfolio and withdraw your USDC.",
 			),
 		);
 	}

@@ -14,6 +14,7 @@ export const StoredTradeSchema = z.object({
 	quantity: z.number().positive(),
 	priceUsd: z.number().positive(),
 	quoteValueUsd: z.number().positive(),
+	txHash: z.string().min(1).optional(),
 });
 
 export type StoredTrade = z.infer<typeof StoredTradeSchema>;

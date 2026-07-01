@@ -7,7 +7,8 @@ import {
 } from "@/config/assets.js";
 import { assertSupportedDepositChainId } from "@/config/chainAssets.js";
 import type { ParsedEnv } from "@/config/envSchema.js";
-import type { OutlookThresholds } from "@/execution/outlookActions";
+import type { OutlookThresholds } from "@/execution/outlookActions.js";
+import type { CdpGasPaymentMode } from "@/live/cdpPaymaster.js";
 import {
 	type Cryptocurrency,
 	CryptocurrencySchema,
@@ -89,6 +90,20 @@ export type LiveTradingConfig = {
 	depositRpcUrl: string;
 	depositChainId: number;
 	walletEncryptionKey?: string;
+	zeroXApiKey?: string;
+	maxSlippageBps: number;
+	gasBootstrapUsd: number;
+	cdpPaymasterRpcUrl?: string;
+	cdpGasPaymentMode: CdpGasPaymentMode;
+};
+
+export type RiskGuardrailsConfig = {
+	maxRiskOnFraction: number;
+};
+
+export type WithdrawalConfig = {
+	profitFeeBps: number;
+	treasuryAddress?: `0x${string}`;
 };
 
 export type AppConfig = {
@@ -97,6 +112,8 @@ export type AppConfig = {
 	assetTradeable: Cryptocurrency[];
 	assetStarting: Cryptocurrency;
 	live: LiveTradingConfig;
+	withdrawal: WithdrawalConfig;
+	riskGuardrails: RiskGuardrailsConfig;
 	databasePath: string;
 	coingecko: CoinGeckoConfig;
 	llm: LlmConfig;
@@ -258,9 +275,16 @@ export const AppConfigSchema = z
 			minDepositUsd: env.liveMinDepositUsd,
 			depositRpcUrl: env.depositRpcUrl,
 			depositChainId,
+			maxSlippageBps: env.liveMaxSlippageBps,
+			gasBootstrapUsd: env.liveGasBootstrapUsd,
 			...(env.walletEncryptionKey
 				? { walletEncryptionKey: env.walletEncryptionKey }
 				: {}),
+			...(env.zeroXApiKey ? { zeroXApiKey: env.zeroXApiKey } : {}),
+			...(env.cdpPaymasterRpcUrl
+				? { cdpPaymasterRpcUrl: env.cdpPaymasterRpcUrl }
+				: {}),
+			cdpGasPaymentMode: env.cdpGasPaymentMode,
 		};
 
 		return {
@@ -268,6 +292,17 @@ export const AppConfigSchema = z
 			assetTradeable,
 			assetStarting,
 			live,
+			withdrawal: {
+				profitFeeBps: env.withdrawalProfitFeeBps,
+				...(env.withdrawalTreasuryAddress
+					? {
+							treasuryAddress: env.withdrawalTreasuryAddress as `0x${string}`,
+						}
+					: {}),
+			},
+			riskGuardrails: {
+				maxRiskOnFraction: env.categoryMaxRiskOnFraction,
+			},
 			databasePath: env.databasePath,
 			coingecko,
 			llm,

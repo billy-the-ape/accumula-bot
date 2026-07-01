@@ -129,10 +129,13 @@ describe("portfolioRepository", () => {
 			assetToAccumulate: "BTC",
 			cashSymbol: "USDC",
 			walletAddress: "0xabc",
+			walletKind: "smart_account",
 			encryptedPrivateKey: "enc",
 			chainId: BASE_CHAIN_ID,
 			minDepositUsd: 1000,
 		});
+
+		expect(portfolio.walletKind).toBe("smart_account");
 
 		expect(portfolio.mode).toBe("live");
 		expect(portfolio.fundingStatus).toBe("awaiting_deposit");

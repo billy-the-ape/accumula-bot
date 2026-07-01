@@ -1,12 +1,20 @@
 import type { AppConfig } from "@/config/appConfigSchema.js";
+import { assertSupportedDepositChainId } from "@/config/chainAssets.js";
 import {
 	computePortfolioAccumulateValue,
 	getTotalPortfolioQuoteValue,
 } from "@/domain/index.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
+import {
+	executeLiquidation,
+	isLiquidationConfigured,
+} from "@/live/executeLiquidation.js";
 import { generatePortfolioWallet } from "@/live/generatePortfolioWallet.js";
 import { startLiveDepositPolling } from "@/live/liveDepositPoller.js";
 import { isLiveDepositWindowOpen } from "@/live/liveDepositWindow.js";
+import { isSmartAccountLiveEnabled } from "@/live/portfolioWalletCredentials.js";
+import type { PortfolioWalletKind } from "@/live/portfolioWalletKind.js";
+import { createCoinbaseSmartAccountAddress } from "@/live/smartAccount/createCoinbaseSmartAccount.js";
 import { syncLivePortfolioDeposit } from "@/live/syncLiveDeposit.js";
 import {
 	encryptPrivateKey,
@@ -14,6 +22,10 @@ import {
 } from "@/live/walletEncryption.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { handleBotMessage } from "@/notifications/telegram/bot/handleBotMessage.js";
+import {
+	formatLiquidationFailedMessage,
+	formatLiquidationSuccessMessage,
+} from "@/notifications/telegram/bot/liquidationMessages.js";
 import {
 	formatLiveDepositExpiredMessage,
 	formatLiveDepositInstructions,
@@ -76,6 +88,8 @@ function toActivePortfolioContext(
 		fundingStatus: portfolio.fundingStatus,
 		walletAddress: portfolio.walletAddress,
 		minDepositUsd: portfolio.minDepositUsd ?? 0,
+		totalDepositedUsd: portfolio.totalDepositedUsd,
+		totalWithdrawnUsd: portfolio.totalWithdrawnUsd,
 		...(onChainUsdc !== undefined ? { onChainUsdc } : {}),
 	};
 }
@@ -122,10 +136,13 @@ async function applyBotEffects(
 	userId: number,
 	output: BotHandlerOutput,
 	deps: ProcessTelegramUpdateDeps,
-): Promise<StoredPortfolio | undefined> {
+): Promise<{
+	createdLivePortfolio?: StoredPortfolio;
+	liquidationMessage?: string;
+}> {
 	const effects = output.effects;
 	if (!effects) {
-		return undefined;
+		return {};
 	}
 
 	if (effects.deactivatePortfolios) {
@@ -144,11 +161,24 @@ async function applyBotEffects(
 		const key = parseWalletEncryptionKey(encryptionKey);
 		const encryptedPrivateKey = encryptPrivateKey(wallet.privateKey, key);
 
+		let walletAddress: `0x${string}` = wallet.address;
+		let walletKind: PortfolioWalletKind = "eoa";
+		if (isSmartAccountLiveEnabled(config)) {
+			const chainId = assertSupportedDepositChainId(config.live.depositChainId);
+			walletAddress = await createCoinbaseSmartAccountAddress({
+				ownerPrivateKey: wallet.privateKey,
+				chainId,
+				rpcUrl: config.live.depositRpcUrl,
+			});
+			walletKind = "smart_account";
+		}
+
 		createdLivePortfolio = await createLivePortfolioAwaitingDeposit(db, {
 			telegramUserId: userId,
 			assetToAccumulate: config.assetToAccumulate.symbol,
 			cashSymbol: config.assetStarting.symbol,
-			walletAddress: wallet.address,
+			walletAddress,
+			walletKind,
 			encryptedPrivateKey,
 			chainId: config.live.depositChainId,
 			minDepositUsd: config.live.minDepositUsd,
@@ -190,7 +220,35 @@ async function applyBotEffects(
 		await updateTelegramUserSettings(db, userId, effects.settingsPatch);
 	}
 
-	return createdLivePortfolio;
+	if (effects.executeLiquidation) {
+		try {
+			const result = await executeLiquidation(
+				db,
+				config,
+				effects.executeLiquidation,
+				deps.fetchImpl,
+			);
+			return {
+				...(createdLivePortfolio ? { createdLivePortfolio } : {}),
+				liquidationMessage: formatLiquidationSuccessMessage({
+					netToUserUsd: result.netToUserUsd,
+					feeUsd: result.feeUsd,
+					netTxHash: result.netTxHash,
+					...(result.feeTxHash ? { feeTxHash: result.feeTxHash } : {}),
+					swapCount: result.swapTxHashes.length,
+				}),
+			};
+		} catch (error: unknown) {
+			const message =
+				error instanceof Error ? error.message : "Unknown liquidation error";
+			return {
+				...(createdLivePortfolio ? { createdLivePortfolio } : {}),
+				liquidationMessage: formatLiquidationFailedMessage(message),
+			};
+		}
+	}
+
+	return createdLivePortfolio ? { createdLivePortfolio } : {};
 }
 
 async function resolveDecisionCommandOutput(
@@ -308,17 +366,19 @@ export async function processTelegramUpdate(
 			},
 			event.incoming,
 			summary,
-			{ liveTradingConfigured: Boolean(config.live.walletEncryptionKey) },
+			{
+				liveTradingConfigured: Boolean(config.live.walletEncryptionKey),
+				liquidationConfigured: isLiquidationConfigured(config),
+				profitFeeBps: config.withdrawal.profitFeeBps,
+			},
 		);
 	}
 
-	const createdLivePortfolio = await applyBotEffects(
-		db,
-		config,
-		user.id,
-		output,
-		deps,
-	);
+	const effectResult = await applyBotEffects(db, config, user.id, output, deps);
+	const createdLivePortfolio = effectResult.createdLivePortfolio;
+	if (effectResult.liquidationMessage) {
+		output = { ...output, text: effectResult.liquidationMessage };
+	}
 
 	if (createdLivePortfolio?.walletAddress) {
 		const minDeposit =

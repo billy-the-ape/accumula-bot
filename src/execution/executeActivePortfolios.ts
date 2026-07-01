@@ -4,6 +4,10 @@ import {
 	computeReturnFraction,
 	getTotalPortfolioQuoteValue,
 } from "@/domain/index.js";
+import {
+	createLiveExecutionConfig,
+	LiveExecution,
+} from "@/execution/liveExecution.js";
 import type { OutlookThresholds } from "@/execution/outlookActions.js";
 import {
 	createPaperExecutionConfig,
@@ -11,6 +15,7 @@ import {
 } from "@/execution/paperExecution.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
 import type { ExecutionResult } from "@/execution/types.js";
+import { isLiveExecutionConfigured } from "@/live/portfolioWalletCredentials.js";
 import type { RunOutcome } from "@/notifications/telegram/formatRunReport.js";
 import {
 	computeCategoryExposure,
@@ -102,6 +107,12 @@ export async function executeActivePortfolios(
 		db,
 		createPaperExecutionConfig(config),
 	);
+	const liveExecutionConfig = createLiveExecutionConfig(config);
+	const liveExecution =
+		liveExecutionConfig !== undefined
+			? new LiveExecution(db, liveExecutionConfig)
+			: undefined;
+	const liveConfigured = isLiveExecutionConfigured(config);
 	const results: ActivePortfolioRunResult[] = [];
 
 	for (const activePortfolio of activePortfolios) {
@@ -115,14 +126,30 @@ export async function executeActivePortfolios(
 			computeCategoryExposure(activePortfolio.holdings, prices),
 		);
 
-		const execution = await paperExecution.executeForPortfolio(
-			activePortfolio,
-			{
+		let execution: ExecutionResult;
+		if (activePortfolio.mode === "live") {
+			if (!liveExecution) {
+				execution = {
+					executed: false,
+					reason: liveConfigured
+						? "Live execution is not configured"
+						: "Live execution requires ZEROX_API_KEY and WALLET_ENCRYPTION_KEY",
+					trades: [],
+				};
+			} else {
+				execution = await liveExecution.executeForPortfolio(activePortfolio, {
+					recommendation: input.recommendation,
+					marketSnapshots: input.marketSnapshots,
+					decisionId: input.decisionId,
+				});
+			}
+		} else {
+			execution = await paperExecution.executeForPortfolio(activePortfolio, {
 				recommendation: input.recommendation,
 				marketSnapshots: input.marketSnapshots,
 				decisionId: input.decisionId,
-			},
-		);
+			});
+		}
 
 		const portfolio =
 			(await findPortfolioById(db, activePortfolio.id)) ?? activePortfolio;

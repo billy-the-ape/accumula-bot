@@ -182,7 +182,7 @@ async function main() {
 
 			console.info(`Decision saved (id=${saved.id})`);
 
-			console.info("Running paper execution for active portfolios...");
+			console.info("Running execution for active portfolios...");
 
 			const portfolioRuns = await executeActivePortfolios(
 				connection.db,

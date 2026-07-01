@@ -8,6 +8,7 @@ export type BotCommand =
 	| "status"
 	| "summary"
 	| "reset"
+	| "liquidate"
 	| "settings"
 	| "decision";
 
@@ -18,6 +19,7 @@ export type TelegramInlineKeyboard = {
 export type OnboardingDraft = {
 	mode?: PortfolioMode;
 	startingValueUsd?: number;
+	liquidateDestinationAddress?: string;
 };
 
 export type BotUserPatch = {
@@ -34,6 +36,10 @@ export type BotEffects = {
 		riskTolerance: RiskTolerance;
 	};
 	createLivePortfolio?: true;
+	executeLiquidation?: {
+		portfolioId: number;
+		destinationAddress: `0x${string}`;
+	};
 };
 
 export type BotHandlerOutput = {
@@ -53,6 +59,8 @@ export type ActivePortfolioContext = {
 	fundingStatus: "awaiting_deposit" | "funded" | "paused" | null;
 	walletAddress: string | null;
 	minDepositUsd: number;
+	totalDepositedUsd: number;
+	totalWithdrawnUsd: number;
 	onChainUsdc?: number;
 };
 

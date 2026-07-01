@@ -9,11 +9,14 @@ export async function settleFill(
 	fill: PlannedFill,
 	cashSymbol: string,
 	decisionId?: number,
+	options?: { txHash?: string },
 ): Promise<StoredTrade[]> {
 	const quoteValueUsd = fill.quantity * fill.priceUsd;
+	const txHash = options?.txHash;
 	const tradeInput = {
 		portfolioId,
 		...(decisionId !== undefined ? { decisionId } : {}),
+		...(txHash !== undefined ? { txHash } : {}),
 	};
 
 	if (fill.symbol === cashSymbol) {

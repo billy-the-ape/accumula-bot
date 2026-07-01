@@ -1,5 +1,6 @@
 import type { PortfolioHoldings, PriceMap } from "@/domain/types.js";
 import type { PlannedFill } from "@/execution/planTrades.js";
+import { assessMaxRiskOnExposure } from "@/risk/categoryExposure.js";
 import { DEFAULT_RISK_LIMITS } from "@/risk/riskLimits.js";
 import type { ProposedTrade } from "@/risk/types.js";
 import { validateBeforeExecution } from "@/risk/validateBeforeExecution.js";
@@ -79,6 +80,7 @@ export function validatePlannedPaperTrades(input: {
 	cashSymbol: string;
 	tradeableSymbols: readonly string[];
 	fills: readonly PlannedFill[];
+	maxRiskOnFraction?: number;
 }) {
 	const { validationHoldings, proposedTrades } = buildProposedTradesFromPlan(
 		input.holdings,
@@ -86,7 +88,7 @@ export function validatePlannedPaperTrades(input: {
 		input.cashSymbol,
 	);
 
-	return validateBeforeExecution({
+	const risk = validateBeforeExecution({
 		recommendation: input.recommendation,
 		holdings: validationHoldings,
 		prices: input.prices,
@@ -99,4 +101,33 @@ export function validatePlannedPaperTrades(input: {
 		proposedTrades,
 		limits: DEFAULT_RISK_LIMITS,
 	});
+
+	if (!risk.allowed) {
+		return risk;
+	}
+
+	if (input.maxRiskOnFraction !== undefined) {
+		let simulatedHoldings = { ...input.holdings };
+		for (const fill of input.fills) {
+			simulatedHoldings = applyFillToHoldings(
+				simulatedHoldings,
+				fill,
+				input.cashSymbol,
+			);
+		}
+
+		const categoryViolation = assessMaxRiskOnExposure(
+			simulatedHoldings,
+			input.prices,
+			input.maxRiskOnFraction,
+		);
+		if (categoryViolation) {
+			return {
+				allowed: false,
+				violations: [categoryViolation],
+			};
+		}
+	}
+
+	return risk;
 }
