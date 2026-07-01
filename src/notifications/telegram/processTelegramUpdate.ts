@@ -236,7 +236,7 @@ async function applyBotEffects(
 		await updatePortfolioRiskTolerance(
 			db,
 			effects.portfolioPatch.portfolioId,
-			effects.portfolioPatch.riskTolerance,
+			effects.portfolioPatch.riskSetting,
 		);
 	}
 

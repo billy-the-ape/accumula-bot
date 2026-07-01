@@ -1,23 +1,12 @@
-import type { RiskTolerance } from "@/risk/riskTolerance.js";
+import type { PortfolioRiskSetting } from "@/risk/riskTolerance.js";
+import { parsePortfolioRiskInput } from "@/risk/riskTolerance.js";
 
 export type ParsePortfolioCommandResult =
 	| { kind: "show" }
 	| { kind: "show_risk" }
-	| { kind: "set"; riskTolerance: RiskTolerance }
+	| { kind: "show_custom_risk" }
+	| { kind: "set"; riskSetting: PortfolioRiskSetting }
 	| { kind: "error"; message: string };
-
-function parseRiskToleranceValue(rawValue: string): RiskTolerance | undefined {
-	const normalized = rawValue.trim().toLowerCase();
-	if (
-		normalized === "low" ||
-		normalized === "medium" ||
-		normalized === "high"
-	) {
-		return normalized;
-	}
-
-	return undefined;
-}
 
 export function parsePortfolioCommandArgs(
 	args: string | undefined,
@@ -41,13 +30,18 @@ export function parsePortfolioCommandArgs(
 		return { kind: "show_risk" };
 	}
 
-	const riskTolerance = parseRiskToleranceValue(rawValue);
-	if (!riskTolerance) {
+	if (rawValue.trim().toLowerCase() === "custom") {
+		return { kind: "show_custom_risk" };
+	}
+
+	const riskSetting = parsePortfolioRiskInput(rawValue);
+	if (!riskSetting) {
 		return {
 			kind: "error",
-			message: "risk must be low, medium, or high",
+			message:
+				"risk must be low, medium, high, custom, or a number between 0 and 1",
 		};
 	}
 
-	return { kind: "set", riskTolerance };
+	return { kind: "set", riskSetting };
 }

@@ -7,7 +7,7 @@ import { getTotalPortfolioQuoteValue } from "@/domain/allocation.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
 import { getAnalyzableAssets } from "@/llm/index.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
-import { MIN_CONFIDENCE_BY_RISK_TOLERANCE } from "@/risk/riskTolerance.js";
+import { resolveMinConfidence } from "@/risk/riskTolerance.js";
 import type { MarketSnapshot } from "@/schemas/MarketSnapshot.js";
 import { fetchMarketSnapshots } from "@/sources/market/fetchMarketSnapshots.js";
 import type { StoredPortfolio } from "@/storage/repositories/portfolioRepository.js";
@@ -57,7 +57,7 @@ export async function buildPortfolioSummaryInput(
 			computeReturnFraction(accumulateValue, portfolio.initialBtcBaseline) *
 			100,
 		riskTolerance: portfolio.riskTolerance,
-		minConfidence: MIN_CONFIDENCE_BY_RISK_TOLERANCE[portfolio.riskTolerance],
+		minConfidence: resolveMinConfidence(portfolio.riskTolerance),
 	};
 }
 

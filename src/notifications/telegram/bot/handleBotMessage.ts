@@ -18,6 +18,7 @@ import {
 	formatLiquidationSummaryMessage,
 	formatLiveResetRejectedMessage,
 	formatMissingTreasuryAddressMessage,
+	formatNavLiquidateConfirmMessage,
 } from "@/notifications/telegram/bot/liquidationMessages.js";
 import {
 	parseOnboardingDraft,
@@ -57,6 +58,8 @@ import {
 	parsePortfolioRiskCallback,
 } from "@/notifications/telegram/bot/portfolioRiskKeyboard.js";
 import {
+	formatNavLiquidateCancelledMessage,
+	formatPortfolioCustomRiskPromptMessage,
 	formatPortfolioRiskPromptMessage,
 	formatPortfolioRiskUpdatedMessage,
 	formatPortfolioSettingsMessage,
@@ -85,8 +88,12 @@ import {
 	parseStartingValueCallback,
 } from "@/notifications/telegram/bot/startingValueKeyboard.js";
 import {
+	buildNavLiquidateConfirmKeyboard,
+	buildNavResetConfirmKeyboard,
 	buildStatusNavKeyboard,
 	parseNavCallback,
+	parseNavLiquidateConfirmCallback,
+	parseNavResetConfirmCallback,
 } from "@/notifications/telegram/bot/statusNavKeyboard.js";
 import type {
 	ActivePortfolioContext,
@@ -94,7 +101,11 @@ import type {
 	BotHandlerOutput,
 	BotIncomingMessage,
 } from "@/notifications/telegram/bot/types.js";
-import type { RiskTolerance } from "@/risk/riskTolerance.js";
+import {
+	type PortfolioRiskSetting,
+	parsePortfolioRiskInput,
+	type RiskTolerance,
+} from "@/risk/riskTolerance.js";
 
 function beginOnboarding(): BotHandlerOutput {
 	return {
@@ -670,7 +681,7 @@ function handleAwaitingSettingsInput(
 function handleNavCallback(
 	context: BotHandlerContext,
 	summary: PortfolioSummaryInput | undefined,
-	nav: "liquidate" | "portfolio" | "settings",
+	nav: "liquidate" | "reset" | "portfolio" | "settings",
 	options: HandleBotMessageOptions,
 ): BotHandlerOutput {
 	switch (nav) {
@@ -681,12 +692,113 @@ function handleNavCallback(
 			if (!options.liquidationConfigured) {
 				return { text: formatMissingTreasuryAddressMessage() };
 			}
-			return beginLiquidation();
+			return {
+				text: formatNavLiquidateConfirmMessage(),
+				replyMarkup: buildNavLiquidateConfirmKeyboard(),
+			};
+		case "reset":
+			if (!context.hasActivePortfolio) {
+				return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
+			}
+			if (context.activePortfolio?.mode === "live") {
+				return { text: formatLiveResetRejectedMessage() };
+			}
+			return {
+				text: formatNavLiquidateConfirmMessage(),
+				replyMarkup: buildNavResetConfirmKeyboard(),
+			};
 		case "portfolio":
 			return handlePortfolioCommand(context, summary, undefined);
 		case "settings":
 			return handleSettingsCommand(context.settings, undefined);
 	}
+}
+
+function handleNavLiquidateConfirm(
+	action: "confirm" | "cancel",
+	context: BotHandlerContext,
+	options: HandleBotMessageOptions,
+): BotHandlerOutput {
+	if (action === "cancel") {
+		return { text: formatNavLiquidateCancelledMessage() };
+	}
+
+	if (!isLiveFundedPortfolio(context)) {
+		return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
+	}
+	if (!options.liquidationConfigured) {
+		return { text: formatMissingTreasuryAddressMessage() };
+	}
+
+	return beginLiquidation();
+}
+
+function handleNavResetConfirm(
+	action: "confirm" | "cancel",
+	context: BotHandlerContext,
+): BotHandlerOutput {
+	if (action === "cancel") {
+		return { text: formatNavLiquidateCancelledMessage() };
+	}
+
+	return handleReset(context);
+}
+
+function applyPortfolioRiskUpdate(
+	context: BotHandlerContext,
+	riskSetting: PortfolioRiskSetting,
+): BotHandlerOutput {
+	const portfolioId = context.activePortfolio?.id;
+	if (portfolioId === undefined) {
+		return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
+	}
+
+	return {
+		text: formatPortfolioRiskUpdatedMessage(riskSetting),
+		replyMarkup: buildPortfolioRiskKeyboard(riskSetting),
+		effects: {
+			portfolioPatch: {
+				portfolioId,
+				riskSetting,
+			},
+			userPatch: {
+				onboardingState: null,
+			},
+		},
+	};
+}
+
+function handlePortfolioCustomRiskPrompt(): BotHandlerOutput {
+	return {
+		text: formatPortfolioCustomRiskPromptMessage(),
+		effects: {
+			userPatch: {
+				onboardingState: "awaiting_portfolio_risk_custom",
+			},
+		},
+	};
+}
+
+function handleAwaitingPortfolioRiskCustom(
+	context: BotHandlerContext,
+	message: BotIncomingMessage,
+): BotHandlerOutput {
+	if (message.kind !== "text") {
+		return { text: formatPortfolioCustomRiskPromptMessage() };
+	}
+
+	const riskSetting = parsePortfolioRiskInput(message.text);
+	if (!riskSetting) {
+		return {
+			text: botPlainText(["Send a number between 0 and 1 (for example 0.5)."]),
+		};
+	}
+
+	if (!context.hasActivePortfolio) {
+		return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
+	}
+
+	return applyPortfolioRiskUpdate(context, riskSetting);
 }
 
 function handlePortfolioCommand(
@@ -710,22 +822,12 @@ function handlePortfolioCommand(
 		};
 	}
 
-	if (parsed.kind === "set") {
-		const portfolioId = context.activePortfolio?.id;
-		if (portfolioId === undefined) {
-			return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
-		}
+	if (parsed.kind === "show_custom_risk") {
+		return handlePortfolioCustomRiskPrompt();
+	}
 
-		return {
-			text: formatPortfolioRiskUpdatedMessage(parsed.riskTolerance),
-			replyMarkup: buildPortfolioRiskKeyboard(parsed.riskTolerance),
-			effects: {
-				portfolioPatch: {
-					portfolioId,
-					riskTolerance: parsed.riskTolerance,
-				},
-			},
-		};
+	if (parsed.kind === "set") {
+		return applyPortfolioRiskUpdate(context, parsed.riskSetting);
 	}
 
 	return {
@@ -736,29 +838,17 @@ function handlePortfolioCommand(
 function handlePortfolioRiskCallback(
 	context: BotHandlerContext,
 	summary: PortfolioSummaryInput | undefined,
-	data: string,
+	riskSelection: RiskTolerance | "custom",
 ): BotHandlerOutput {
 	if (!context.hasActivePortfolio || !summary) {
 		return { text: NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND };
 	}
 
-	const riskTolerance = parsePortfolioRiskCallback(data);
-	if (!riskTolerance) {
-		return {
-			text: formatPortfolioSettingsMessage(summary.riskTolerance),
-		};
+	if (riskSelection === "custom") {
+		return handlePortfolioCustomRiskPrompt();
 	}
 
-	return {
-		text: formatPortfolioRiskUpdatedMessage(riskTolerance),
-		replyMarkup: buildPortfolioRiskKeyboard(riskTolerance),
-		effects: {
-			portfolioPatch: {
-				portfolioId: context.activePortfolio?.id ?? 0,
-				riskTolerance,
-			},
-		},
-	};
+	return applyPortfolioRiskUpdate(context, riskSelection);
 }
 
 export type HandleBotMessageOptions = {
@@ -805,9 +895,27 @@ export function handleBotMessage(
 			});
 		}
 
+		const navLiquidateConfirm = parseNavLiquidateConfirmCallback(message.data);
+		if (navLiquidateConfirm) {
+			return handleNavLiquidateConfirm(navLiquidateConfirm, context, {
+				liveTradingConfigured,
+				liquidationConfigured,
+				profitFeeBps,
+			});
+		}
+
+		const navResetConfirm = parseNavResetConfirmCallback(message.data);
+		if (navResetConfirm) {
+			return handleNavResetConfirm(navResetConfirm, context);
+		}
+
 		const portfolioRiskCallback = parsePortfolioRiskCallback(message.data);
 		if (portfolioRiskCallback) {
-			return handlePortfolioRiskCallback(context, summary, message.data);
+			return handlePortfolioRiskCallback(
+				context,
+				summary,
+				portfolioRiskCallback,
+			);
 		}
 	}
 
@@ -921,6 +1029,10 @@ export function handleBotMessage(
 		context.onboardingState === "awaiting_settings_timezone"
 	) {
 		return handleAwaitingSettingsInput(context, message);
+	}
+
+	if (context.onboardingState === "awaiting_portfolio_risk_custom") {
+		return handleAwaitingPortfolioRiskCustom(context, message);
 	}
 
 	if (context.onboardingState === "awaiting_live_deposit") {

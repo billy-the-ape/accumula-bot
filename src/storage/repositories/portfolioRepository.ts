@@ -3,7 +3,10 @@ import type { PortfolioHoldings } from "@/domain/types.js";
 import type { FundingStatus, PortfolioMode } from "@/live/portfolioMode.js";
 import type { PortfolioWalletKind } from "@/live/portfolioWalletKind.js";
 import { parsePortfolioWalletKind } from "@/live/portfolioWalletKind.js";
-import type { RiskTolerance } from "@/risk/riskTolerance.js";
+import type {
+	PortfolioRiskSetting,
+	RiskTolerance,
+} from "@/risk/riskTolerance.js";
 import type { AppDatabase } from "@/storage/db.js";
 import {
 	type PortfolioRow,
@@ -13,7 +16,10 @@ import {
 	telegramUsers,
 } from "@/storage/schema.js";
 
-export type { RiskTolerance } from "@/risk/riskTolerance.js";
+export type {
+	PortfolioRiskSetting,
+	RiskTolerance,
+} from "@/risk/riskTolerance.js";
 
 export type CreatePortfolioInput = {
 	assetToAccumulate: string;
@@ -72,7 +78,7 @@ export type StoredPortfolio = {
 	initialQuoteBaseline: number;
 	tradingEnabled: boolean;
 	telegramUserId: number | null;
-	riskTolerance: RiskTolerance;
+	riskTolerance: PortfolioRiskSetting;
 	isActive: boolean;
 	mode: PortfolioMode;
 	chainId: number | null;
@@ -126,7 +132,7 @@ function mapPortfolioRow(
 		initialQuoteBaseline: row.initialQuoteBaseline,
 		tradingEnabled: row.tradingEnabled,
 		telegramUserId: row.telegramUserId ?? null,
-		riskTolerance: row.riskTolerance as RiskTolerance,
+		riskTolerance: row.riskTolerance as PortfolioRiskSetting,
 		isActive: row.isActive,
 		mode: (row.mode ?? "paper") as PortfolioMode,
 		chainId: row.chainId ?? null,
@@ -411,12 +417,12 @@ export async function finalizeLivePortfolioRisk(
 export async function updatePortfolioRiskTolerance(
 	db: AppDatabase,
 	portfolioId: number,
-	riskTolerance: RiskTolerance,
+	riskSetting: PortfolioRiskSetting,
 ): Promise<StoredPortfolio> {
 	const [row] = await db
 		.update(portfolios)
 		.set({
-			riskTolerance,
+			riskTolerance: riskSetting,
 			updatedAt: new Date(),
 		})
 		.where(eq(portfolios.id, portfolioId))

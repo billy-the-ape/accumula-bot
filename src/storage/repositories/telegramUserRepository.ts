@@ -14,7 +14,8 @@ export type OnboardingState =
 	| "awaiting_liquidate_address"
 	| "awaiting_liquidate_confirm"
 	| "awaiting_settings_locale"
-	| "awaiting_settings_timezone";
+	| "awaiting_settings_timezone"
+	| "awaiting_portfolio_risk_custom";
 
 export type StoredTelegramUser = {
 	id: number;

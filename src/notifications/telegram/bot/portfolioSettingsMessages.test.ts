@@ -18,4 +18,11 @@ describe("portfolioSettingsMessages", () => {
 		expect(text).toContain("0\\.67");
 		expect(text).not.toMatch(/[^\\]0\.67/);
 	});
+
+	it("formats custom risk settings", () => {
+		const text = formatPortfolioSettingsMessage("0.5");
+
+		expect(text).toContain("Custom \\(0\\.5\\)");
+		expect(text).toContain("0\\.5");
+	});
 });

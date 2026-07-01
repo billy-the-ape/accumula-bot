@@ -4,7 +4,8 @@ import {
 	escapeMarkdownV2,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
-import type { RiskTolerance } from "@/risk/riskTolerance.js";
+import type { PortfolioRiskSetting } from "@/risk/riskTolerance.js";
+import { formatPortfolioRiskLabel } from "@/risk/riskTolerance.js";
 
 export type PortfolioSummaryInput = {
 	accumulateSymbol: string;
@@ -14,7 +15,7 @@ export type PortfolioSummaryInput = {
 	accumulateValue: number;
 	startingAccumulateValue: number;
 	allTimeReturnPct: number;
-	riskTolerance: RiskTolerance;
+	riskTolerance: PortfolioRiskSetting;
 	minConfidence: number;
 };
 
@@ -41,8 +42,8 @@ function formatHoldings(holdings: PortfolioHoldings): string {
 	return parts.length > 0 ? parts.join("\n") : "\\(empty\\)";
 }
 
-function formatRiskToleranceLabel(tolerance: RiskTolerance): string {
-	return tolerance.charAt(0).toUpperCase() + tolerance.slice(1);
+function formatRiskToleranceLabel(tolerance: PortfolioRiskSetting): string {
+	return formatPortfolioRiskLabel(tolerance);
 }
 
 export type FormatPortfolioSummaryOptions = {

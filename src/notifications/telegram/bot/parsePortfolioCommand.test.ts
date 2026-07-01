@@ -13,7 +13,20 @@ describe("parsePortfolioCommandArgs", () => {
 	it("sets risk directly for /portfolio risk=high", () => {
 		expect(parsePortfolioCommandArgs("risk=high")).toEqual({
 			kind: "set",
-			riskTolerance: "high",
+			riskSetting: "high",
+		});
+	});
+
+	it("sets custom min confidence for /portfolio risk=0.5", () => {
+		expect(parsePortfolioCommandArgs("risk=0.5")).toEqual({
+			kind: "set",
+			riskSetting: "0.5",
+		});
+	});
+
+	it("shows custom prompt for /portfolio risk=custom", () => {
+		expect(parsePortfolioCommandArgs("risk=custom")).toEqual({
+			kind: "show_custom_risk",
 		});
 	});
 

@@ -1,5 +1,8 @@
 import type { PortfolioMode } from "@/live/portfolioMode.js";
-import type { RiskTolerance } from "@/risk/riskTolerance.js";
+import type {
+	PortfolioRiskSetting,
+	RiskTolerance,
+} from "@/risk/riskTolerance.js";
 import type { OnboardingState } from "@/storage/repositories/telegramUserRepository.js";
 import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
 
@@ -13,8 +16,14 @@ export type BotCommand =
 	| "decision"
 	| "portfolio";
 
+export type TelegramInlineKeyboardButton = {
+	text: string;
+	callback_data: string;
+	style?: "danger" | "primary" | "success";
+};
+
 export type TelegramInlineKeyboard = {
-	inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+	inline_keyboard: Array<Array<TelegramInlineKeyboardButton>>;
 };
 
 export type OnboardingDraft = {
@@ -43,7 +52,7 @@ export type BotEffects = {
 	};
 	portfolioPatch?: {
 		portfolioId: number;
-		riskTolerance: RiskTolerance;
+		riskSetting: PortfolioRiskSetting;
 	};
 };
 

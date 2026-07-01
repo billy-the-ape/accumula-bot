@@ -50,6 +50,14 @@ describe("resolveOutlookThresholds", () => {
 		});
 	});
 
+	it("overrides minConfidence for custom portfolio risk", () => {
+		expect(resolveOutlookThresholds(BASE_THRESHOLDS, "0.5")).toEqual({
+			buyMinDirectionScore: 6.9,
+			sellMaxDirectionScore: 3.9,
+			minConfidence: 0.5,
+		});
+	});
+
 	it("does not mutate the base thresholds object", () => {
 		const base = { ...BASE_THRESHOLDS };
 		resolveOutlookThresholds(base, "low");

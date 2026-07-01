@@ -16,6 +16,10 @@ function labelBold(label: string, value: string): string {
 	return `${escapeMarkdownV2(label)} ${bold(value)}`;
 }
 
+export function formatNavLiquidateConfirmMessage(): string {
+	return botPlainText(["Are you sure you want to close this portfolio?"]);
+}
+
 export function formatLiveResetRejectedMessage(): string {
 	return botPlainText(["Use /liquidate to close your live portfolio."]);
 }

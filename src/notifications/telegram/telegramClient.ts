@@ -14,7 +14,9 @@ export type TelegramApiOptions = {
 export type TelegramClientOptions = TelegramApiOptions & {
 	chatId: string;
 	replyMarkup?: {
-		inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+		inline_keyboard: Array<
+			Array<{ text: string; callback_data: string; style?: string }>
+		>;
 	};
 };
 

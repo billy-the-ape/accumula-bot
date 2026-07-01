@@ -419,7 +419,7 @@ describe("handleBotMessage portfolio", () => {
 		);
 
 		expect(result.text).toContain("Portfolio risk tolerance");
-		expect(result.replyMarkup?.inline_keyboard).toHaveLength(3);
+		expect(result.replyMarkup?.inline_keyboard).toHaveLength(4);
 	});
 
 	it("updates risk via /portfolio risk=high", () => {
@@ -442,8 +442,105 @@ describe("handleBotMessage portfolio", () => {
 
 		expect(result.effects?.portfolioPatch).toEqual({
 			portfolioId: 7,
-			riskTolerance: "high",
+			riskSetting: "high",
 		});
 		expect(result.text).toContain("0\\.6");
+	});
+
+	it("updates custom risk via /portfolio risk=0.5", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 7,
+					mode: "paper",
+					fundingStatus: "funded",
+					walletAddress: null,
+					minDepositUsd: 0,
+					totalDepositedUsd: 0,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "command", command: "portfolio", args: "risk=0.5" },
+			sampleSummary,
+		);
+
+		expect(result.effects?.portfolioPatch).toEqual({
+			portfolioId: 7,
+			riskSetting: "0.5",
+		});
+		expect(result.text).toContain("0\\.5");
+	});
+});
+
+describe("handleBotMessage status nav", () => {
+	it("asks for confirmation before closing a live portfolio from nav", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 3,
+					mode: "live",
+					fundingStatus: "funded",
+					walletAddress: "0xabc",
+					minDepositUsd: 100,
+					totalDepositedUsd: 1000,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "callback", data: "nav:liquidate" },
+			sampleSummary,
+			{ liquidationConfigured: true },
+		);
+
+		expect(result.text).toContain("Are you sure");
+		expect(result.replyMarkup?.inline_keyboard[0]?.[0]?.style).toBe("danger");
+	});
+
+	it("starts liquidation after nav confirmation", () => {
+		const result = handleBotMessage(
+			{
+				...onboardedContext,
+				activePortfolio: {
+					id: 3,
+					mode: "live",
+					fundingStatus: "funded",
+					walletAddress: "0xabc",
+					minDepositUsd: 100,
+					totalDepositedUsd: 1000,
+					totalWithdrawnUsd: 0,
+				},
+			},
+			{ kind: "callback", data: "nav:liquidate_confirm" },
+			sampleSummary,
+			{ liquidationConfigured: true },
+		);
+
+		expect(result.effects?.userPatch?.onboardingState).toBe(
+			"awaiting_liquidate_address",
+		);
+	});
+
+	it("asks for confirmation before closing a paper portfolio from nav", () => {
+		const result = handleBotMessage(
+			onboardedContext,
+			{ kind: "callback", data: "nav:reset" },
+			sampleSummary,
+		);
+
+		expect(result.text).toContain("Are you sure");
+		expect(result.replyMarkup?.inline_keyboard[0]?.[0]?.callback_data).toBe(
+			"nav:reset_confirm",
+		);
+	});
+
+	it("resets a paper portfolio after nav confirmation", () => {
+		const result = handleBotMessage(
+			onboardedContext,
+			{ kind: "callback", data: "nav:reset_confirm" },
+			sampleSummary,
+		);
+
+		expect(result.effects?.deactivatePortfolios).toBe(true);
 	});
 });
