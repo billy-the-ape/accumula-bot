@@ -54,11 +54,44 @@ export async function migrateDatabase(db: AppDatabase): Promise<void> {
 	await migrate(db, { migrationsFolder });
 }
 
+const TELEGRAM_USER_SETTINGS_REPAIR_COLUMNS = [
+	{
+		name: "default_risk_tolerance",
+		sql: "ALTER TABLE `telegram_users` ADD `default_risk_tolerance` text DEFAULT 'medium' NOT NULL",
+	},
+	{
+		name: "locale",
+		sql: "ALTER TABLE `telegram_users` ADD `locale` text",
+	},
+	{
+		name: "timezone",
+		sql: "ALTER TABLE `telegram_users` ADD `timezone` text",
+	},
+] as const;
+
+/** Idempotent repair when migration 0013 did not reach the runtime database file. */
+export async function ensureTelegramUserSettingsColumns(
+	client: Client,
+): Promise<void> {
+	const info = await client.execute("PRAGMA table_info(telegram_users)");
+	const existing = new Set(info.rows.map((row) => String(row.name)));
+
+	for (const column of TELEGRAM_USER_SETTINGS_REPAIR_COLUMNS) {
+		if (existing.has(column.name)) {
+			continue;
+		}
+
+		await client.execute(column.sql);
+		console.info(`Applied schema repair: added telegram_users.${column.name}`);
+	}
+}
+
 export async function createDatabase(databasePath: string): Promise<{
 	db: AppDatabase;
 	client: Client;
 }> {
 	const connection = openDatabase(databasePath);
 	await migrateDatabase(connection.db);
+	await ensureTelegramUserSettingsColumns(connection.client);
 	return connection;
 }

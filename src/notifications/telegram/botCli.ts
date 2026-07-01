@@ -71,8 +71,12 @@ async function main() {
 				} catch (error) {
 					const message =
 						error instanceof Error ? error.message : "unknown error";
+					const cause =
+						error instanceof Error && error.cause instanceof Error
+							? error.cause.message
+							: undefined;
 					console.error(
-						`Failed to handle Telegram update ${event.updateId}: ${message}`,
+						`Failed to handle Telegram update ${event.updateId}: ${message}${cause ? ` (${cause})` : ""}`,
 					);
 				}
 			},
