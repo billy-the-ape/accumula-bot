@@ -36,6 +36,8 @@ describe("buildAnalysisPromptParts", () => {
 		);
 		expect(prompt.system).toContain('"asset": "BTC"');
 		expect(prompt.user).toContain("Maximize BTC-denominated returns");
+		expect(prompt.user).toContain("Asset taxonomy");
+		expect(prompt.user).toContain("risk_off");
 		expect(prompt.user).toContain("Outlook assets: BTC, ETH, SOL");
 		expect(prompt.user).toContain("change_30d_pct: 12");
 		expect(prompt.user).not.toContain("Outlook assets: USDC");

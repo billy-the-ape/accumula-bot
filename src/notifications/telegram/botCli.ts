@@ -1,4 +1,5 @@
 import { loadConfig } from "@/config/index.js";
+import { resumePendingLiveDepositPolls } from "@/live/liveDepositPoller.js";
 import { parseTelegramUpdate } from "@/notifications/telegram/bot/parseTelegramUpdate.js";
 import { processTelegramUpdate } from "@/notifications/telegram/processTelegramUpdate.js";
 import { runTelegramPoll } from "@/notifications/telegram/telegramPolling.js";
@@ -27,6 +28,8 @@ async function main() {
 
 	console.info("Telegram bot starting (long poll)");
 	console.info(`Database: ${config.databasePath}`);
+
+	await resumePendingLiveDepositPolls(connection.db, config);
 
 	try {
 		await runTelegramPoll({

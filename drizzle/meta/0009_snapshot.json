@@ -1,8 +1,8 @@
 {
 	"version": "6",
 	"dialect": "sqlite",
-	"id": "46f30c08-c501-4a8f-9279-ad53a5b7ef0f",
-	"prevId": "76fbcad0-65ec-4053-98d2-f50cc0a07ae2",
+	"id": "e6769865-4680-4618-bb8f-6ff9dcfaea63",
+	"prevId": "46f30c08-c501-4a8f-9279-ad53a5b7ef0f",
 	"tables": {
 		"decisions": {
 			"name": "decisions",
@@ -247,6 +247,57 @@
 					"notNull": true,
 					"autoincrement": false,
 					"default": true
+				},
+				"mode": {
+					"name": "mode",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": "'paper'"
+				},
+				"chain_id": {
+					"name": "chain_id",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"wallet_address": {
+					"name": "wallet_address",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"encrypted_private_key": {
+					"name": "encrypted_private_key",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"funding_status": {
+					"name": "funding_status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
+				},
+				"total_deposited_usd": {
+					"name": "total_deposited_usd",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": true,
+					"autoincrement": false,
+					"default": 0
+				},
+				"min_deposit_usd": {
+					"name": "min_deposit_usd",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false,
+					"autoincrement": false
 				}
 			},
 			"indexes": {

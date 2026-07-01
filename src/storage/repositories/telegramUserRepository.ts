@@ -7,7 +7,9 @@ import {
 } from "@/storage/telegramUserSettings.js";
 
 export type OnboardingState =
+	| "awaiting_mode_selection"
 	| "awaiting_starting_value"
+	| "awaiting_live_deposit"
 	| "awaiting_risk_tolerance";
 
 export type StoredTelegramUser = {
@@ -59,7 +61,7 @@ export async function getOrCreateTelegramUser(
 		.insert(telegramUsers)
 		.values({
 			telegramChatId,
-			onboardingState: "awaiting_starting_value",
+			onboardingState: "awaiting_mode_selection",
 			createdAt: now,
 			updatedAt: now,
 		})

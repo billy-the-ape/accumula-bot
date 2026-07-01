@@ -11,14 +11,133 @@ export function botPlainText(lines: string[]): string {
 }
 
 export function formatStartingValuePrompt(): string {
+	return botPlainText([
+		"Select your paper portfolio's initial starting value in USD:",
+		`Tap Default for $${DEFAULT_PAPER_STARTING_CASH_USD.toLocaleString("en-US")}, or send a custom amount.`,
+	]);
+}
+
+export function formatPortfolioModePrompt(): string {
 	return (
 		`🤖 ${underline("Welcome to Accumula Bot")} 🤖\n` +
 		botPlainText([
 			"",
-			"To begin, select your portfolio's initial starting value in USD:",
-			`Tap Default for $${DEFAULT_PAPER_STARTING_CASH_USD.toLocaleString("en-US")}, or send a custom amount.`,
+			"Choose how you want to trade:",
+			"• Paper — simulated portfolio with a starting cash balance",
+			"• Live — real USDC on Base; we generate a deposit wallet for you",
 		])
 	);
+}
+
+export function formatLiveDepositInstructions(
+	walletAddress: string,
+	minDepositUsd: number,
+): string {
+	return [
+		underline("Live portfolio — deposit USDC on Base"),
+		"",
+		`Wallet: ${bold(walletAddress)}`,
+		"",
+		botPlainText([
+			"Only deposit USDC on Base.",
+			`Only send in a single transaction greater than $${minDepositUsd.toLocaleString("en-US")} USDC. This is only active for the next 30 minutes. If no deposits are made, portfolio will revert and you'll have to do /start over again`,
+		]),
+	].join("\n");
+}
+
+export function formatLiveDepositStatus(
+	walletAddress: string,
+	minDepositUsd: number,
+	onChainUsdc: number,
+): string {
+	const lines = [
+		formatLiveDepositInstructions(walletAddress, minDepositUsd),
+		"",
+		`On-chain USDC: $${bold(onDepositUsd(onChainUsdc))}`,
+	];
+	return lines.join("\n");
+}
+
+export function formatLiveDepositUnderMinimumMessage(
+	onChainUsdc: number,
+	minDepositUsd: number,
+): string {
+	return botPlainText([
+		`Your deposit of $${onDepositUsd(onChainUsdc)} is below the $${minDepositUsd.toLocaleString("en-US")} minimum.`,
+		"Liquidate this wallet and send the USDC back to your own address, then run /start to try again.",
+	]);
+}
+
+export function formatLiveDepositSuccessMessage(depositUsd: number): string {
+	return [
+		escapeMarkdownV2("Your live portfolio is ready."),
+		"",
+		`Deposited: $${bold(depositUsd.toLocaleString("en-US"))}`,
+		`Risk tolerance: ${bold("medium")}`,
+		"",
+		escapeMarkdownV2(
+			"Trades run on the hourly schedule. Use /status or /summary anytime.",
+		),
+	].join("\n");
+}
+
+export function formatLiveDepositExpiredMessage(): string {
+	return botPlainText([
+		"The 30-minute deposit window expired with no qualifying deposit.",
+		"Send /start to create a new portfolio.",
+	]);
+}
+
+/** @deprecated use formatLiveDepositInstructions or formatLiveDepositStatus */
+export function formatLiveDepositPrompt(
+	walletAddress: string,
+	minDepositUsd: number,
+	onChainUsdc: number,
+): string {
+	if (onChainUsdc > 0) {
+		return formatLiveDepositStatus(walletAddress, minDepositUsd, onChainUsdc);
+	}
+	return formatLiveDepositInstructions(walletAddress, minDepositUsd);
+}
+
+function onDepositUsd(value: number): string {
+	return value.toLocaleString("en-US", {
+		maximumFractionDigits: 2,
+		minimumFractionDigits: 2,
+	});
+}
+
+export function formatLivePortfolioCreatedMessage(
+	depositUsd: number,
+	riskTolerance: string,
+): string {
+	return [
+		escapeMarkdownV2("Your live portfolio is ready."),
+		"",
+		`Deposited: $${bold(depositUsd.toLocaleString("en-US"))}`,
+		`Risk tolerance: ${bold(riskTolerance)}`,
+		"",
+		escapeMarkdownV2(
+			"Trades run on the hourly schedule. Use /status or /summary anytime.",
+		),
+	].join("\n");
+}
+
+export function formatPortfolioModeReminderMessage(): string {
+	return botPlainText(["Please choose Paper or Live using the buttons below."]);
+}
+
+export function formatLiveDepositReminderMessage(): string {
+	return botPlainText([
+		"Waiting for your USDC deposit on Base. We'll notify you when it arrives.",
+	]);
+}
+
+export function formatMissingWalletEncryptionKeyMessage(): string {
+	return botPlainText([
+		"Live trading is not configured on this server (missing WALLET_ENCRYPTION_KEY).",
+		"Contact the operator or choose Paper mode.",
+	]);
 }
 
 export function formatRiskTolerancePrompt(startingValueUsd: number): string {
@@ -84,5 +203,5 @@ export function formatUnknownCommandMessage(): string {
 }
 
 export function formatSendStartMessage(): string {
-	return botPlainText(["Send /start to create your paper portfolio."]);
+	return botPlainText(["Send /start to create your portfolio."]);
 }

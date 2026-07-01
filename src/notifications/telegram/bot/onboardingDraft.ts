@@ -20,6 +20,13 @@ export function parseOnboardingDraft(
 		) {
 			return undefined;
 		}
+		if (
+			draft.mode !== undefined &&
+			draft.mode !== "paper" &&
+			draft.mode !== "live"
+		) {
+			return undefined;
+		}
 
 		return draft;
 	} catch {

@@ -12,6 +12,10 @@ import {
 import { buildPriceMap } from "@/execution/priceMap.js";
 import type { ExecutionResult } from "@/execution/types.js";
 import type { RunOutcome } from "@/notifications/telegram/formatRunReport.js";
+import {
+	computeCategoryExposure,
+	logCategoryExposure,
+} from "@/risk/categoryExposure.js";
 import { resolveOutlookThresholds } from "@/risk/riskTolerance.js";
 import type { MarketSnapshot } from "@/schemas/MarketSnapshot.js";
 import type { TradeRecommendation } from "@/schemas/TradeRecommendation.js";
@@ -101,6 +105,16 @@ export async function executeActivePortfolios(
 	const results: ActivePortfolioRunResult[] = [];
 
 	for (const activePortfolio of activePortfolios) {
+		const prices = buildPriceMap(
+			input.marketSnapshots,
+			activePortfolio.cashSymbol,
+			{ accumulateSymbol: activePortfolio.assetToAccumulate },
+		);
+		logCategoryExposure(
+			activePortfolio.id,
+			computeCategoryExposure(activePortfolio.holdings, prices),
+		);
+
 		const execution = await paperExecution.executeForPortfolio(
 			activePortfolio,
 			{

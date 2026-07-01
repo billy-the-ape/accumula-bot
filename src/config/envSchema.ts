@@ -1,4 +1,6 @@
 import z from "zod";
+import { BASE_CHAIN_ID } from "@/config/baseChain.js";
+import { isSupportedDepositChainId } from "@/config/depositChains.js";
 import {
 	DEFAULT_LLM_PROVIDER,
 	LlmProviderIdSchema,
@@ -6,6 +8,11 @@ import {
 
 const DEFAULT_ASSET_TO_ACCUMULATE = "BTC";
 const DEFAULT_ASSET_STARTING = "USDC";
+/** Option A basket — yield tokens (cbETH, wstETH, rETH) stay in registry; add via ASSET_TRADEABLE to enable. */
+const DEFAULT_ASSET_TRADEABLE = "BTC,ETH,SOL,USDC,EURC,LINK";
+const DEFAULT_LIVE_MIN_DEPOSIT_USD = 1000;
+const DEFAULT_DEPOSIT_RPC_URL = "https://mainnet.base.org";
+const DEFAULT_DEPOSIT_CHAIN_ID = BASE_CHAIN_ID;
 const DEFAULT_LLM_MODEL = "qwen3:8b";
 const DEFAULT_LLM_REQUEST_TIMEOUT_MS = 30 * 60 * 1000;
 export const DEFAULT_LLM_TEMPERATURE = 0.2;
@@ -49,7 +56,8 @@ export const RawEnvSchema = z
 		ASSET_TRADEABLE: z
 			.string()
 			.trim()
-			.min(1, "ASSET_TRADEABLE must list at least one asset"),
+			.min(1, "ASSET_TRADEABLE must list at least one asset")
+			.default(DEFAULT_ASSET_TRADEABLE),
 		ASSET_STARTING: z
 			.string()
 			.trim()
@@ -155,6 +163,22 @@ export const RawEnvSchema = z
 			.min(0)
 			.max(1)
 			.default(DEFAULT_MIN_CONFIDENCE),
+
+		LIVE_MIN_DEPOSIT_USD: z.coerce
+			.number()
+			.positive()
+			.default(DEFAULT_LIVE_MIN_DEPOSIT_USD),
+		DEPOSIT_RPC_URL: z.url().default(DEFAULT_DEPOSIT_RPC_URL),
+		DEPOSIT_CHAIN_ID: z.coerce
+			.number()
+			.int()
+			.positive()
+			.refine(isSupportedDepositChainId, {
+				message:
+					"DEPOSIT_CHAIN_ID must be 8453 (Base mainnet) or 84532 (Base Sepolia)",
+			})
+			.default(DEFAULT_DEPOSIT_CHAIN_ID),
+		WALLET_ENCRYPTION_KEY: z.string().trim().min(1).optional(),
 	})
 	.transform((env) => ({
 		assetToAccumulateSymbol: env.ASSET_TO_ACCUMULATE,
@@ -212,6 +236,10 @@ export const RawEnvSchema = z
 			minConfidence: env.MIN_CONFIDENCE,
 		},
 		verbosePromptLogs: env.VERBOSE_PROMPT_LOGS,
+		liveMinDepositUsd: env.LIVE_MIN_DEPOSIT_USD,
+		depositRpcUrl: env.DEPOSIT_RPC_URL,
+		depositChainId: env.DEPOSIT_CHAIN_ID,
+		walletEncryptionKey: env.WALLET_ENCRYPTION_KEY,
 	}));
 
 export type ParsedEnv = z.infer<typeof RawEnvSchema>;

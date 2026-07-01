@@ -1,15 +1,21 @@
 import type { Client } from "@libsql/client";
 import { afterEach, describe, expect, it } from "vitest";
+import { BASE_CHAIN_ID } from "@/config/baseChain.js";
 import { type AppDatabase, createDatabase } from "@/storage/db.js";
 import {
+	createLivePortfolioAwaitingDeposit,
 	createPortfolio,
+	finalizeLivePortfolioRisk,
 	findPortfolioById,
 	getLatestPortfolio,
 	getOrCreatePortfolio,
 	getPortfolioHoldings,
+	listActivePortfolios,
+	markLivePortfolioFunded,
 	setPortfolioTradingEnabled,
 	updatePortfolioBaselines,
 } from "@/storage/repositories/portfolioRepository.js";
+import { getOrCreateTelegramUser } from "@/storage/repositories/telegramUserRepository.js";
 
 describe("portfolioRepository", () => {
 	let client: Client | undefined;
@@ -110,5 +116,43 @@ describe("portfolioRepository", () => {
 			USDC: 1_000,
 			BTC: 0.01,
 		});
+	});
+
+	it("creates live portfolio awaiting deposit and excludes it from active trading list", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const user = await getOrCreateTelegramUser(db, "live-trader");
+		const portfolio = await createLivePortfolioAwaitingDeposit(db, {
+			telegramUserId: user.id,
+			assetToAccumulate: "BTC",
+			cashSymbol: "USDC",
+			walletAddress: "0xabc",
+			encryptedPrivateKey: "enc",
+			chainId: BASE_CHAIN_ID,
+			minDepositUsd: 1000,
+		});
+
+		expect(portfolio.mode).toBe("live");
+		expect(portfolio.fundingStatus).toBe("awaiting_deposit");
+		expect(portfolio.tradingEnabled).toBe(false);
+		expect(await listActivePortfolios(db)).toHaveLength(0);
+
+		const funded = await markLivePortfolioFunded(db, {
+			portfolioId: portfolio.id,
+			depositUsd: 1500,
+			cashSymbol: "USDC",
+			assetToAccumulate: "BTC",
+			chainId: BASE_CHAIN_ID,
+		});
+		expect(funded.holdings).toEqual({ USDC: 1500 });
+		expect(await listActivePortfolios(db)).toHaveLength(0);
+
+		await finalizeLivePortfolioRisk(db, portfolio.id, "medium", 0.015);
+		const active = await listActivePortfolios(db);
+		expect(active).toHaveLength(1);
+		expect(active[0]?.id).toBe(portfolio.id);
+		expect(active[0]?.tradingEnabled).toBe(true);
 	});
 });

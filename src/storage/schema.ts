@@ -60,6 +60,13 @@ export const portfolios = sqliteTable(
 		),
 		riskTolerance: text("risk_tolerance").notNull().default("medium"),
 		isActive: integer("is_active", { mode: "boolean" }).notNull().default(true),
+		mode: text("mode").notNull().default("paper"),
+		chainId: integer("chain_id"),
+		walletAddress: text("wallet_address"),
+		encryptedPrivateKey: text("encrypted_private_key"),
+		fundingStatus: text("funding_status"),
+		totalDepositedUsd: real("total_deposited_usd").notNull().default(0),
+		minDepositUsd: real("min_deposit_usd"),
 	},
 	(table) => [
 		uniqueIndex("portfolios_one_active_per_user_idx")

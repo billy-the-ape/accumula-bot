@@ -1,6 +1,7 @@
 import type { Client } from "@libsql/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { loadConfig } from "@/config/loadConfig.js";
+import { portfolioModeCallbackData } from "@/notifications/telegram/bot/portfolioModeKeyboard.js";
 import { riskToleranceCallbackData } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
 import { processTelegramUpdate } from "@/notifications/telegram/processTelegramUpdate.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
@@ -17,6 +18,7 @@ const validEnv = {
 	LLM_BASE_URL: "http://127.0.0.1:11434",
 	LLM_MODEL: "qwen3:8b",
 	TELEGRAM_BOT_TOKEN: "bot-token",
+	WALLET_ENCRYPTION_KEY: "b".repeat(64),
 };
 
 function mockMarketSnapshots(assets: Cryptocurrency[]): MarketSnapshot[] {
@@ -71,7 +73,7 @@ describe("processTelegramUpdate", () => {
 		fetchMarketSnapshotsImpl,
 	};
 
-	it("completes onboarding and creates a user portfolio", async () => {
+	it("completes paper onboarding and creates a user portfolio", async () => {
 		const database = await setupDb();
 
 		await processTelegramUpdate(
@@ -91,7 +93,11 @@ describe("processTelegramUpdate", () => {
 			{
 				updateId: 2,
 				chatId,
-				incoming: { kind: "text", text: "5000" },
+				callbackQueryId: "cb-mode",
+				incoming: {
+					kind: "callback",
+					data: portfolioModeCallbackData("paper"),
+				},
 			},
 			deps,
 		);
@@ -101,6 +107,17 @@ describe("processTelegramUpdate", () => {
 			config,
 			{
 				updateId: 3,
+				chatId,
+				incoming: { kind: "text", text: "5000" },
+			},
+			deps,
+		);
+
+		await processTelegramUpdate(
+			database,
+			config,
+			{
+				updateId: 4,
 				chatId,
 				callbackQueryId: "cb-1",
 				incoming: {
@@ -120,9 +137,10 @@ describe("processTelegramUpdate", () => {
 		expect(portfolio?.holdings).toEqual({ USDC: 5_000 });
 		expect(portfolio?.riskTolerance).toBe("medium");
 		expect(portfolio?.initialQuoteBaseline).toBe(5_000);
+		expect(portfolio?.mode).toBe("paper");
 
-		expect(sendReply).toHaveBeenCalledTimes(3);
-		expect(acknowledgeCallback).toHaveBeenCalledOnce();
+		expect(sendReply).toHaveBeenCalledTimes(4);
+		expect(acknowledgeCallback).toHaveBeenCalledTimes(2);
 		expect(fetchMarketSnapshotsImpl).toHaveBeenCalledOnce();
 	});
 });

@@ -8,6 +8,10 @@ import {
 import { parseBotCommand } from "@/notifications/telegram/bot/parseBotCommand.js";
 import { parseStartingValueInput } from "@/notifications/telegram/bot/parseStartingValue.js";
 import {
+	parsePortfolioModeCallback,
+	portfolioModeCallbackData,
+} from "@/notifications/telegram/bot/portfolioModeKeyboard.js";
+import {
 	parseRiskToleranceCallback,
 	riskToleranceCallbackData,
 } from "@/notifications/telegram/bot/riskToleranceKeyboard.js";
@@ -115,29 +119,57 @@ describe("formatPortfolioSummary", () => {
 	});
 });
 
+describe("parsePortfolioModeCallback", () => {
+	it("parses mode callback data", () => {
+		expect(parsePortfolioModeCallback(portfolioModeCallbackData("paper"))).toBe(
+			"paper",
+		);
+		expect(parsePortfolioModeCallback(portfolioModeCallbackData("live"))).toBe(
+			"live",
+		);
+		expect(parsePortfolioModeCallback("other")).toBeUndefined();
+	});
+});
+
 describe("handleBotMessage onboarding", () => {
 	const newUserContext: BotHandlerContext = {
-		onboardingState: "awaiting_starting_value",
+		onboardingState: "awaiting_mode_selection",
 		onboardingDraftJson: null,
 		hasActivePortfolio: false,
 		settings: DEFAULT_TELEGRAM_USER_SETTINGS,
 	};
 
-	it("prompts for starting value on /start for new user", () => {
+	it("prompts for mode on /start for new user", () => {
 		const result = handleBotMessage(newUserContext, {
 			kind: "command",
 			command: "start",
 		});
 
-		expect(result.text).toContain("initial starting value");
-		expect(result.replyMarkup?.inline_keyboard[0]?.[0]?.text).toBe("Default");
+		expect(result.text).toContain("Choose how you want to trade");
+		expect(result.replyMarkup?.inline_keyboard).toHaveLength(2);
+		expect(result.effects?.userPatch?.onboardingState).toBe(
+			"awaiting_mode_selection",
+		);
+	});
+
+	it("advances to starting value after paper mode", () => {
+		const result = handleBotMessage(newUserContext, {
+			kind: "callback",
+			data: portfolioModeCallbackData("paper"),
+		});
+
+		expect(result.text).toContain("starting value");
 		expect(result.effects?.userPatch?.onboardingState).toBe(
 			"awaiting_starting_value",
 		);
 	});
 
 	it("advances to risk tolerance after valid starting value", () => {
-		const result = handleBotMessage(newUserContext, {
+		const paperContext: BotHandlerContext = {
+			...newUserContext,
+			onboardingState: "awaiting_starting_value",
+		};
+		const result = handleBotMessage(paperContext, {
 			kind: "text",
 			text: "15000",
 		});
@@ -152,12 +184,17 @@ describe("handleBotMessage onboarding", () => {
 				result.effects?.userPatch?.onboardingDraftJson ?? null,
 			),
 		).toEqual({
+			mode: "paper",
 			startingValueUsd: 15_000,
 		});
 	});
 
 	it("uses default starting value via Default button", () => {
-		const result = handleBotMessage(newUserContext, {
+		const paperContext: BotHandlerContext = {
+			...newUserContext,
+			onboardingState: "awaiting_starting_value",
+		};
+		const result = handleBotMessage(paperContext, {
 			kind: "callback",
 			data: STARTING_VALUE_DEFAULT_CALLBACK,
 		});
@@ -172,10 +209,11 @@ describe("handleBotMessage onboarding", () => {
 		).toBe(10_000);
 	});
 
-	it("completes onboarding on risk callback", () => {
+	it("completes paper onboarding on risk callback", () => {
 		const riskContext: BotHandlerContext = {
 			onboardingState: "awaiting_risk_tolerance",
 			onboardingDraftJson: serializeOnboardingDraft({
+				mode: "paper",
 				startingValueUsd: 10_000,
 			}),
 			hasActivePortfolio: false,
@@ -195,6 +233,23 @@ describe("handleBotMessage onboarding", () => {
 		expect(result.effects?.userPatch?.onboardingState).toBeNull();
 	});
 
+	it("starts live wallet creation when live mode selected", () => {
+		const result = handleBotMessage(
+			newUserContext,
+			{
+				kind: "callback",
+				data: portfolioModeCallbackData("live"),
+			},
+			undefined,
+			{ liveTradingConfigured: true },
+		);
+
+		expect(result.effects?.createLivePortfolio).toBe(true);
+		expect(result.effects?.userPatch?.onboardingState).toBe(
+			"awaiting_live_deposit",
+		);
+	});
+
 	it("/reset deactivates and restarts onboarding", () => {
 		const result = handleBotMessage(onboardedContext, {
 			kind: "command",
@@ -203,9 +258,9 @@ describe("handleBotMessage onboarding", () => {
 
 		expect(result.effects?.deactivatePortfolios).toBe(true);
 		expect(result.effects?.userPatch?.onboardingState).toBe(
-			"awaiting_starting_value",
+			"awaiting_mode_selection",
 		);
-		expect(result.text).toContain("initial starting value");
+		expect(result.text).toContain("Choose how you want to trade");
 	});
 });
 

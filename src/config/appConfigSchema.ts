@@ -2,9 +2,10 @@ import z from "zod";
 import {
 	CRYPTOCURRENCY_REGISTRY,
 	type CryptocurrencySymbol,
-	getCryptocurrency,
-	isKnownCryptocurrencySymbol,
+	normalizeRegistrySymbol,
+	resolveCryptocurrencyForChain,
 } from "@/config/assets.js";
+import { assertSupportedDepositChainId } from "@/config/chainAssets.js";
 import type { ParsedEnv } from "@/config/envSchema.js";
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import {
@@ -83,11 +84,19 @@ export type SocialMediaConfig = {
 	twitterConfig: TwitterConfig;
 };
 
+export type LiveTradingConfig = {
+	minDepositUsd: number;
+	depositRpcUrl: string;
+	depositChainId: number;
+	walletEncryptionKey?: string;
+};
+
 export type AppConfig = {
 	socialMedia: SocialMediaConfig;
 	assetToAccumulate: Cryptocurrency;
 	assetTradeable: Cryptocurrency[];
 	assetStarting: Cryptocurrency;
+	live: LiveTradingConfig;
 	databasePath: string;
 	coingecko: CoinGeckoConfig;
 	llm: LlmConfig;
@@ -99,7 +108,7 @@ export type AppConfig = {
 };
 
 function listUnknownSymbols(symbols: string[]): string[] {
-	return symbols.filter((symbol) => !isKnownCryptocurrencySymbol(symbol));
+	return symbols.filter((symbol) => normalizeRegistrySymbol(symbol) === null);
 }
 
 function assertSymbolInTradeableList(
@@ -197,17 +206,21 @@ export const AppConfigSchema = z
 		}
 	})
 	.transform((env): AppConfig => {
-		const assetToAccumulate = CryptocurrencySchema.parse(
-			getCryptocurrency(env.assetToAccumulateSymbol as CryptocurrencySymbol),
-		);
-		const assetTradeable = env.assetTradeableSymbols.map((symbol) =>
+		const depositChainId = assertSupportedDepositChainId(env.depositChainId);
+
+		const resolveAsset = (symbol: string): Cryptocurrency =>
 			CryptocurrencySchema.parse(
-				getCryptocurrency(symbol as CryptocurrencySymbol),
-			),
+				resolveCryptocurrencyForChain(
+					normalizeRegistrySymbol(symbol) as CryptocurrencySymbol,
+					depositChainId,
+				),
+			);
+
+		const assetToAccumulate = resolveAsset(env.assetToAccumulateSymbol);
+		const assetTradeable = env.assetTradeableSymbols.map((symbol) =>
+			resolveAsset(symbol),
 		);
-		const assetStarting = CryptocurrencySchema.parse(
-			getCryptocurrency(env.assetStartingSymbol as CryptocurrencySymbol),
-		);
+		const assetStarting = resolveAsset(env.assetStartingSymbol);
 		const llmPayload = LlmConfigSchema.parse(env.llm);
 		const llm: LlmConfig = {
 			provider: llmPayload.provider,
@@ -241,10 +254,20 @@ export const AppConfigSchema = z
 					}
 			: undefined;
 
+		const live: LiveTradingConfig = {
+			minDepositUsd: env.liveMinDepositUsd,
+			depositRpcUrl: env.depositRpcUrl,
+			depositChainId,
+			...(env.walletEncryptionKey
+				? { walletEncryptionKey: env.walletEncryptionKey }
+				: {}),
+		};
+
 		return {
 			assetToAccumulate,
 			assetTradeable,
 			assetStarting,
+			live,
 			databasePath: env.databasePath,
 			coingecko,
 			llm,

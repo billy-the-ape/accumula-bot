@@ -33,7 +33,7 @@ describe("telegramUserRepository", () => {
 
 		expect(user.id).toBeGreaterThan(0);
 		expect(user.telegramChatId).toBe("12345");
-		expect(user.onboardingState).toBe("awaiting_starting_value");
+		expect(user.onboardingState).toBe("awaiting_mode_selection");
 		expect(user.onboardingDraftJson).toBeNull();
 		expect(user.settings.verbose).toBe(false);
 	});

@@ -1,3 +1,4 @@
+import type { PortfolioMode } from "@/live/portfolioMode.js";
 import type { RiskTolerance } from "@/risk/riskTolerance.js";
 import type { OnboardingState } from "@/storage/repositories/telegramUserRepository.js";
 import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
@@ -15,6 +16,7 @@ export type TelegramInlineKeyboard = {
 };
 
 export type OnboardingDraft = {
+	mode?: PortfolioMode;
 	startingValueUsd?: number;
 };
 
@@ -31,6 +33,7 @@ export type BotEffects = {
 		startingValueUsd: number;
 		riskTolerance: RiskTolerance;
 	};
+	createLivePortfolio?: true;
 };
 
 export type BotHandlerOutput = {
@@ -44,9 +47,19 @@ export type BotIncomingMessage =
 	| { kind: "text"; text: string }
 	| { kind: "callback"; data: string };
 
+export type ActivePortfolioContext = {
+	id: number;
+	mode: "paper" | "live";
+	fundingStatus: "awaiting_deposit" | "funded" | "paused" | null;
+	walletAddress: string | null;
+	minDepositUsd: number;
+	onChainUsdc?: number;
+};
+
 export type BotHandlerContext = {
 	onboardingState: OnboardingState | null;
 	onboardingDraftJson: string | null;
 	hasActivePortfolio: boolean;
 	settings: TelegramUserSettings;
+	activePortfolio?: ActivePortfolioContext;
 };

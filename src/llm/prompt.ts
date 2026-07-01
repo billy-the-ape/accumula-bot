@@ -1,6 +1,7 @@
 import { wrapUntrustedContent } from "@/analysis";
 import type { AnalysisContext, AnalysisSection } from "@/analysis/types.js";
 import type { AppConfig } from "@/config/index.js";
+import { formatAssetTaxonomyForPrompt } from "@/llm/formatAssetTaxonomy.js";
 import { buildMarketContextPreamble } from "@/llm/socialMediaPromptShared.js";
 import type { Cryptocurrency } from "@/schemas/Cryptocurrency.js";
 
@@ -95,6 +96,8 @@ export function buildAnalysisPromptParts(
 		"",
 		"Objective:",
 		`Maximize ${accumulateSymbol}-denominated returns through selective per-asset positioning.`,
+		"",
+		formatAssetTaxonomyForPrompt(config.assetTradeable),
 		"",
 		"Task:",
 		"For each volatile asset below, estimate how it will perform over the next 24 hours.",

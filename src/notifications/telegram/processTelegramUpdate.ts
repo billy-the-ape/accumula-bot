@@ -4,12 +4,29 @@ import {
 	getTotalPortfolioQuoteValue,
 } from "@/domain/index.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
+import { generatePortfolioWallet } from "@/live/generatePortfolioWallet.js";
+import { startLiveDepositPolling } from "@/live/liveDepositPoller.js";
+import { isLiveDepositWindowOpen } from "@/live/liveDepositWindow.js";
+import { syncLivePortfolioDeposit } from "@/live/syncLiveDeposit.js";
+import {
+	encryptPrivateKey,
+	parseWalletEncryptionKey,
+} from "@/live/walletEncryption.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { handleBotMessage } from "@/notifications/telegram/bot/handleBotMessage.js";
+import {
+	formatLiveDepositExpiredMessage,
+	formatLiveDepositInstructions,
+	formatLiveDepositStatus,
+	formatLiveDepositUnderMinimumMessage,
+} from "@/notifications/telegram/bot/onboardingMessages.js";
 import { parseDecisionCommandArgs } from "@/notifications/telegram/bot/parseDecisionCommand.js";
 import type { ParsedTelegramEvent } from "@/notifications/telegram/bot/parseTelegramUpdate.js";
 import { DECISION_NOT_FOUND_MESSAGE } from "@/notifications/telegram/bot/settingsMessages.js";
-import type { BotHandlerOutput } from "@/notifications/telegram/bot/types.js";
+import type {
+	ActivePortfolioContext,
+	BotHandlerOutput,
+} from "@/notifications/telegram/bot/types.js";
 import { buildDecisionReportForUser } from "@/notifications/telegram/buildDecisionReport.js";
 import {
 	type BuildPortfolioSummaryInputOptions,
@@ -22,9 +39,12 @@ import {
 } from "@/notifications/telegram/telegramPolling.js";
 import type { AppDatabase } from "@/storage/db.js";
 import {
+	createLivePortfolioAwaitingDeposit,
 	createUserPortfolio,
 	deactivateUserPortfolios,
 	getActivePortfolioForUser,
+	revertLivePortfolioAwaitingDeposit,
+	type StoredPortfolio,
 } from "@/storage/repositories/portfolioRepository.js";
 import {
 	getOrCreateTelegramUser,
@@ -46,9 +66,45 @@ function requireBotToken(config: AppConfig): string {
 	return botToken;
 }
 
+function toActivePortfolioContext(
+	portfolio: StoredPortfolio,
+	onChainUsdc?: number,
+): ActivePortfolioContext {
+	return {
+		id: portfolio.id,
+		mode: portfolio.mode,
+		fundingStatus: portfolio.fundingStatus,
+		walletAddress: portfolio.walletAddress,
+		minDepositUsd: portfolio.minDepositUsd ?? 0,
+		...(onChainUsdc !== undefined ? { onChainUsdc } : {}),
+	};
+}
+
+function shouldSyncLiveDeposit(
+	portfolio: StoredPortfolio | undefined,
+): boolean {
+	return (
+		portfolio?.mode === "live" &&
+		portfolio.fundingStatus === "awaiting_deposit" &&
+		Boolean(portfolio.walletAddress) &&
+		isLiveDepositWindowOpen(portfolio.createdAt)
+	);
+}
+
 function needsPortfolioSummary(
 	incoming: ParsedTelegramEvent["incoming"],
+	portfolio: StoredPortfolio | undefined,
+	onboardingState: string | null,
 ): boolean {
+	if (
+		portfolio?.mode === "live" &&
+		portfolio.fundingStatus === "awaiting_deposit"
+	) {
+		return false;
+	}
+	if (onboardingState === "awaiting_risk_tolerance") {
+		return false;
+	}
 	if (incoming.kind === "command") {
 		return (
 			incoming.command === "start" ||
@@ -66,14 +122,37 @@ async function applyBotEffects(
 	userId: number,
 	output: BotHandlerOutput,
 	deps: ProcessTelegramUpdateDeps,
-): Promise<void> {
+): Promise<StoredPortfolio | undefined> {
 	const effects = output.effects;
 	if (!effects) {
-		return;
+		return undefined;
 	}
 
 	if (effects.deactivatePortfolios) {
 		await deactivateUserPortfolios(db, userId);
+	}
+
+	let createdLivePortfolio: StoredPortfolio | undefined;
+
+	if (effects.createLivePortfolio) {
+		const encryptionKey = config.live.walletEncryptionKey;
+		if (!encryptionKey) {
+			throw new Error("WALLET_ENCRYPTION_KEY is required for live portfolios");
+		}
+
+		const wallet = generatePortfolioWallet();
+		const key = parseWalletEncryptionKey(encryptionKey);
+		const encryptedPrivateKey = encryptPrivateKey(wallet.privateKey, key);
+
+		createdLivePortfolio = await createLivePortfolioAwaitingDeposit(db, {
+			telegramUserId: userId,
+			assetToAccumulate: config.assetToAccumulate.symbol,
+			cashSymbol: config.assetStarting.symbol,
+			walletAddress: wallet.address,
+			encryptedPrivateKey,
+			chainId: config.live.depositChainId,
+			minDepositUsd: config.live.minDepositUsd,
+		});
 	}
 
 	if (effects.createPortfolio) {
@@ -110,6 +189,8 @@ async function applyBotEffects(
 	if (effects.settingsPatch) {
 		await updateTelegramUserSettings(db, userId, effects.settingsPatch);
 	}
+
+	return createdLivePortfolio;
 }
 
 async function resolveDecisionCommandOutput(
@@ -135,6 +216,18 @@ async function resolveDecisionCommandOutput(
 	return { text: report };
 }
 
+async function handleExpiredLiveDeposit(
+	db: AppDatabase,
+	userId: number,
+	portfolio: StoredPortfolio,
+): Promise<void> {
+	await revertLivePortfolioAwaitingDeposit(db, portfolio.id);
+	await updateTelegramUserOnboarding(db, userId, {
+		onboardingState: null,
+		onboardingDraftJson: null,
+	});
+}
+
 export async function processTelegramUpdate(
 	db: AppDatabase,
 	config: AppConfig,
@@ -147,7 +240,41 @@ export async function processTelegramUpdate(
 		deps.acknowledgeCallback ?? acknowledgeCallbackQuery;
 
 	const user = await getOrCreateTelegramUser(db, event.chatId);
-	const activePortfolio = await getActivePortfolioForUser(db, user.id);
+	let activePortfolio = await getActivePortfolioForUser(db, user.id);
+	let onChainUsdc: number | undefined;
+	let depositStatus: "none" | "under_minimum" | "funded" | undefined;
+	let onboardingState = user.onboardingState;
+	const onboardingDraftJson = user.onboardingDraftJson;
+
+	if (
+		activePortfolio?.mode === "live" &&
+		activePortfolio.fundingStatus === "awaiting_deposit" &&
+		!isLiveDepositWindowOpen(activePortfolio.createdAt)
+	) {
+		await handleExpiredLiveDeposit(db, user.id, activePortfolio);
+		activePortfolio = undefined;
+		onboardingState = null;
+	}
+
+	if (shouldSyncLiveDeposit(activePortfolio)) {
+		const syncResult = await syncLivePortfolioDeposit(
+			db,
+			config,
+			activePortfolio?.id ?? 0,
+			...(deps.fetchImpl
+				? [{ fetchImpl: deps.fetchImpl, dryRun: true }]
+				: [{ dryRun: true }]),
+		);
+		if (syncResult) {
+			onChainUsdc = syncResult.onChainUsdc;
+			depositStatus = syncResult.depositStatus;
+			activePortfolio = syncResult.portfolio;
+		}
+	}
+
+	const activePortfolioContext = activePortfolio
+		? toActivePortfolioContext(activePortfolio, onChainUsdc)
+		: undefined;
 
 	let output: BotHandlerOutput;
 	if (
@@ -162,23 +289,84 @@ export async function processTelegramUpdate(
 		);
 	} else {
 		let summary: PortfolioSummaryInput | undefined;
-		if (activePortfolio && needsPortfolioSummary(event.incoming)) {
+		if (
+			activePortfolio &&
+			needsPortfolioSummary(event.incoming, activePortfolio, onboardingState)
+		) {
 			summary = await buildPortfolioSummaryInput(config, activePortfolio, deps);
 		}
 
 		output = handleBotMessage(
 			{
-				onboardingState: user.onboardingState,
-				onboardingDraftJson: user.onboardingDraftJson,
+				onboardingState,
+				onboardingDraftJson,
 				hasActivePortfolio: activePortfolio !== undefined,
 				settings: user.settings,
+				...(activePortfolioContext
+					? { activePortfolio: activePortfolioContext }
+					: {}),
 			},
 			event.incoming,
 			summary,
+			{ liveTradingConfigured: Boolean(config.live.walletEncryptionKey) },
 		);
 	}
 
-	await applyBotEffects(db, config, user.id, output, deps);
+	const createdLivePortfolio = await applyBotEffects(
+		db,
+		config,
+		user.id,
+		output,
+		deps,
+	);
+
+	if (createdLivePortfolio?.walletAddress) {
+		const minDeposit =
+			createdLivePortfolio.minDepositUsd ?? config.live.minDepositUsd;
+		output = {
+			...output,
+			text: formatLiveDepositInstructions(
+				createdLivePortfolio.walletAddress,
+				minDeposit,
+			),
+		};
+
+		startLiveDepositPolling({
+			db,
+			config,
+			portfolioId: createdLivePortfolio.id,
+			telegramUserId: user.id,
+			chatId: event.chatId,
+			...(deps.sendReply ? { sendReply: deps.sendReply } : {}),
+			...(deps.fetchImpl ? { fetchImpl: deps.fetchImpl } : {}),
+		});
+	} else if (
+		activePortfolio?.walletAddress &&
+		activePortfolio.fundingStatus === "awaiting_deposit" &&
+		onboardingState === "awaiting_live_deposit"
+	) {
+		const minDeposit =
+			activePortfolio.minDepositUsd ?? config.live.minDepositUsd;
+		if (depositStatus === "under_minimum" && onChainUsdc !== undefined) {
+			output = {
+				text: formatLiveDepositUnderMinimumMessage(onChainUsdc, minDeposit),
+			};
+		} else {
+			output = {
+				text: formatLiveDepositStatus(
+					activePortfolio.walletAddress,
+					minDeposit,
+					onChainUsdc ?? 0,
+				),
+			};
+		}
+	} else if (
+		activePortfolio === undefined &&
+		user.onboardingState === "awaiting_live_deposit" &&
+		event.incoming.kind === "command"
+	) {
+		output = { text: formatLiveDepositExpiredMessage() };
+	}
 
 	if (event.callbackQueryId) {
 		await acknowledgeCallback({

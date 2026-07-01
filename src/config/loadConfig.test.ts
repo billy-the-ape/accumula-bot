@@ -169,6 +169,40 @@ describe("loadConfig", () => {
 		).toThrow(ConfigError);
 	});
 
+	it("accepts full v1 Base asset basket", () => {
+		const config = loadConfig({
+			...validEnv,
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC,EURC,cbETH,wstETH,rETH,LINK",
+		});
+
+		expect(config.assetTradeable.map((asset) => asset.symbol)).toEqual([
+			"BTC",
+			"ETH",
+			"SOL",
+			"USDC",
+			"EURC",
+			"cbETH",
+			"wstETH",
+			"rETH",
+			"LINK",
+		]);
+		expect(
+			config.assetTradeable.every((asset) => asset.evm?.chainId === 8453),
+		).toBe(true);
+	});
+
+	it("parses macro risk category on tradeable assets", () => {
+		const config = loadConfig({
+			...validEnv,
+			ASSET_TRADEABLE: "BTC,ETH,SOL,USDC,EURC",
+		});
+
+		const usdc = config.assetTradeable.find((a) => a.symbol === "USDC");
+		const eth = config.assetTradeable.find((a) => a.symbol === "ETH");
+		expect(usdc?.macroRiskCategory).toBe("risk_off");
+		expect(eth?.macroRiskCategory).toBe("risk_on");
+	});
+
 	it("rejects duplicate tradeable assets", () => {
 		expect(() =>
 			loadConfig({
@@ -244,5 +278,36 @@ describe("loadConfig", () => {
 				ASSET_TRADEABLE: "   ",
 			}),
 		).toThrow(ConfigError);
+	});
+
+	it("applies live deposit defaults", () => {
+		const config = loadConfig(validEnv);
+
+		expect(config.live.minDepositUsd).toBe(1000);
+		expect(config.live.depositRpcUrl).toBe("https://mainnet.base.org");
+		expect(config.live.depositChainId).toBe(8453);
+	});
+
+	it("allows overriding deposit RPC and chain id for testnet", () => {
+		const config = loadConfig({
+			...validEnv,
+			DEPOSIT_RPC_URL: "https://sepolia.base.org",
+			DEPOSIT_CHAIN_ID: "84532",
+		});
+
+		expect(config.live.depositRpcUrl).toBe("https://sepolia.base.org");
+		expect(config.live.depositChainId).toBe(84532);
+		expect(config.assetStarting.evm?.chainId).toBe(84532);
+	});
+
+	it("rejects unsupported DEPOSIT_CHAIN_ID", () => {
+		expect(() =>
+			loadConfig({
+				...validEnv,
+				DEPOSIT_CHAIN_ID: "42161",
+			}),
+		).toThrow(
+			/DEPOSIT_CHAIN_ID must be 8453 \(Base mainnet\) or 84532 \(Base Sepolia\)/,
+		);
 	});
 });

@@ -5,8 +5,14 @@ import {
 	serializeOnboardingDraft,
 } from "@/notifications/telegram/bot/onboardingDraft.js";
 import {
+	botPlainText,
 	formatInvalidStartingValueMessage,
+	formatLiveDepositReminderMessage,
+	formatLiveDepositStatus,
+	formatMissingWalletEncryptionKeyMessage,
 	formatPortfolioCreatedMessage,
+	formatPortfolioModePrompt,
+	formatPortfolioModeReminderMessage,
 	formatRiskTolerancePrompt,
 	formatRiskToleranceReminderMessage,
 	formatSendStartMessage,
@@ -18,6 +24,10 @@ import {
 } from "@/notifications/telegram/bot/onboardingMessages.js";
 import { parseSettingsCommandArgs } from "@/notifications/telegram/bot/parseSettingsCommand.js";
 import { parseStartingValueInput } from "@/notifications/telegram/bot/parseStartingValue.js";
+import {
+	buildPortfolioModeKeyboard,
+	parsePortfolioModeCallback,
+} from "@/notifications/telegram/bot/portfolioModeKeyboard.js";
 import {
 	buildRiskToleranceKeyboard,
 	parseRiskToleranceCallback,
@@ -35,6 +45,7 @@ import {
 	parseStartingValueCallback,
 } from "@/notifications/telegram/bot/startingValueKeyboard.js";
 import type {
+	ActivePortfolioContext,
 	BotHandlerContext,
 	BotHandlerOutput,
 	BotIncomingMessage,
@@ -42,14 +53,26 @@ import type {
 
 function beginOnboarding(): BotHandlerOutput {
 	return {
-		text: formatStartingValuePrompt(),
-		replyMarkup: buildStartingValueKeyboard(),
+		text: formatPortfolioModePrompt(),
+		replyMarkup: buildPortfolioModeKeyboard(),
 		effects: {
 			userPatch: {
-				onboardingState: "awaiting_starting_value",
+				onboardingState: "awaiting_mode_selection",
 				onboardingDraftJson: null,
 			},
 			deactivatePortfolios: true,
+		},
+	};
+}
+
+function promptForModeSelection(): BotHandlerOutput {
+	return {
+		text: formatPortfolioModePrompt(),
+		replyMarkup: buildPortfolioModeKeyboard(),
+		effects: {
+			userPatch: {
+				onboardingState: "awaiting_mode_selection",
+			},
 		},
 	};
 }
@@ -61,25 +84,32 @@ function promptForStartingValue(): BotHandlerOutput {
 		effects: {
 			userPatch: {
 				onboardingState: "awaiting_starting_value",
+				onboardingDraftJson: serializeOnboardingDraft({ mode: "paper" }),
 			},
 		},
 	};
 }
 
-function promptForRiskTolerance(startingValueUsd: number): BotHandlerOutput {
+function promptForRiskTolerance(
+	startingValueUsd: number,
+	mode: "paper" | "live",
+): BotHandlerOutput {
 	return {
 		text: formatRiskTolerancePrompt(startingValueUsd),
 		replyMarkup: buildRiskToleranceKeyboard(),
 		effects: {
 			userPatch: {
 				onboardingState: "awaiting_risk_tolerance",
-				onboardingDraftJson: serializeOnboardingDraft({ startingValueUsd }),
+				onboardingDraftJson: serializeOnboardingDraft({
+					mode,
+					startingValueUsd,
+				}),
 			},
 		},
 	};
 }
 
-function completeOnboarding(
+function completePaperOnboarding(
 	startingValueUsd: number,
 	riskTolerance: NonNullable<ReturnType<typeof parseRiskToleranceCallback>>,
 ): BotHandlerOutput {
@@ -107,13 +137,61 @@ function formatSummaryReply(
 	};
 }
 
+function handleAwaitingModeSelection(
+	message: BotIncomingMessage,
+	liveTradingConfigured: boolean,
+): BotHandlerOutput {
+	if (message.kind !== "callback") {
+		return {
+			text: formatPortfolioModeReminderMessage(),
+			replyMarkup: buildPortfolioModeKeyboard(),
+		};
+	}
+
+	const mode = parsePortfolioModeCallback(message.data);
+	if (!mode) {
+		return {
+			text: formatPortfolioModeReminderMessage(),
+			replyMarkup: buildPortfolioModeKeyboard(),
+		};
+	}
+
+	if (mode === "paper") {
+		return promptForStartingValue();
+	}
+
+	if (mode === "live") {
+		if (!liveTradingConfigured) {
+			return {
+				text: formatMissingWalletEncryptionKeyMessage(),
+				replyMarkup: buildPortfolioModeKeyboard(),
+			};
+		}
+
+		return {
+			text: botPlainText(["Creating your Base deposit wallet…"]),
+			effects: {
+				userPatch: {
+					onboardingState: "awaiting_live_deposit",
+				},
+				createLivePortfolio: true,
+			},
+		};
+	}
+
+	return {
+		text: formatPortfolioModeReminderMessage(),
+		replyMarkup: buildPortfolioModeKeyboard(),
+	};
+}
+
 function handleAwaitingStartingValue(
 	message: BotIncomingMessage,
 ): BotHandlerOutput {
 	if (message.kind === "callback") {
 		const defaultValueUsd = parseStartingValueCallback(message.data);
 		if (defaultValueUsd !== undefined) {
-			return promptForRiskTolerance(defaultValueUsd);
+			return promptForRiskTolerance(defaultValueUsd, "paper");
 		}
 
 		return {
@@ -137,7 +215,31 @@ function handleAwaitingStartingValue(
 		};
 	}
 
-	return promptForRiskTolerance(parsed.valueUsd);
+	return promptForRiskTolerance(parsed.valueUsd, "paper");
+}
+
+function handleAwaitingLiveDeposit(
+	message: BotIncomingMessage,
+	activePortfolio: ActivePortfolioContext | undefined,
+): BotHandlerOutput {
+	if (
+		message.kind === "command" &&
+		(message.command === "status" || message.command === "start")
+	) {
+		if (!activePortfolio?.walletAddress) {
+			return { text: formatLiveDepositReminderMessage() };
+		}
+
+		return {
+			text: formatLiveDepositStatus(
+				activePortfolio.walletAddress,
+				activePortfolio.minDepositUsd,
+				activePortfolio.onChainUsdc ?? 0,
+			),
+		};
+	}
+
+	return { text: formatLiveDepositReminderMessage() };
 }
 
 function handleAwaitingRiskTolerance(
@@ -162,10 +264,16 @@ function handleAwaitingRiskTolerance(
 	const draft = parseOnboardingDraft(draftJson);
 	const startingValueUsd = draft?.startingValueUsd;
 	if (startingValueUsd === undefined || startingValueUsd <= 0) {
-		return promptForStartingValue();
+		return draft?.mode === "live"
+			? { text: formatLiveDepositReminderMessage() }
+			: promptForStartingValue();
 	}
 
-	return completeOnboarding(startingValueUsd, riskTolerance);
+	if (draft?.mode === "live") {
+		return { text: formatLiveDepositReminderMessage() };
+	}
+
+	return completePaperOnboarding(startingValueUsd, riskTolerance);
 }
 
 function handleSettingsCommand(
@@ -223,11 +331,18 @@ function handleSettingCallback(
 	};
 }
 
+export type HandleBotMessageOptions = {
+	liveTradingConfigured?: boolean;
+};
+
 export function handleBotMessage(
 	context: BotHandlerContext,
 	message: BotIncomingMessage,
 	summary?: PortfolioSummaryInput,
+	options: HandleBotMessageOptions = {},
 ): BotHandlerOutput {
+	const liveTradingConfigured = options.liveTradingConfigured ?? false;
+
 	if (message.kind === "callback") {
 		const settingCallback = parseSettingCallback(message.data);
 		if (settingCallback) {
@@ -245,6 +360,20 @@ export function handleBotMessage(
 
 			case "status":
 			case "summary":
+				if (
+					context.onboardingState === "awaiting_live_deposit" ||
+					(context.activePortfolio?.mode === "live" &&
+						context.activePortfolio.fundingStatus === "awaiting_deposit")
+				) {
+					return handleAwaitingLiveDeposit(message, context.activePortfolio);
+				}
+				if (context.onboardingState === "awaiting_risk_tolerance") {
+					const draft = parseOnboardingDraft(context.onboardingDraftJson);
+					return {
+						text: formatRiskTolerancePrompt(draft?.startingValueUsd ?? 0),
+						replyMarkup: buildRiskToleranceKeyboard(),
+					};
+				}
 				if (!context.hasActivePortfolio || !summary) {
 					return { text: NO_ACTIVE_PORTFOLIO_MESSAGE };
 				}
@@ -254,34 +383,52 @@ export function handleBotMessage(
 				if (
 					context.onboardingState === null &&
 					context.hasActivePortfolio &&
-					summary
+					summary &&
+					context.activePortfolio?.fundingStatus !== "awaiting_deposit"
 				) {
 					return formatSummaryReply(summary, true);
+				}
+				if (
+					context.activePortfolio?.mode === "live" &&
+					context.activePortfolio.fundingStatus === "awaiting_deposit"
+				) {
+					return handleAwaitingLiveDeposit(message, context.activePortfolio);
 				}
 				if (context.onboardingState === null && !context.hasActivePortfolio) {
 					return beginOnboarding();
 				}
-				const draft = parseOnboardingDraft(context.onboardingDraftJson);
-				const startingValueUsd = draft?.startingValueUsd;
-				if (
-					context.onboardingState === "awaiting_starting_value" ||
-					!startingValueUsd
-				) {
+				if (context.onboardingState === "awaiting_mode_selection") {
+					return promptForModeSelection();
+				}
+				if (context.onboardingState === "awaiting_starting_value") {
 					return promptForStartingValue();
 				}
+				const draft = parseOnboardingDraft(context.onboardingDraftJson);
+				const startingValueUsd = draft?.startingValueUsd;
 				if (context.onboardingState === "awaiting_risk_tolerance") {
 					return {
 						text: formatRiskTolerancePrompt(startingValueUsd ?? 0),
 						replyMarkup: buildRiskToleranceKeyboard(),
 					};
 				}
+				if (context.onboardingState === "awaiting_live_deposit") {
+					return handleAwaitingLiveDeposit(message, context.activePortfolio);
+				}
 				return beginOnboarding();
 			}
 		}
 	}
 
+	if (context.onboardingState === "awaiting_mode_selection") {
+		return handleAwaitingModeSelection(message, liveTradingConfigured);
+	}
+
 	if (context.onboardingState === "awaiting_starting_value") {
 		return handleAwaitingStartingValue(message);
+	}
+
+	if (context.onboardingState === "awaiting_live_deposit") {
+		return handleAwaitingLiveDeposit(message, context.activePortfolio);
 	}
 
 	if (context.onboardingState === "awaiting_risk_tolerance") {
