@@ -26,7 +26,7 @@ function formatSettingValue(
 		return bold("unset");
 	}
 
-	return bold(escapeMarkdownV2(String(value)));
+	return bold(String(value));
 }
 
 function settingStatusEmoji(
