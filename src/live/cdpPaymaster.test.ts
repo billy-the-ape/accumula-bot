@@ -20,13 +20,24 @@ describe("parseCdpGasPaymentMode", () => {
 });
 
 describe("humanizePaymasterError", () => {
-	it("explains payment method not found", () => {
+	it("explains payment method not found in usdc mode", () => {
 		const message = humanizePaymasterError(
 			new Error("Details: payment method not found"),
+			"usdc",
 		);
 
 		expect(message).toContain("CDP_GAS_PAYMENT_MODE=sponsor");
 		expect(message).toContain("ERC-20 gas payments");
+	});
+
+	it("suggests restart and portal checks in sponsor mode", () => {
+		const message = humanizePaymasterError(
+			new Error("Details: payment method not found"),
+			"sponsor",
+		);
+
+		expect(message).toContain("pm2 restart accumula-bot-telegram");
+		expect(message).not.toContain("Set CDP_GAS_PAYMENT_MODE=sponsor");
 	});
 });
 

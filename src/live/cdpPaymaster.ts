@@ -144,15 +144,28 @@ export async function readErc20Allowance(params: {
 }
 
 /** Turn raw CDP / viem paymaster RPC errors into operator-actionable text. */
-export function humanizePaymasterError(error: unknown): string {
+export function humanizePaymasterError(
+	error: unknown,
+	gasPaymentMode: CdpGasPaymentMode = "sponsor",
+): string {
 	const message = error instanceof Error ? error.message : String(error);
 	const lower = message.toLowerCase();
 
 	if (lower.includes("payment method not found")) {
+		if (gasPaymentMode === "usdc") {
+			return (
+				"CDP paymaster does not accept USDC gas payments on this project. " +
+				"Set CDP_GAS_PAYMENT_MODE=sponsor in .env (uses your Gas policy budget), " +
+				"or enable ERC-20 gas payments for USDC in the CDP Paymaster portal."
+			);
+		}
+
 		return (
-			"CDP paymaster does not accept USDC gas payments on this project. " +
-			"Set CDP_GAS_PAYMENT_MODE=sponsor in .env (uses your Gas policy budget), " +
-			"or enable ERC-20 gas payments for USDC in the CDP Paymaster portal."
+			"CDP paymaster rejected the transaction (payment method not found). " +
+			"If you just changed CDP_GAS_PAYMENT_MODE in .env, restart the Telegram bot " +
+			"(pm2 restart accumula-bot-telegram) so it reloads config. " +
+			"Otherwise check Paymaster → Configuration: paymaster enabled, contract allowlist " +
+			"(USDC, 0x router, treasury), and gas policy limits."
 		);
 	}
 

@@ -28,6 +28,13 @@ async function main() {
 
 	console.info("Telegram bot starting (long poll)");
 	console.info(`Database: ${config.databasePath}`);
+	if (config.live.cdpPaymasterRpcUrl) {
+		console.info(
+			`CDP paymaster: enabled (CDP_GAS_PAYMENT_MODE=${config.live.cdpGasPaymentMode})`,
+		);
+	} else {
+		console.info("CDP paymaster: not configured (CDP_PAYMASTER_RPC_URL unset)");
+	}
 
 	await resumePendingLiveDepositPolls(connection.db, config);
 

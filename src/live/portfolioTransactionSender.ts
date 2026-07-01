@@ -138,7 +138,14 @@ async function sendSmartAccountCalls(
 	try {
 		return await sendSmartAccountCallsInner(context, calls);
 	} catch (error) {
-		throw new PortfolioTransactionError(humanizePaymasterError(error));
+		const gasPaymentMode = context.cdpGasPaymentMode ?? "sponsor";
+		console.error(
+			`Smart account transaction failed (CDP_GAS_PAYMENT_MODE=${gasPaymentMode}):`,
+			error instanceof Error ? error.message : error,
+		);
+		throw new PortfolioTransactionError(
+			humanizePaymasterError(error, gasPaymentMode),
+		);
 	}
 }
 

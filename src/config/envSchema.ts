@@ -209,7 +209,10 @@ export const RawEnvSchema = z
 			.optional(),
 		CDP_PAYMASTER_RPC_URL: z.url().optional(),
 		CDP_GAS_PAYMENT_MODE: z
-			.enum(["sponsor", "usdc"])
+			.preprocess(
+				(value) => (typeof value === "string" ? value.trim() : value),
+				z.enum(["sponsor", "usdc"]),
+			)
 			.default(DEFAULT_CDP_GAS_PAYMENT_MODE),
 		CATEGORY_MAX_RISK_ON_FRACTION: z.coerce
 			.number()
