@@ -68,7 +68,7 @@ export function formatLiquidationSummaryMessage(params: {
 		`Estimated gross USDC: ${bold(formatUsd(params.estimatedGrossUsdc))}`,
 		`Cost basis: ${bold(formatUsd(params.breakdown.costBasisUsd))}`,
 		`Profit: ${bold(formatUsd(params.breakdown.profitUsd))}`,
-		`Fee (${feePct}% of profit): ${bold(formatUsd(params.breakdown.feeUsd))}`,
+		`Fee \\(${feePct}% of profit\\): ${bold(formatUsd(params.breakdown.feeUsd))}`,
 		`Net to you: ${bold(formatUsd(params.breakdown.netToUserUsd))}`,
 		"",
 		escapeMarkdownV2(
