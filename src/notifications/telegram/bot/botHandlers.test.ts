@@ -444,5 +444,6 @@ describe("handleBotMessage portfolio", () => {
 			portfolioId: 7,
 			riskTolerance: "high",
 		});
+		expect(result.text).toContain("0\\.6");
 	});
 });

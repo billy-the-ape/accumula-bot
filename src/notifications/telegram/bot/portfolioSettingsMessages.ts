@@ -45,7 +45,7 @@ export function formatPortfolioRiskUpdatedMessage(
 	riskTolerance: RiskTolerance,
 ): string {
 	const minConfidence = MIN_CONFIDENCE_BY_RISK_TOLERANCE[riskTolerance];
-	return `${bold("Risk tolerance")} set to ${bold(formatRiskLabel(riskTolerance))} \\(min confidence ${minConfidence}\\)\\.`;
+	return `${bold("Risk tolerance")} set to ${bold(formatRiskLabel(riskTolerance))} \\(min confidence ${bold(String(minConfidence))}\\)\\.`;
 }
 
 export const NO_ACTIVE_PORTFOLIO_FOR_PORTFOLIO_COMMAND =
