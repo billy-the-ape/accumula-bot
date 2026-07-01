@@ -4,10 +4,12 @@ import path from "node:path";
 import type { Client } from "@libsql/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+	analyzeMigrations,
 	createDatabase,
 	ensureTelegramUserSettingsColumns,
 	logAndMigrateDatabase,
 	openDatabase,
+	reconcileMigration0013Record,
 } from "@/storage/db.js";
 
 describe("ensureTelegramUserSettingsColumns", () => {
@@ -35,6 +37,53 @@ describe("ensureTelegramUserSettingsColumns", () => {
 		expect(names).toContain("default_risk_tolerance");
 		expect(names).toContain("locale");
 		expect(names).toContain("timezone");
+	});
+});
+
+describe("reconcileMigration0013Record", () => {
+	let client: Client | undefined;
+	let dbPath: string | undefined;
+
+	afterEach(() => {
+		client?.close();
+		client = undefined;
+		if (dbPath) {
+			try {
+				fs.rmSync(dbPath, { force: true });
+			} catch {
+				// Windows may briefly lock the file after close.
+			}
+			dbPath = undefined;
+		}
+	});
+
+	it("records migration 0013 when columns exist but journal row is missing", async () => {
+		dbPath = path.join(
+			os.tmpdir(),
+			`accumula-db-reconcile-${Date.now()}-${Math.random()}.db`,
+		);
+
+		const connection = await createDatabase(dbPath);
+		const migration0013 = (
+			await analyzeMigrations(connection.client)
+		).journalEntries.find((entry) => entry.tag === "0013_tired_wonder_man");
+		expect(migration0013).toBeDefined();
+		if (!migration0013) {
+			throw new Error("expected migration 0013");
+		}
+
+		await connection.client.execute({
+			sql: "DELETE FROM __drizzle_migrations WHERE hash = ?",
+			args: [migration0013.hash],
+		});
+
+		const reconciled = await reconcileMigration0013Record(connection.client);
+		const after = await analyzeMigrations(connection.client);
+
+		expect(reconciled).toBe(true);
+		expect(after.appliedCount).toBe(14);
+		expect(after.journalGapTags).toEqual([]);
+		connection.client.close();
 	});
 });
 
