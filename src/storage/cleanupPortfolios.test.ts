@@ -72,7 +72,7 @@ describe("cleanupPortfolios", () => {
 		]);
 	}
 
-	it("preview legacy counts orphan portfolios only", async () => {
+	it("preview counts all portfolios", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
 		db = connection.db;
@@ -96,22 +96,21 @@ describe("cleanupPortfolios", () => {
 			riskTolerance: "medium",
 		});
 
-		const preview = await previewPortfolioCleanup(db, "legacy");
+		const preview = await previewPortfolioCleanup(db);
 
-		expect(preview.portfolios).toBe(1);
-		expect(preview.positions).toBe(1);
+		expect(preview.portfolios).toBe(2);
+		expect(preview.positions).toBe(2);
 		expect(preview.trades).toBe(0);
-		expect(preview.telegramUsers).toBe(0);
 	});
 
-	it("cleans legacy portfolios while preserving tweets, macro, and decisions", async () => {
+	it("cleans all portfolio data while preserving other tables", async () => {
 		const connection = await createDatabase(":memory:");
 		client = connection.client;
 		db = connection.db;
 
 		await seedSharedData(db);
 
-		const legacy = await createPortfolio(db, {
+		const orphan = await createPortfolio(db, {
 			assetToAccumulate: "BTC",
 			cashSymbol: "USDC",
 			initialHoldings: { USDC: 10_000 },
@@ -120,7 +119,7 @@ describe("cleanupPortfolios", () => {
 		});
 
 		await recordTrade(db, {
-			portfolioId: legacy.id,
+			portfolioId: orphan.id,
 			side: "buy",
 			symbol: "ETH",
 			quantity: 1,
@@ -139,9 +138,9 @@ describe("cleanupPortfolios", () => {
 			riskTolerance: "medium",
 		});
 
-		const result = await cleanupPortfolios(db, "legacy");
+		const result = await cleanupPortfolios(db);
 
-		expect(result.portfolios).toBe(1);
+		expect(result.portfolios).toBe(2);
 		expect(result.trades).toBe(1);
 
 		const portfolioCount = await db.select({ value: count() }).from(portfolios);
@@ -153,55 +152,9 @@ describe("cleanupPortfolios", () => {
 			.select({ value: count() })
 			.from(socialMediaPosts);
 
-		expect(portfolioCount[0]?.value).toBe(1);
+		expect(portfolioCount[0]?.value).toBe(0);
 		expect(tradeCount[0]?.value).toBe(0);
 		expect(userCount[0]?.value).toBe(1);
-		expect(decisionCount[0]?.value).toBe(1);
-		expect(macroCount[0]?.value).toBe(1);
-		expect(socialCount[0]?.value).toBe(1);
-	});
-
-	it("cleans all portfolio data and telegram users when scope is all", async () => {
-		const connection = await createDatabase(":memory:");
-		client = connection.client;
-		db = connection.db;
-
-		await seedSharedData(db);
-
-		await createPortfolio(db, {
-			assetToAccumulate: "BTC",
-			cashSymbol: "USDC",
-			initialHoldings: { USDC: 10_000 },
-			initialBtcBaseline: 0.1,
-			initialQuoteBaseline: 10_000,
-		});
-
-		const user = await getOrCreateTelegramUser(db, "111");
-		await createUserPortfolio(db, {
-			telegramUserId: user.id,
-			assetToAccumulate: "BTC",
-			cashSymbol: "USDC",
-			initialHoldings: { USDC: 10_000 },
-			initialBtcBaseline: 0.1,
-			initialQuoteBaseline: 10_000,
-			riskTolerance: "medium",
-		});
-
-		const result = await cleanupPortfolios(db, "all");
-
-		expect(result.portfolios).toBe(2);
-		expect(result.telegramUsers).toBe(1);
-
-		const portfolioCount = await db.select({ value: count() }).from(portfolios);
-		const userCount = await db.select({ value: count() }).from(telegramUsers);
-		const decisionCount = await db.select({ value: count() }).from(decisions);
-		const macroCount = await db.select({ value: count() }).from(macroBriefings);
-		const socialCount = await db
-			.select({ value: count() })
-			.from(socialMediaPosts);
-
-		expect(portfolioCount[0]?.value).toBe(0);
-		expect(userCount[0]?.value).toBe(0);
 		expect(decisionCount[0]?.value).toBe(1);
 		expect(macroCount[0]?.value).toBe(1);
 		expect(socialCount[0]?.value).toBe(1);

@@ -13,6 +13,7 @@ import {
 	formatPortfolioCreatedMessage,
 	formatPortfolioModePrompt,
 	formatPortfolioModeReminderMessage,
+	formatPortfolioResetMessage,
 	formatRiskTolerancePrompt,
 	formatRiskToleranceReminderMessage,
 	formatSendStartMessage,
@@ -58,6 +59,18 @@ function beginOnboarding(): BotHandlerOutput {
 		effects: {
 			userPatch: {
 				onboardingState: "awaiting_mode_selection",
+				onboardingDraftJson: null,
+			},
+		},
+	};
+}
+
+function handleReset(): BotHandlerOutput {
+	return {
+		text: formatPortfolioResetMessage(),
+		effects: {
+			userPatch: {
+				onboardingState: null,
 				onboardingDraftJson: null,
 			},
 			deactivatePortfolios: true,
@@ -356,7 +369,7 @@ export function handleBotMessage(
 				return handleSettingsCommand(context.settings, message.args);
 
 			case "reset":
-				return beginOnboarding();
+				return handleReset();
 
 			case "status":
 			case "summary":

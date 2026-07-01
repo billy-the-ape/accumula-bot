@@ -73,7 +73,7 @@ export function formatPortfolioSummary(
 		lines.push(
 			"",
 			escapeMarkdownV2(
-				"Send /reset to deactivate this portfolio and set up a new one.",
+				"Send /reset to deactivate this portfolio. Use /start to create a new one.",
 			),
 		);
 	}

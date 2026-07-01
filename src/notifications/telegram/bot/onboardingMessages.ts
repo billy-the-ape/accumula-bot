@@ -173,8 +173,15 @@ export const NO_ACTIVE_PORTFOLIO_MESSAGE = botPlainText([
 ]);
 
 export const RESET_HINT = botPlainText([
-	"Send /reset to deactivate this portfolio and set up a new one.",
+	"Send /reset to deactivate this portfolio. Use /start to create a new one.",
 ]);
+
+export function formatPortfolioResetMessage(): string {
+	return botPlainText([
+		"Your portfolio has been deactivated.",
+		"Send /start when you're ready to create a new one.",
+	]);
+}
 
 export function formatInvalidStartingValueMessage(): string {
 	return botPlainText([

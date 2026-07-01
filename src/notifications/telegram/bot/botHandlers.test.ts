@@ -250,17 +250,17 @@ describe("handleBotMessage onboarding", () => {
 		);
 	});
 
-	it("/reset deactivates and restarts onboarding", () => {
+	it("/reset deactivates portfolio without starting onboarding", () => {
 		const result = handleBotMessage(onboardedContext, {
 			kind: "command",
 			command: "reset",
 		});
 
 		expect(result.effects?.deactivatePortfolios).toBe(true);
-		expect(result.effects?.userPatch?.onboardingState).toBe(
-			"awaiting_mode_selection",
-		);
-		expect(result.text).toContain("Choose how you want to trade");
+		expect(result.effects?.userPatch?.onboardingState).toBeNull();
+		expect(result.text).toContain("deactivated");
+		expect(result.text).toContain("/start");
+		expect(result.text).not.toContain("Choose how you want to trade");
 	});
 });
 
