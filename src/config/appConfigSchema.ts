@@ -222,18 +222,6 @@ export const AppConfigSchema = z
 				message: "LLM_API_KEY is required when LLM_PROVIDER=anthropic",
 			});
 		}
-
-		if (
-			env.cdpPaymasterRpcUrl &&
-			env.cdpGasPaymentMode === "sponsor" &&
-			!env.cdpGasPolicyId
-		) {
-			ctx.addIssue({
-				code: "custom",
-				message:
-					"CDP_GAS_POLICY_ID is required when CDP_PAYMASTER_RPC_URL is set and CDP_GAS_PAYMENT_MODE=sponsor. Copy the policy ID from Paymaster → Configuration in the CDP portal.",
-			});
-		}
 	})
 	.transform((env): AppConfig => {
 		const depositChainId = assertSupportedDepositChainId(env.depositChainId);

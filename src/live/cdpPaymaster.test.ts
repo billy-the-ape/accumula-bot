@@ -31,25 +31,31 @@ describe("humanizePaymasterError", () => {
 		expect(message).toContain("ERC-20 gas payments");
 	});
 
-	it("suggests restart and portal checks in sponsor mode", () => {
+	it("suggests billing setup in sponsor mode", () => {
 		const message = humanizePaymasterError(
 			new Error("Details: payment method not found"),
 			"sponsor",
 		);
 
-		expect(message).toContain("CDP_GAS_POLICY_ID");
-		expect(message).not.toContain("Set CDP_GAS_PAYMENT_MODE=sponsor");
+		expect(message).toContain("billing payment method");
+		expect(message).toContain("project ID");
 	});
 });
 
 describe("resolvePaymasterContext", () => {
-	it("returns policyId context for sponsor mode", () => {
+	it("returns policyId context when explicitly configured", () => {
 		expect(
 			resolvePaymasterContext({
 				gasPaymentMode: "sponsor",
 				gasPolicyId: "631528b0-d444-4a9b-a575-40dd3aa4a13a",
 			}),
 		).toEqual({ policyId: "631528b0-d444-4a9b-a575-40dd3aa4a13a" });
+	});
+
+	it("returns undefined for sponsor mode without optional policy id", () => {
+		expect(
+			resolvePaymasterContext({ gasPaymentMode: "sponsor" }),
+		).toBeUndefined();
 	});
 
 	it("returns erc20 context for usdc mode", () => {
@@ -60,12 +66,6 @@ describe("resolvePaymasterContext", () => {
 				gasPaymentUsdc: usdc,
 			}),
 		).toEqual({ erc20: usdc });
-	});
-
-	it("requires policy id in sponsor mode", () => {
-		expect(() =>
-			resolvePaymasterContext({ gasPaymentMode: "sponsor" }),
-		).toThrow("CDP_GAS_POLICY_ID");
 	});
 });
 

@@ -224,6 +224,12 @@ async function sendSmartAccountCallsInner(
 		},
 	};
 
+	const paymasterContext = resolvePaymasterContext({
+		gasPaymentMode,
+		...(gasPaymentUsdc ? { gasPaymentUsdc } : {}),
+		...(context.cdpGasPolicyId ? { gasPolicyId: context.cdpGasPolicyId } : {}),
+	});
+
 	const userOpHash = await bundlerClient.sendUserOperation({
 		account,
 		calls: preparedCalls.map((call) => ({
@@ -232,13 +238,7 @@ async function sendSmartAccountCallsInner(
 			value: call.value ?? 0n,
 		})),
 		paymaster: true,
-		paymasterContext: resolvePaymasterContext({
-			gasPaymentMode,
-			...(gasPaymentUsdc ? { gasPaymentUsdc } : {}),
-			...(context.cdpGasPolicyId
-				? { gasPolicyId: context.cdpGasPolicyId }
-				: {}),
-		}),
+		...(paymasterContext ? { paymasterContext } : {}),
 	});
 
 	const receipt = await bundlerClient.waitForUserOperationReceipt({

@@ -90,7 +90,7 @@ export function resolvePaymasterContext(params: {
 	gasPaymentMode: CdpGasPaymentMode;
 	gasPaymentUsdc?: `0x${string}`;
 	gasPolicyId?: string;
-}): CdpPaymasterContext {
+}): CdpPaymasterContext | undefined {
 	if (params.gasPaymentMode === "usdc") {
 		if (!params.gasPaymentUsdc) {
 			throw new Error(
@@ -100,13 +100,65 @@ export function resolvePaymasterContext(params: {
 		return { erc20: params.gasPaymentUsdc };
 	}
 
-	if (!params.gasPolicyId) {
-		throw new Error(
-			"CDP_GAS_POLICY_ID is required when CDP_GAS_PAYMENT_MODE=sponsor",
-		);
+	// CDP quickstart uses paymaster: true with no context — policy is tied to the RPC URL.
+	// Only pass policyId when CDP support explicitly provides one (not the portal URL UUID).
+	if (params.gasPolicyId) {
+		return { policyId: params.gasPolicyId };
 	}
 
-	return { policyId: params.gasPolicyId };
+	return undefined;
+}
+
+type CdpPaymasterRpcResult = {
+	acceptedTokens?: Array<{ address?: string; symbol?: string }>;
+	paymasterAddress?: string;
+};
+
+/** Best-effort startup probe — logs CDP paymaster readiness without blocking boot. */
+export async function logCdpPaymasterStartupProbe(params: {
+	rpcUrl: string;
+	chainId: SupportedDepositChainId;
+	gasPaymentMode: CdpGasPaymentMode;
+}): Promise<void> {
+	try {
+		const chainIdHex = `0x${params.chainId.toString(16)}`;
+		const entryPoint = "0x5FF137D4b0FDCD49DcA30c7CF57E578a026d2789";
+		const response = await fetch(params.rpcUrl, {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify({
+				jsonrpc: "2.0",
+				id: 1,
+				method: "pm_getAcceptedPaymentTokens",
+				params: [entryPoint, chainIdHex],
+			}),
+		});
+		const payload = (await response.json()) as {
+			result?: CdpPaymasterRpcResult;
+			error?: { message?: string };
+		};
+
+		if (payload.error) {
+			console.warn(
+				`CDP paymaster probe: pm_getAcceptedPaymentTokens failed — ${payload.error.message ?? "unknown error"}`,
+			);
+			return;
+		}
+
+		const tokens = payload.result?.acceptedTokens ?? [];
+		console.info(
+			`CDP paymaster probe: acceptedTokens=${tokens.length}${payload.result?.paymasterAddress ? ` paymaster=${payload.result.paymasterAddress}` : ""}`,
+		);
+
+		if (params.gasPaymentMode === "usdc" && tokens.length === 0) {
+			console.warn(
+				"CDP paymaster probe: USDC gas mode is set but acceptedTokens is empty — ERC-20 gas is not enabled on this project.",
+			);
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		console.warn(`CDP paymaster probe failed: ${message}`);
+	}
 }
 
 export function buildPaymasterUsdcApprovalCall(params: {
@@ -189,10 +241,10 @@ export function humanizePaymasterError(
 		}
 
 		return (
-			"CDP paymaster rejected the transaction (payment method not found). " +
-			"Set CDP_GAS_POLICY_ID in .env to your Gas policy ID from Paymaster → Configuration " +
-			"in the CDP portal, then restart the bot. Also confirm paymaster is enabled, contracts " +
-			"are allowlisted (USDC, 0x router, treasury), and gas limits are high enough."
+			"CDP paymaster could not bill gas sponsorship (payment method not found). " +
+			"In the CDP Portal add a billing payment method (organization Billing tab — credit card for monthly gas invoices). " +
+			"The UUID in the portal URL is your project ID, not CDP_GAS_POLICY_ID — remove that env var unless CDP support gave you a policy UUID. " +
+			"Also confirm Paymaster is enabled on Base Mainnet, USDC is allowlisted with transfer(), and gas limits are sufficient."
 		);
 	}
 

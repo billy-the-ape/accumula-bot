@@ -1,4 +1,6 @@
+import { assertSupportedDepositChainId } from "@/config/chainAssets.js";
 import { loadConfig } from "@/config/index.js";
+import { logCdpPaymasterStartupProbe } from "@/live/cdpPaymaster.js";
 import { resumePendingLiveDepositPolls } from "@/live/liveDepositPoller.js";
 import { parseTelegramUpdate } from "@/notifications/telegram/bot/parseTelegramUpdate.js";
 import { processTelegramUpdate } from "@/notifications/telegram/processTelegramUpdate.js";
@@ -30,11 +32,16 @@ async function main() {
 	console.info(`Database: ${config.databasePath}`);
 	if (config.live.cdpPaymasterRpcUrl) {
 		const policyHint = config.live.cdpGasPolicyId
-			? `policy=${config.live.cdpGasPolicyId}`
-			: "policy=unset";
+			? `optional policyId=${config.live.cdpGasPolicyId}`
+			: "default policy via RPC URL";
 		console.info(
 			`CDP paymaster: enabled (CDP_GAS_PAYMENT_MODE=${config.live.cdpGasPaymentMode}, ${policyHint})`,
 		);
+		await logCdpPaymasterStartupProbe({
+			rpcUrl: config.live.cdpPaymasterRpcUrl,
+			chainId: assertSupportedDepositChainId(config.live.depositChainId),
+			gasPaymentMode: config.live.cdpGasPaymentMode,
+		});
 	} else {
 		console.info("CDP paymaster: not configured (CDP_PAYMASTER_RPC_URL unset)");
 	}
