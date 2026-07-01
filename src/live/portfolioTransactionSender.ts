@@ -8,6 +8,7 @@ import type { SupportedDepositChainId } from "@/config/chainAssets.js";
 import type { CdpGasPaymentMode } from "@/live/cdpPaymaster.js";
 import {
 	getCdpErc20PaymasterAddress,
+	humanizePaymasterError,
 	prependPaymasterApprovalIfNeeded,
 	readErc20Allowance,
 	resolveGasPaymentUsdcToken,
@@ -81,7 +82,7 @@ export function buildPortfolioTransactionContext(params: {
 	cdpPaymasterRpcUrl?: string;
 	cdpGasPaymentMode?: CdpGasPaymentMode;
 }): PortfolioTransactionContext {
-	const cdpGasPaymentMode = params.cdpGasPaymentMode ?? "usdc";
+	const cdpGasPaymentMode = params.cdpGasPaymentMode ?? "sponsor";
 	const gasPaymentUsdc =
 		params.walletKind === "smart_account"
 			? resolveGasPaymentUsdcToken(
@@ -134,6 +135,17 @@ async function sendSmartAccountCalls(
 	context: PortfolioTransactionContext,
 	calls: readonly PortfolioContractCall[],
 ): Promise<`0x${string}`> {
+	try {
+		return await sendSmartAccountCallsInner(context, calls);
+	} catch (error) {
+		throw new PortfolioTransactionError(humanizePaymasterError(error));
+	}
+}
+
+async function sendSmartAccountCallsInner(
+	context: PortfolioTransactionContext,
+	calls: readonly PortfolioContractCall[],
+): Promise<`0x${string}`> {
 	const paymasterRpcUrl = context.cdpPaymasterRpcUrl;
 	if (!paymasterRpcUrl) {
 		throw new PortfolioTransactionError(
@@ -168,7 +180,7 @@ async function sendSmartAccountCalls(
 
 	let preparedCalls: PortfolioContractCall[] = [...calls];
 	const gasPaymentUsdc = context.gasPaymentUsdc;
-	const gasPaymentMode = context.cdpGasPaymentMode ?? "usdc";
+	const gasPaymentMode = context.cdpGasPaymentMode ?? "sponsor";
 
 	if (gasPaymentUsdc && gasPaymentMode === "usdc") {
 		const paymasterAddress = getCdpErc20PaymasterAddress(context.chainId);

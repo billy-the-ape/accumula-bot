@@ -22,10 +22,10 @@ export type CdpGasPaymentMode = "sponsor" | "usdc";
 export function parseCdpGasPaymentMode(
 	value: string | undefined,
 ): CdpGasPaymentMode {
-	if (value === "sponsor") {
-		return "sponsor";
+	if (value === "usdc") {
+		return "usdc";
 	}
-	return "usdc";
+	return "sponsor";
 }
 
 /** Minimum USDC allowance before we prepend an approval (covers many swaps). */
@@ -141,4 +141,37 @@ export async function readErc20Allowance(params: {
 		functionName: "allowance",
 		args: [params.owner, params.spender],
 	});
+}
+
+/** Turn raw CDP / viem paymaster RPC errors into operator-actionable text. */
+export function humanizePaymasterError(error: unknown): string {
+	const message = error instanceof Error ? error.message : String(error);
+	const lower = message.toLowerCase();
+
+	if (lower.includes("payment method not found")) {
+		return (
+			"CDP paymaster does not accept USDC gas payments on this project. " +
+			"Set CDP_GAS_PAYMENT_MODE=sponsor in .env (uses your Gas policy budget), " +
+			"or enable ERC-20 gas payments for USDC in the CDP Paymaster portal."
+		);
+	}
+
+	if (
+		lower.includes("target address not in allowed contracts") ||
+		lower.includes("method not in allowed methods")
+	) {
+		return (
+			"CDP paymaster contract allowlist blocked this transaction. " +
+			"Add USDC, 0x swap router, and treasury addresses in Paymaster → Configuration."
+		);
+	}
+
+	if (lower.includes("request denied") || lower.includes("denied_error")) {
+		return (
+			"CDP paymaster denied the transaction (gas policy or spend limit). " +
+			"Check global/per-user limits and contract allowlist in the CDP portal."
+		);
+	}
+
+	return message;
 }

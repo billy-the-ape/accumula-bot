@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	buildPaymasterUsdcApprovalCall,
 	getCdpErc20PaymasterAddress,
+	humanizePaymasterError,
 	MIN_GAS_PAYMENT_ALLOWANCE_UNITS,
 	parseCdpGasPaymentMode,
 	prependPaymasterApprovalIfNeeded,
@@ -9,12 +10,23 @@ import {
 } from "@/live/cdpPaymaster.js";
 
 describe("parseCdpGasPaymentMode", () => {
-	it("defaults to usdc", () => {
-		expect(parseCdpGasPaymentMode(undefined)).toBe("usdc");
+	it("defaults to sponsor", () => {
+		expect(parseCdpGasPaymentMode(undefined)).toBe("sponsor");
 	});
 
-	it("accepts sponsor", () => {
-		expect(parseCdpGasPaymentMode("sponsor")).toBe("sponsor");
+	it("accepts usdc", () => {
+		expect(parseCdpGasPaymentMode("usdc")).toBe("usdc");
+	});
+});
+
+describe("humanizePaymasterError", () => {
+	it("explains payment method not found", () => {
+		const message = humanizePaymasterError(
+			new Error("Details: payment method not found"),
+		);
+
+		expect(message).toContain("CDP_GAS_PAYMENT_MODE=sponsor");
+		expect(message).toContain("ERC-20 gas payments");
 	});
 });
 
