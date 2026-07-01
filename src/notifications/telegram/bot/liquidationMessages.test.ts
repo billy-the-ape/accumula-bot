@@ -21,7 +21,8 @@ describe("formatLiquidationSummaryMessage", () => {
 			profitFeeBps: 500,
 		});
 
-		expect(message).toContain("Fee \\(5.0% of profit\\):");
+		expect(message).toContain("Fee \\(5\\.0% of profit\\):");
+		expect(message).toContain("*1,200\\.00*");
 		expect(message).not.toMatch(/Fee \(5\.0% of profit\):/);
 	});
 });

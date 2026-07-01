@@ -12,6 +12,10 @@ function formatUsd(value: number): string {
 	});
 }
 
+function labelBold(label: string, value: string): string {
+	return `${escapeMarkdownV2(label)} ${bold(value)}`;
+}
+
 export function formatLiveResetRejectedMessage(): string {
 	return botPlainText(["Use /liquidate to close your live portfolio."]);
 }
@@ -64,12 +68,15 @@ export function formatLiquidationSummaryMessage(params: {
 	return [
 		escapeMarkdownV2("Review liquidation"),
 		"",
-		`Destination: ${bold(params.destinationAddress)}`,
-		`Estimated gross USDC: ${bold(formatUsd(params.estimatedGrossUsdc))}`,
-		`Cost basis: ${bold(formatUsd(params.breakdown.costBasisUsd))}`,
-		`Profit: ${bold(formatUsd(params.breakdown.profitUsd))}`,
-		`Fee \\(${feePct}% of profit\\): ${bold(formatUsd(params.breakdown.feeUsd))}`,
-		`Net to you: ${bold(formatUsd(params.breakdown.netToUserUsd))}`,
+		labelBold("Destination:", params.destinationAddress),
+		labelBold("Estimated gross USDC:", formatUsd(params.estimatedGrossUsdc)),
+		labelBold("Cost basis:", formatUsd(params.breakdown.costBasisUsd)),
+		labelBold("Profit:", formatUsd(params.breakdown.profitUsd)),
+		labelBold(
+			`Fee (${feePct}% of profit):`,
+			formatUsd(params.breakdown.feeUsd),
+		),
+		labelBold("Net to you:", formatUsd(params.breakdown.netToUserUsd)),
 		"",
 		escapeMarkdownV2(
 			"Confirm to swap all holdings to USDC, send the fee to treasury, and transfer the remainder to your address.",
@@ -87,15 +94,15 @@ export function formatLiquidationSuccessMessage(params: {
 	const lines = [
 		escapeMarkdownV2("Portfolio liquidated and closed."),
 		"",
-		`Net sent to you: ${bold(formatUsd(params.netToUserUsd))}`,
-		`Profit fee: ${bold(formatUsd(params.feeUsd))}`,
-		`Net tx: ${bold(params.netTxHash)}`,
+		labelBold("Net sent to you:", formatUsd(params.netToUserUsd)),
+		labelBold("Profit fee:", formatUsd(params.feeUsd)),
+		labelBold("Net tx:", params.netTxHash),
 	];
 	if (params.feeTxHash) {
-		lines.push(`Fee tx: ${bold(params.feeTxHash)}`);
+		lines.push(labelBold("Fee tx:", params.feeTxHash));
 	}
 	if (params.swapCount > 0) {
-		lines.push(`Swaps executed: ${bold(String(params.swapCount))}`);
+		lines.push(labelBold("Swaps executed:", String(params.swapCount)));
 	}
 	lines.push(
 		"",
