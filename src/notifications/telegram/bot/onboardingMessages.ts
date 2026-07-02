@@ -4,7 +4,6 @@ import {
 	boldUnderline,
 	code,
 	escapeMarkdownV2,
-	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 
 /** Join lines as Telegram MarkdownV2 plain text (each line escaped). */

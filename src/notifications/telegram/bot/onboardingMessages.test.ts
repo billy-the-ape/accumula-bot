@@ -9,14 +9,14 @@ import {
 describe("bot onboarding messages", () => {
 	it("escapes MarkdownV2 reserved characters", () => {
 		expect(formatPortfolioModePrompt()).toContain(
-			"__Welcome to Accumula Bot__",
+			"__*Welcome to Accumula Bot*__",
 		);
 		expect(formatStartingValuePrompt()).toContain("Tap Default for $10,000");
 	});
 
 	it("includes live deposit instructions", () => {
 		const text = formatLiveDepositInstructions("0xabc", 1000);
-		expect(text).toContain("Only deposit USDC on Base");
+		expect(text).toContain("Only deposit *USDC on Base*");
 		expect(text).toContain("30 minutes");
 		expect(text).toContain("/start");
 	});

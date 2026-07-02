@@ -27,7 +27,7 @@ describe("formatDailySummary", () => {
 			holdings: { BTC: 0.1, USDC: 5000 },
 		});
 
-		expect(message).toContain("📅*__AccumulaBot — Daily Summary__*📅");
+		expect(message).toContain("📅__*AccumulaBot — Daily Summary*__📅");
 		expect(message).toContain("__Current BTC Amount vs Starting BTC Value:__");
 		expect(message).toContain("24h: *\\+1\\.20%* · 1 trade\\(s\\)");
 		expect(message).toContain("7d: *\\-0\\.50%*");
@@ -84,7 +84,7 @@ describe("formatDailySummary", () => {
 			},
 		});
 
-		expect(message).toContain("📅*__AccumulaBot — Daily Briefing__*📅");
+		expect(message).toContain("📅__*AccumulaBot — Daily Briefing*__📅");
 		expect(message).toContain("__Macro briefing:__");
 		expect(message).toContain("_Generated 2026\\-06\\-16T07:00:00\\.000Z_");
 		expect(message).toContain("Risk\\-off ahead of CPI\\. ETF flows steady\\.");
