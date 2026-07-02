@@ -16,7 +16,7 @@ import {
 } from "@/live/dex/tokenAmounts.js";
 import {
 	fetchZeroXQuote,
-	passesSlippageCheck,
+	passesQuotedBuySlippageCheck,
 	type ZeroXQuote,
 } from "@/live/dex/zeroXClient.js";
 import {
@@ -59,6 +59,39 @@ export class LiveSwapError extends Error {
 		super(message);
 		this.name = "LiveSwapError";
 	}
+}
+
+export const LIVE_SWAP_QUOTE_ATTEMPTS = 3;
+export const LIVE_SWAP_QUOTE_RETRY_DELAY_MS = 3_000;
+
+function delay(ms: number): Promise<void> {
+	return new Promise((resolve) => {
+		setTimeout(resolve, ms);
+	});
+}
+
+function formatTokenAmount(amount: bigint): string {
+	return amount.toString();
+}
+
+function logQuoteSlippageFailure(params: {
+	fill: PlannedFill;
+	attempt: number;
+	maxAttempts: number;
+	expectedBuyAmount: bigint;
+	quote: ZeroXQuote;
+	maxSlippageBps: number;
+}): void {
+	const minExpected =
+		(params.expectedBuyAmount * BigInt(10_000 - params.maxSlippageBps)) /
+		10_000n;
+	console.warn(
+		`Live swap quote slippage check failed for ${params.fill.symbol} ${params.fill.side} ` +
+			`(attempt ${params.attempt}/${params.maxAttempts}): ` +
+			`expected min buy ${formatTokenAmount(minExpected)}, ` +
+			`quoted buy ${formatTokenAmount(params.quote.buyAmount)}, ` +
+			`quoted min buy ${formatTokenAmount(params.quote.minBuyAmount)}`,
+	);
 }
 
 function buildTransactionContext(
@@ -255,40 +288,61 @@ export async function executeLiveSwap(
 
 	await ensureNativeGas({ input, context, fetchImpl });
 
-	const quote = await fetchZeroXQuote(
-		{
-			chainId,
-			sellToken: legs.sellToken,
-			buyToken: legs.buyToken,
-			sellAmount: legs.sellAmount,
-			taker: input.walletAddress,
-			slippageBps: input.maxSlippageBps,
-		},
-		input.zeroXApiKey,
-		fetchImpl,
-	);
-
-	const slippageMultiplier = BigInt(10_000 - input.maxSlippageBps);
-	const minExpectedBuy =
-		(legs.expectedBuyAmount * slippageMultiplier) / 10_000n;
-	if (
-		!passesSlippageCheck({
-			expectedBuyAmount: minExpectedBuy,
-			minBuyAmount: quote.minBuyAmount,
-		})
-	) {
-		throw new LiveSwapError(
-			`Swap quote slippage exceeded for ${input.fill.symbol} ${input.fill.side}`,
+	let lastQuote: ZeroXQuote | undefined;
+	for (let attempt = 1; attempt <= LIVE_SWAP_QUOTE_ATTEMPTS; attempt++) {
+		const quote = await fetchZeroXQuote(
+			{
+				chainId,
+				sellToken: legs.sellToken,
+				buyToken: legs.buyToken,
+				sellAmount: legs.sellAmount,
+				taker: input.walletAddress,
+				slippageBps: input.maxSlippageBps,
+			},
+			input.zeroXApiKey,
+			fetchImpl,
 		);
+		lastQuote = quote;
+
+		if (
+			passesQuotedBuySlippageCheck({
+				expectedBuyAmount: legs.expectedBuyAmount,
+				quotedBuyAmount: quote.buyAmount,
+				maxSlippageBps: input.maxSlippageBps,
+			})
+		) {
+			const txHash = await submitZeroXQuote(quote, context, legs.sellToken);
+
+			return {
+				txHash,
+				buyAmount: fromTokenUnits(quote.buyAmount, legs.buyDecimals),
+				sellAmount: fromTokenUnits(quote.sellAmount, legs.sellDecimals),
+				buySymbol: legs.buySymbol,
+				sellSymbol: legs.sellSymbol,
+			};
+		}
+
+		logQuoteSlippageFailure({
+			fill: input.fill,
+			attempt,
+			maxAttempts: LIVE_SWAP_QUOTE_ATTEMPTS,
+			expectedBuyAmount: legs.expectedBuyAmount,
+			quote,
+			maxSlippageBps: input.maxSlippageBps,
+		});
+
+		if (attempt < LIVE_SWAP_QUOTE_ATTEMPTS) {
+			console.info(
+				`Retrying live swap quote for ${input.fill.symbol} ${input.fill.side} in ${LIVE_SWAP_QUOTE_RETRY_DELAY_MS}ms...`,
+			);
+			await delay(LIVE_SWAP_QUOTE_RETRY_DELAY_MS);
+		}
 	}
 
-	const txHash = await submitZeroXQuote(quote, context, legs.sellToken);
-
-	return {
-		txHash,
-		buyAmount: fromTokenUnits(quote.buyAmount, legs.buyDecimals),
-		sellAmount: fromTokenUnits(quote.sellAmount, legs.sellDecimals),
-		buySymbol: legs.buySymbol,
-		sellSymbol: legs.sellSymbol,
-	};
+	throw new LiveSwapError(
+		`Swap quote slippage exceeded for ${input.fill.symbol} ${input.fill.side}` +
+			(lastQuote
+				? ` after ${LIVE_SWAP_QUOTE_ATTEMPTS} attempts (last quoted buy ${formatTokenAmount(lastQuote.buyAmount)})`
+				: ""),
+	);
 }

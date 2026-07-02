@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	fetchZeroXQuote,
+	passesQuotedBuySlippageCheck,
 	passesSlippageCheck,
 } from "@/live/dex/zeroXClient.js";
 
@@ -16,6 +17,23 @@ describe("zeroXClient", () => {
 			passesSlippageCheck({
 				expectedBuyAmount: 1000n,
 				minBuyAmount: 999n,
+			}),
+		).toBe(false);
+	});
+
+	it("allows quoted buy up to max slippage below expected", () => {
+		expect(
+			passesQuotedBuySlippageCheck({
+				expectedBuyAmount: 10_000n,
+				quotedBuyAmount: 9_900n,
+				maxSlippageBps: 100,
+			}),
+		).toBe(true);
+		expect(
+			passesQuotedBuySlippageCheck({
+				expectedBuyAmount: 10_000n,
+				quotedBuyAmount: 9_899n,
+				maxSlippageBps: 100,
 			}),
 		).toBe(false);
 	});

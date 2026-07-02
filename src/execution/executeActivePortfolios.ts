@@ -137,11 +137,24 @@ export async function executeActivePortfolios(
 					trades: [],
 				};
 			} else {
-				execution = await liveExecution.executeForPortfolio(activePortfolio, {
-					recommendation: input.recommendation,
-					marketSnapshots: input.marketSnapshots,
-					decisionId: input.decisionId,
-				});
+				try {
+					execution = await liveExecution.executeForPortfolio(activePortfolio, {
+						recommendation: input.recommendation,
+						marketSnapshots: input.marketSnapshots,
+						decisionId: input.decisionId,
+					});
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : "unknown error";
+					console.error(
+						`Live execution failed for portfolio ${activePortfolio.id}: ${message}`,
+					);
+					execution = {
+						executed: false,
+						reason: `Live execution failed: ${message}`,
+						trades: [],
+					};
+				}
 			}
 		} else {
 			execution = await paperExecution.executeForPortfolio(activePortfolio, {
