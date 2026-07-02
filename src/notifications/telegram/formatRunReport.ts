@@ -1,4 +1,3 @@
-import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import {
 	bold,
@@ -9,6 +8,10 @@ import {
 	italic,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
+import {
+	formatPortfolioPerformanceLines,
+	type PortfolioPerformanceInput,
+} from "@/notifications/telegram/formatPortfolioPerformance.js";
 import { escapeUserDateTimeForMarkdown } from "@/notifications/telegram/formatUserDateTime.js";
 import type { PredictionSignal } from "@/schemas/PredictionSignal.js";
 import type { ScoredSocialMediaPost } from "@/schemas/ScoredSocialMediaPost.js";
@@ -44,14 +47,7 @@ export type RunReportInput = {
 	socialMediaScoringStats?: SocialMediaScoringStats;
 	accumulateSymbol: string;
 	portfolio?: StoredPortfolio;
-	portfolioReport?: {
-		btcValue: number;
-		usdValue: number;
-		/** All-time return vs initial BTC baseline (%). */
-		returnPct: number;
-		/** All-time return vs initial USD baseline (%). */
-		usdAllTimeReturnPct: number;
-	};
+	portfolioPerformance?: PortfolioPerformanceInput;
 	outlookThresholds: OutlookThresholds;
 };
 
@@ -69,17 +65,6 @@ function formatUsd(value: number): string {
 		currency: "USD",
 		maximumFractionDigits: 2,
 	});
-}
-
-function formatUsdPlain(value: number): string {
-	return value.toLocaleString("en-US", {
-		maximumFractionDigits: 2,
-		minimumFractionDigits: 2,
-	});
-}
-
-function formatReturnPct(value: number): string {
-	return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
 }
 
 function formatQuantity(value: number): string {
@@ -295,18 +280,12 @@ export function formatRunReport(input: RunReportInput): string {
 		);
 	}
 
-	if (input.portfolioReport) {
-		const { btcValue, usdValue, returnPct, usdAllTimeReturnPct } =
-			input.portfolioReport;
-		const valueLines = isUsdStablecoinSymbol(input.accumulateSymbol)
-			? [
-					`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
-				]
-			: [
-					`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(btcValue.toFixed(8))} · ${bold(formatReturnPct(returnPct))} all\\-time`,
-					`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
-				];
-		lines.push("", boldUnderline("Current value:"), ...valueLines);
+	if (input.portfolioPerformance) {
+		lines.push(
+			"",
+			boldUnderline("Performance:"),
+			...formatPortfolioPerformanceLines(input.portfolioPerformance),
+		);
 	}
 
 	return lines.join("\n");

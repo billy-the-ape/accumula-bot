@@ -69,6 +69,7 @@ describe("parseBotCommand", () => {
 		expect(parseBotCommand("/settings")).toBe("settings");
 		expect(parseBotCommand("/portfolio")).toBe("portfolio");
 		expect(parseBotCommand("/decision")).toBe("decision");
+		expect(parseBotCommand("/macro")).toBe("macro");
 	});
 
 	it("returns undefined for unknown commands", () => {

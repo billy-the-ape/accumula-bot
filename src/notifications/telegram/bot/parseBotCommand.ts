@@ -9,6 +9,7 @@ const BOT_COMMANDS = new Set<BotCommand>([
 	"settings",
 	"decision",
 	"portfolio",
+	"macro",
 ]);
 
 export function parseBotCommand(text: string): BotCommand | undefined {

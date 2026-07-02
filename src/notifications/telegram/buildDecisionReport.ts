@@ -3,7 +3,7 @@ import {
 	getSocialMediaSectionFromContext,
 } from "@/analysis/index.js";
 import type { AppConfig } from "@/config/appConfigSchema.js";
-import { buildPortfolioReport } from "@/execution/executeActivePortfolios.js";
+import { buildPortfolioPerformanceInput } from "@/notifications/telegram/buildPortfolioSummaryInput.js";
 import type { RunOutcome } from "@/notifications/telegram/formatRunReport.js";
 import { formatRunReport } from "@/notifications/telegram/formatRunReport.js";
 import { resolveOutlookThresholds } from "@/risk/riskTolerance.js";
@@ -16,7 +16,10 @@ import {
 } from "@/storage/repositories/decisionRepository.js";
 import { getActivePortfolioForUser } from "@/storage/repositories/portfolioRepository.js";
 import { findTelegramUserById } from "@/storage/repositories/telegramUserRepository.js";
-import { listTradesForDecisionAndPortfolio } from "@/storage/repositories/tradeRepository.js";
+import {
+	listAllTradesForPortfolio,
+	listTradesForDecisionAndPortfolio,
+} from "@/storage/repositories/tradeRepository.js";
 
 export type DecisionLookup = { kind: "last" } | { kind: "id"; id: number };
 
@@ -71,7 +74,7 @@ export async function buildDecisionReportForUser(
 	config: AppConfig,
 	telegramUserId: number,
 	target: DecisionLookup,
-): Promise<string | undefined> {
+): Promise<{ text: string; decisionId: number } | undefined> {
 	const decisionId = await resolveDecisionId(db, target);
 	if (decisionId === undefined) {
 		return undefined;
@@ -100,6 +103,7 @@ export async function buildDecisionReportForUser(
 		portfolio.id,
 		decisionId,
 	);
+	const allTrades = await listAllTradesForPortfolio(db, portfolio.id);
 	const recommendationSummary = summarizeRecommendation(
 		decision.recommendation,
 	);
@@ -116,27 +120,34 @@ export async function buildDecisionReportForUser(
 		? getPredictionSignalsFromContext(decision.analysisContext)
 		: [];
 
-	return formatRunReport({
+	return {
 		decisionId: decision.id,
-		decisionCreatedAt: decision.createdAt,
-		userDateTimeSettings,
-		outcome,
-		headline: recommendationSummary.headline,
-		averageConfidence: recommendationSummary.averageConfidence,
-		outlooks: decision.recommendation.outlooks,
-		trades,
-		executionReason: resolveExecutionReason(outcome, trades),
-		summary: decision.recommendation.summary,
-		predictionSignals,
-		...(socialMediaSection?.topPostsForReport
-			? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
-			: {}),
-		...(socialMediaSection?.scoringStats
-			? { socialMediaScoringStats: socialMediaSection.scoringStats }
-			: {}),
-		accumulateSymbol: portfolio.assetToAccumulate,
-		portfolio,
-		outlookThresholds: effectiveOutlookThresholds,
-		portfolioReport: buildPortfolioReport(portfolio, decision.marketSnapshots),
-	});
+		text: formatRunReport({
+			decisionId: decision.id,
+			decisionCreatedAt: decision.createdAt,
+			userDateTimeSettings,
+			outcome,
+			headline: recommendationSummary.headline,
+			averageConfidence: recommendationSummary.averageConfidence,
+			outlooks: decision.recommendation.outlooks,
+			trades,
+			executionReason: resolveExecutionReason(outcome, trades),
+			summary: decision.recommendation.summary,
+			predictionSignals,
+			...(socialMediaSection?.topPostsForReport
+				? { socialMediaTopPosts: socialMediaSection.topPostsForReport }
+				: {}),
+			...(socialMediaSection?.scoringStats
+				? { socialMediaScoringStats: socialMediaSection.scoringStats }
+				: {}),
+			accumulateSymbol: portfolio.assetToAccumulate,
+			portfolio,
+			outlookThresholds: effectiveOutlookThresholds,
+			portfolioPerformance: buildPortfolioPerformanceInput(
+				portfolio,
+				decision.marketSnapshots,
+				allTrades,
+			),
+		}),
+	};
 }

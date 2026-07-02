@@ -1,3 +1,4 @@
+import { desc, lte } from "drizzle-orm";
 import type { AppConfig } from "@/config/index.js";
 import type { SocialMediaMarketContext } from "@/llm/socialMediaPromptShared.js";
 import { MACRO_BRIEFING_MAX_AGE_MS } from "@/macro/macroBriefingPrompt.js";
@@ -7,6 +8,7 @@ import {
 	getLatestMacroBriefing,
 	type StoredMacroBriefing,
 } from "@/storage/repositories/macroBriefingRepository.js";
+import { macroBriefings } from "@/storage/schema.js";
 
 export type ResolveFreshMarketContextOptions = {
 	now?: Date;
@@ -41,6 +43,39 @@ export async function loadFreshMarketContext(
 ): Promise<SocialMediaMarketContext | undefined> {
 	const briefing = await getLatestMacroBriefing(db);
 	return resolveFreshMarketContext(briefing, options);
+}
+
+export async function getMacroBriefingAsOf(
+	db: AppDatabase,
+	asOf: Date,
+	options: ResolveFreshMarketContextOptions = {},
+): Promise<StoredMacroBriefing | undefined> {
+	const row = await db
+		.select()
+		.from(macroBriefings)
+		.where(lte(macroBriefings.createdAt, asOf))
+		.orderBy(desc(macroBriefings.createdAt), desc(macroBriefings.id))
+		.limit(1)
+		.get();
+
+	if (!row) {
+		return undefined;
+	}
+
+	const briefing: StoredMacroBriefing = {
+		id: row.id,
+		createdAt: row.createdAt,
+		content: row.content,
+		promptVersion: row.promptVersion,
+		llm: {
+			provider: row.llmProvider,
+			model: row.llmModel,
+		},
+	};
+
+	return resolveFreshMarketContext(briefing, { ...options, now: asOf })
+		? briefing
+		: undefined;
 }
 
 export async function loadMarketContextFromConfig(

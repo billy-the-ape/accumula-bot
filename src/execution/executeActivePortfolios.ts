@@ -16,6 +16,8 @@ import {
 import { buildPriceMap } from "@/execution/priceMap.js";
 import type { ExecutionResult } from "@/execution/types.js";
 import { isLiveExecutionConfigured } from "@/live/portfolioWalletCredentials.js";
+import { buildPortfolioPerformanceInput } from "@/notifications/telegram/buildPortfolioSummaryInput.js";
+import type { PortfolioPerformanceInput } from "@/notifications/telegram/formatPortfolioPerformance.js";
 import type { RunOutcome } from "@/notifications/telegram/formatRunReport.js";
 import {
 	computeCategoryExposure,
@@ -30,6 +32,7 @@ import {
 	findPortfolioById,
 	listActivePortfolios,
 } from "@/storage/repositories/portfolioRepository.js";
+import { listAllTradesForPortfolio } from "@/storage/repositories/tradeRepository.js";
 
 export type ExecuteActivePortfoliosInput = {
 	recommendation: TradeRecommendation;
@@ -48,7 +51,7 @@ export type ActivePortfolioRunResult = {
 	portfolio: ActivePortfolio;
 	execution: ExecutionResult;
 	outcome: RunOutcome;
-	portfolioReport: PortfolioReport;
+	portfolioPerformance: PortfolioPerformanceInput;
 	effectiveOutlookThresholds: OutlookThresholds;
 };
 
@@ -166,9 +169,11 @@ export async function executeActivePortfolios(
 
 		const portfolio =
 			(await findPortfolioById(db, activePortfolio.id)) ?? activePortfolio;
-		const portfolioReport = buildPortfolioReport(
+		const trades = await listAllTradesForPortfolio(db, portfolio.id);
+		const portfolioPerformance = buildPortfolioPerformanceInput(
 			portfolio,
 			input.marketSnapshots,
+			trades,
 		);
 		const effectiveOutlookThresholds = resolveOutlookThresholds(
 			config.outlookThresholds,
@@ -184,7 +189,7 @@ export async function executeActivePortfolios(
 			},
 			execution,
 			outcome: toRunOutcome(execution),
-			portfolioReport,
+			portfolioPerformance,
 			effectiveOutlookThresholds,
 		});
 	}

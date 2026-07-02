@@ -88,11 +88,13 @@ function baseInput(overrides: Partial<RunReportInput> = {}): RunReportInput {
 		executionReason: "Executed 1 planned fill(s)",
 		predictionSignals: [],
 		accumulateSymbol: "BTC",
-		portfolioReport: {
-			btcValue: 0.105,
-			usdValue: 9_975,
-			returnPct: 2.5,
-			usdAllTimeReturnPct: -0.25,
+		portfolioPerformance: {
+			accumulateSymbol: "BTC",
+			startingUsdValue: 10_000,
+			currentUsdValue: 9_975,
+			accumulateValue: 0.105,
+			startingAccumulateValue: 0.10243902,
+			assetPerformances: [],
 		},
 		outlookThresholds: DEFAULT_OUTLOOK_THRESHOLDS,
 		...overrides,
@@ -154,27 +156,35 @@ describe("formatRunReport", () => {
 		expect(message).toContain("Strong relative momentum");
 		expect(message).toContain("Trades:");
 		expect(message).toContain("BUY 0\\.01 BTC");
-		expect(message).toContain("__*Current value:*__");
-		expect(message).toContain("BTC: *0\\.10500000* · *\\+2\\.50%* all\\-time");
-		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
+		expect(message).toContain("__*Performance:*__");
+		expect(message).toContain(
+			"Total USD Value: *$9,975\\.00* \\(*\\-0\\.25%*\\)",
+		);
+		expect(message).toContain(
+			"BTC: *0\\.10500000* \\(started *0\\.10243902*\\)",
+		);
 	});
 
 	it("shows only USD value when accumulating a USD stablecoin", () => {
 		const message = formatRunReport(
 			baseInput({
 				accumulateSymbol: "USDC",
-				portfolioReport: {
-					btcValue: 9_975,
-					usdValue: 9_975,
-					returnPct: -0.25,
-					usdAllTimeReturnPct: -0.25,
+				portfolioPerformance: {
+					accumulateSymbol: "USDC",
+					startingUsdValue: 10_000,
+					currentUsdValue: 9_975,
+					accumulateValue: 9_975,
+					startingAccumulateValue: 10_000,
+					assetPerformances: [],
 				},
 			}),
 		);
 
-		expect(message).toContain("__*Current value:*__");
-		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
-		expect(message).not.toContain("USDC: *");
+		expect(message).toContain("__*Performance:*__");
+		expect(message).toContain(
+			"Total USD Value: *$9,975\\.00* \\(*\\-0\\.25%*\\)",
+		);
+		expect(message).not.toMatch(/Performance:[\s\S]*USDC: \*/);
 	});
 
 	it("renders a hold run with no trades section", () => {
@@ -230,12 +240,12 @@ describe("formatRunReport", () => {
 		expect(message).toContain("drop <below\\> support & fail");
 	});
 
-	it("omits the portfolio line when no portfolio is provided", () => {
+	it("omits the performance section when no portfolio performance is provided", () => {
 		const input = baseInput();
-		delete input.portfolioReport;
+		delete input.portfolioPerformance;
 		const message = formatRunReport(input);
 
-		expect(message).not.toContain("Current value:");
+		expect(message).not.toContain("Performance:");
 	});
 
 	it("renders top scored posts from the last hour", () => {

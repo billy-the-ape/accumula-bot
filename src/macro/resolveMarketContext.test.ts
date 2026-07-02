@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { MACRO_BRIEFING_MAX_AGE_MS } from "@/macro/macroBriefingPrompt.js";
 import {
+	getMacroBriefingAsOf,
 	loadFreshMarketContext,
 	resolveFreshMarketContext,
 } from "@/macro/resolveMarketContext.js";
@@ -49,6 +50,57 @@ describe("resolveFreshMarketContext", () => {
 
 	it("returns undefined when no briefing exists", () => {
 		expect(resolveFreshMarketContext(undefined, { now })).toBeUndefined();
+	});
+});
+
+describe("getMacroBriefingAsOf", () => {
+	it("returns the latest briefing that was fresh at the decision time", async () => {
+		const connection = await createDatabase(":memory:");
+		const db = connection.db;
+
+		await saveMacroBriefing(db, {
+			content: "Stale macro read.",
+			promptVersion: "v2",
+			llm: { provider: "openai_compatible", model: "gpt-5.5" },
+			createdAt: new Date("2026-06-14T12:00:00.000Z"),
+		});
+
+		await saveMacroBriefing(db, {
+			content: "Fresh at decision time.",
+			promptVersion: "v2",
+			llm: { provider: "openai_compatible", model: "gpt-5.5" },
+			createdAt: new Date("2026-06-16T06:00:00.000Z"),
+		});
+
+		const briefing = await getMacroBriefingAsOf(
+			db,
+			new Date("2026-06-16T12:00:00.000Z"),
+		);
+
+		expect(briefing?.content).toBe("Fresh at decision time.");
+
+		connection.client.close();
+	});
+
+	it("returns undefined when no briefing was fresh at the decision time", async () => {
+		const connection = await createDatabase(":memory:");
+		const db = connection.db;
+
+		await saveMacroBriefing(db, {
+			content: "Too old for this decision.",
+			promptVersion: "v2",
+			llm: { provider: "openai_compatible", model: "gpt-5.5" },
+			createdAt: new Date("2026-06-14T12:00:00.000Z"),
+		});
+
+		const briefing = await getMacroBriefingAsOf(
+			db,
+			new Date("2026-06-16T12:00:00.000Z"),
+		);
+
+		expect(briefing).toBeUndefined();
+
+		connection.client.close();
 	});
 });
 

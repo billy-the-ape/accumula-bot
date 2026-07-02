@@ -20,7 +20,11 @@ import {
 	encryptPrivateKey,
 	parseWalletEncryptionKey,
 } from "@/live/walletEncryption.js";
-import { parseDecisionCallback } from "@/notifications/telegram/bot/decisionReportKeyboard.js";
+import {
+	buildDecisionReportKeyboard,
+	parseDecisionCallback,
+	parseMacroCallback,
+} from "@/notifications/telegram/bot/decisionReportKeyboard.js";
 import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
 import { handleBotMessage } from "@/notifications/telegram/bot/handleBotMessage.js";
 import {
@@ -41,6 +45,10 @@ import type {
 	BotHandlerOutput,
 } from "@/notifications/telegram/bot/types.js";
 import { buildDecisionReportForUser } from "@/notifications/telegram/buildDecisionReport.js";
+import {
+	buildLatestMacroBriefingMessage,
+	buildMacroBriefingForDecisionMessage,
+} from "@/notifications/telegram/buildMacroBriefingReport.js";
 import {
 	type BuildPortfolioSummaryInputOptions,
 	buildPortfolioSummaryInput,
@@ -291,7 +299,34 @@ async function resolveDecisionCommandOutput(
 		return { text: DECISION_NOT_FOUND_MESSAGE };
 	}
 
-	return { text: report };
+	return {
+		text: report.text,
+		replyMarkup: buildDecisionReportKeyboard(report.decisionId),
+	};
+}
+
+async function resolveMacroCommandOutput(
+	db: AppDatabase,
+	userId: number,
+): Promise<BotHandlerOutput> {
+	return { text: await buildLatestMacroBriefingMessage(db, userId) };
+}
+
+async function resolveMacroForDecisionOutput(
+	db: AppDatabase,
+	userId: number,
+	decisionId: number,
+): Promise<BotHandlerOutput> {
+	const message = await buildMacroBriefingForDecisionMessage(
+		db,
+		userId,
+		decisionId,
+	);
+	if (!message) {
+		return { text: DECISION_NOT_FOUND_MESSAGE };
+	}
+
+	return { text: message };
 }
 
 async function handleExpiredLiveDeposit(
@@ -357,6 +392,16 @@ export async function processTelegramUpdate(
 	let output: BotHandlerOutput;
 	if (
 		event.incoming.kind === "callback" &&
+		parseMacroCallback(event.incoming.data) !== undefined
+	) {
+		const decisionId = parseMacroCallback(event.incoming.data);
+		output = await resolveMacroForDecisionOutput(
+			db,
+			user.id,
+			decisionId as number,
+		);
+	} else if (
+		event.incoming.kind === "callback" &&
 		parseDecisionCallback(event.incoming.data) !== undefined
 	) {
 		const decisionId = parseDecisionCallback(event.incoming.data);
@@ -366,6 +411,11 @@ export async function processTelegramUpdate(
 			user.id,
 			decisionId !== undefined ? String(decisionId) : undefined,
 		);
+	} else if (
+		event.incoming.kind === "command" &&
+		event.incoming.command === "macro"
+	) {
+		output = await resolveMacroCommandOutput(db, user.id);
 	} else if (
 		event.incoming.kind === "command" &&
 		event.incoming.command === "decision"

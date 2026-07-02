@@ -148,16 +148,17 @@ describe("buildDecisionReportForUser", () => {
 			id: saved.id,
 		});
 
-		expect(report).toContain(`Decision:`);
-		expect(report).toContain(`\\#${code(String(saved.id))}`);
-		expect(report).toContain("Time:");
-		expect(report).toContain(
+		expect(report?.text).toContain(`Decision:`);
+		expect(report?.text).toContain(`\\#${code(String(saved.id))}`);
+		expect(report?.text).toContain("Time:");
+		expect(report?.text).toContain(
 			escapeUserDateTimeForMarkdown(saved.createdAt, {
 				locale: null,
 				timezone: null,
 			}),
 		);
-		expect(report).toContain("Buy BTC");
+		expect(report?.text).toContain("Buy BTC");
+		expect(report?.decisionId).toBe(saved.id);
 	});
 
 	it("replays social and prediction sections when analysisContext was stored", async () => {
@@ -194,8 +195,8 @@ describe("buildDecisionReportForUser", () => {
 			id: saved.id,
 		});
 
-		expect(report).toContain("whale_alert");
-		expect(report).toContain("POLYM");
-		expect(report).not.toMatch(/News & Social Media:[\s\S]*None/);
+		expect(report?.text).toContain("whale_alert");
+		expect(report?.text).toContain("POLYM");
+		expect(report?.text).not.toMatch(/News & Social Media:[\s\S]*None/);
 	});
 });

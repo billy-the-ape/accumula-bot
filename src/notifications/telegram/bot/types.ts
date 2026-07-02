@@ -14,7 +14,8 @@ export type BotCommand =
 	| "liquidate"
 	| "settings"
 	| "decision"
-	| "portfolio";
+	| "portfolio"
+	| "macro";
 
 export type TelegramInlineKeyboardButton = {
 	text: string;

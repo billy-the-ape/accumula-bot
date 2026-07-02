@@ -17,10 +17,8 @@ import {
 } from "@/domain/positionCostBasis.js";
 import { buildPriceMap } from "@/execution/priceMap.js";
 import { getAnalyzableAssets } from "@/llm/index.js";
-import type {
-	AssetPerformance,
-	PortfolioSummaryInput,
-} from "@/notifications/telegram/bot/formatPortfolioSummary.js";
+import type { PortfolioSummaryInput } from "@/notifications/telegram/bot/formatPortfolioSummary.js";
+import type { PortfolioPerformanceInput } from "@/notifications/telegram/formatPortfolioPerformance.js";
 import { resolveMinConfidence } from "@/risk/riskTolerance.js";
 import type { MarketSnapshot } from "@/schemas/MarketSnapshot.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
@@ -49,7 +47,7 @@ function buildAssetPerformances(
 	holdings: PortfolioSummaryInput["holdings"],
 	prices: ReturnType<typeof buildPriceMap>,
 	trades: readonly StoredTrade[],
-): AssetPerformance[] {
+): PortfolioSummaryInput["assetPerformances"][number][] {
 	return Object.entries(holdings)
 		.filter(([symbol, quantity]) => quantity > 0 && !isStablecoinSymbol(symbol))
 		.sort(([left], [right]) => left.localeCompare(right))
@@ -63,6 +61,46 @@ function buildAssetPerformances(
 				returnPct: computePositionReturnPct(usdValue, costBasisUsd),
 			};
 		});
+}
+
+export function buildPortfolioPerformanceInput(
+	portfolio: Pick<
+		StoredPortfolio,
+		| "holdings"
+		| "assetToAccumulate"
+		| "cashSymbol"
+		| "initialBtcBaseline"
+		| "initialQuoteBaseline"
+	>,
+	marketSnapshots: readonly MarketSnapshot[],
+	trades: readonly StoredTrade[],
+): PortfolioPerformanceInput {
+	const accumulateSymbol = portfolio.assetToAccumulate;
+	const prices = buildPriceMap(marketSnapshots, portfolio.cashSymbol, {
+		accumulateSymbol,
+	});
+	const accumulateValue = computePortfolioAccumulateValue(
+		portfolio.holdings,
+		prices,
+		accumulateSymbol,
+	);
+	const currentUsdValue = getTotalPortfolioQuoteValue(
+		portfolio.holdings,
+		prices,
+	);
+
+	return {
+		accumulateSymbol,
+		startingUsdValue: portfolio.initialQuoteBaseline,
+		currentUsdValue,
+		accumulateValue,
+		startingAccumulateValue: portfolio.initialBtcBaseline,
+		assetPerformances: buildAssetPerformances(
+			portfolio.holdings,
+			prices,
+			trades,
+		),
+	};
 }
 
 async function resolvePortfolioTrades(

@@ -203,7 +203,17 @@ async function main() {
 			}
 
 			for (const run of portfolioRuns) {
-				const { portfolio, execution, outcome, portfolioReport } = run;
+				const { portfolio, execution, outcome, portfolioPerformance } = run;
+				const usdAllTimeReturnPct =
+					((portfolioPerformance.currentUsdValue -
+						portfolioPerformance.startingUsdValue) /
+						portfolioPerformance.startingUsdValue) *
+					100;
+				const accumulateReturnPct =
+					((portfolioPerformance.accumulateValue -
+						portfolioPerformance.startingAccumulateValue) /
+						portfolioPerformance.startingAccumulateValue) *
+					100;
 
 				if (execution.executed) {
 					console.info(
@@ -225,19 +235,19 @@ async function main() {
 
 				if (isUsdStablecoinSymbol(portfolio.assetToAccumulate)) {
 					console.info(
-						`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+						`Portfolio USD value: ${portfolioPerformance.currentUsdValue.toFixed(2)} (${usdAllTimeReturnPct.toFixed(2)}% all-time)`,
 					);
 				} else {
 					console.info(
-						`Portfolio ${portfolio.assetToAccumulate} value: ${portfolioReport.btcValue.toFixed(8)} ${portfolio.assetToAccumulate}`,
+						`Portfolio ${portfolio.assetToAccumulate} value: ${portfolioPerformance.accumulateValue.toFixed(8)} ${portfolio.assetToAccumulate}`,
 					);
 
 					console.info(
-						`Return vs initial baseline: ${portfolioReport.returnPct.toFixed(2)}%`,
+						`Return vs initial baseline: ${accumulateReturnPct.toFixed(2)}%`,
 					);
 
 					console.info(
-						`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+						`Portfolio USD value: ${portfolioPerformance.currentUsdValue.toFixed(2)} (${usdAllTimeReturnPct.toFixed(2)}% all-time)`,
 					);
 				}
 
@@ -280,7 +290,7 @@ async function main() {
 
 					outlookThresholds: run.effectiveOutlookThresholds,
 
-					portfolioReport,
+					portfolioPerformance,
 				};
 
 				try {
