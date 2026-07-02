@@ -5,8 +5,8 @@ export const DEFAULT_RISK_LIMITS = {
 	maxDailyLossFraction: 0.1,
 	maxWeeklyLossFraction: 0.2,
 	minPurchaseFractionOfCash: 0.05,
-	maxPurchaseFractionOfCash: 0.25,
-	minUsdPurchase: 5, // minimum purchase value in USD (otherwise fees make it not worth it)
+	maxPurchaseFractionOfCash: 0.3,
+	minUsdPurchase: 1, // minimum purchase value in USD (otherwise fees make it not worth it)
 
 	confidenceTiers: [
 		{
