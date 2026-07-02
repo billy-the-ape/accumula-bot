@@ -75,14 +75,31 @@ describe("executeLiveSwap", () => {
 		vi.clearAllMocks();
 	});
 
-	it("retries quotes and succeeds on a later attempt", async () => {
+	it("submits the first successful 0x quote without a CoinGecko slippage gate", async () => {
+		const fetchImpl = vi.fn(async () =>
+			buildQuoteResponse("9800000000000000000"),
+		);
+
+		const result = await executeLiveSwap(
+			{
+				...baseInput,
+			},
+			fetchImpl,
+		);
+
+		expect(fetchImpl).toHaveBeenCalledTimes(1);
+		expect(result.txHash).toBe("0xabc123");
+		expect(result.buySymbol).toBe("LINK");
+	});
+
+	it("retries quotes after 0x API failures", async () => {
 		const fetchImpl = vi
 			.fn()
-			.mockImplementationOnce(async () =>
-				buildQuoteResponse("9800000000000000000"),
-			)
-			.mockImplementationOnce(async () =>
-				buildQuoteResponse("9800000000000000000"),
+			.mockImplementationOnce(
+				async () =>
+					new Response(JSON.stringify({ reason: "rate limited" }), {
+						status: 429,
+					}),
 			)
 			.mockImplementationOnce(async () =>
 				buildQuoteResponse("10000000000000000000"),
@@ -98,14 +115,17 @@ describe("executeLiveSwap", () => {
 		await vi.runAllTimersAsync();
 		const result = await resultPromise;
 
-		expect(fetchImpl).toHaveBeenCalledTimes(LIVE_SWAP_QUOTE_ATTEMPTS);
+		expect(fetchImpl).toHaveBeenCalledTimes(2);
 		expect(result.txHash).toBe("0xabc123");
-		expect(result.buySymbol).toBe("LINK");
+		expect(LIVE_SWAP_QUOTE_RETRY_DELAY_MS).toBe(3_000);
 	});
 
 	it("throws after exhausting quote retries", async () => {
-		const fetchImpl = vi.fn(async () =>
-			buildQuoteResponse("9800000000000000000"),
+		const fetchImpl = vi.fn(
+			async () =>
+				new Response(JSON.stringify({ reason: "rate limited" }), {
+					status: 429,
+				}),
 		);
 
 		const resultPromise = executeLiveSwap(
@@ -121,6 +141,5 @@ describe("executeLiveSwap", () => {
 		expect(error).toBeInstanceOf(LiveSwapError);
 		expect((error as LiveSwapError).message).toContain("after 3 attempts");
 		expect(fetchImpl).toHaveBeenCalledTimes(LIVE_SWAP_QUOTE_ATTEMPTS);
-		expect(LIVE_SWAP_QUOTE_RETRY_DELAY_MS).toBe(3_000);
 	});
 });

@@ -27,11 +27,11 @@ export const BASE_WETH = {
 	decimals: 18,
 } as const;
 
-/** Bridged SOL via Base↔Solana bridge. */
+/** Bridged SOL via Base↔Solana bridge (9 decimals, matching native SOL). */
 export const BASE_SOL = {
 	chainId: BASE_CHAIN_ID,
 	contractAddress: "0x311935Cd80B76769bF2ecC9D8Ab7635b2139cf82",
-	decimals: 18,
+	decimals: 9,
 } as const;
 
 export const BASE_CBETH = {

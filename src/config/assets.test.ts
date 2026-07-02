@@ -10,6 +10,7 @@ import {
 	BASE_CHAIN_ID,
 	BASE_LINK,
 	BASE_RETH,
+	BASE_SOL,
 	BASE_USDC,
 	BASE_WETH,
 } from "@/config/baseChain.js";
@@ -56,6 +57,7 @@ describe("CRYPTOCURRENCY_REGISTRY", () => {
 	it("maps logical BTC/ETH to Base cbBTC/WETH contracts", () => {
 		expect(getCryptocurrency("BTC").evm).toEqual(BASE_CBTC);
 		expect(getCryptocurrency("ETH").evm).toEqual(BASE_WETH);
+		expect(getCryptocurrency("SOL").evm).toEqual(BASE_SOL);
 		expect(getCryptocurrency("rETH").evm?.contractAddress).toBe(
 			BASE_RETH.contractAddress,
 		);

@@ -117,14 +117,3 @@ export function passesSlippageCheck(params: {
 }): boolean {
 	return params.minBuyAmount >= params.expectedBuyAmount;
 }
-
-export function passesQuotedBuySlippageCheck(params: {
-	expectedBuyAmount: bigint;
-	quotedBuyAmount: bigint;
-	maxSlippageBps: number;
-}): boolean {
-	const minExpected =
-		(params.expectedBuyAmount * BigInt(10_000 - params.maxSlippageBps)) /
-		10_000n;
-	return params.quotedBuyAmount >= minExpected;
-}
