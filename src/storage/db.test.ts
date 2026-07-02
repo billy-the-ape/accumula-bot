@@ -10,6 +10,7 @@ import {
 	logAndMigrateDatabase,
 	openDatabase,
 	reconcileMigration0013Record,
+	reconcileMigrationJournalTimestamps,
 } from "@/storage/db.js";
 
 describe("ensureTelegramUserSettingsColumns", () => {
@@ -83,6 +84,82 @@ describe("reconcileMigration0013Record", () => {
 		expect(reconciled).toBe(true);
 		expect(after.appliedCount).toBe(15);
 		expect(after.journalGapTags).toEqual([]);
+		connection.client.close();
+	});
+});
+
+describe("reconcileMigrationJournalTimestamps", () => {
+	let client: Client | undefined;
+	let dbPath: string | undefined;
+
+	afterEach(() => {
+		client?.close();
+		client = undefined;
+		if (dbPath) {
+			try {
+				fs.rmSync(dbPath, { force: true });
+			} catch {
+				// Windows may briefly lock the file after close.
+			}
+			dbPath = undefined;
+		}
+	});
+
+	it("aligns inflated created_at values so pending migrations are not journal gaps", async () => {
+		dbPath = path.join(
+			os.tmpdir(),
+			`accumula-db-ts-reconcile-${Date.now()}-${Math.random()}.db`,
+		);
+
+		const connection = await createDatabase(dbPath);
+		const entries = (await analyzeMigrations(connection.client)).journalEntries;
+		const inflatedTags = [
+			"0010_trade_tx_hash",
+			"0011_liquidation_withdrawals",
+			"0012_portfolio_wallet_kind",
+			"0013_tired_wonder_man",
+		];
+
+		for (const tag of inflatedTags) {
+			const entry = entries.find((candidate) => candidate.tag === tag);
+			expect(entry).toBeDefined();
+			if (!entry) {
+				throw new Error(`expected migration ${tag}`);
+			}
+
+			await connection.client.execute({
+				sql: "UPDATE __drizzle_migrations SET created_at = ? WHERE hash = ?",
+				args: [1783300000000, entry.hash],
+			});
+		}
+
+		const migration0014 = entries.find(
+			(entry) => entry.tag === "0014_lowly_war_machine",
+		);
+		expect(migration0014).toBeDefined();
+		if (!migration0014) {
+			throw new Error("expected migration 0014");
+		}
+
+		await connection.client.execute({
+			sql: "DELETE FROM __drizzle_migrations WHERE hash = ?",
+			args: [migration0014.hash],
+		});
+
+		const before = await analyzeMigrations(connection.client);
+		expect(before.journalGapTags).toContain("0014_lowly_war_machine");
+
+		const reconciled = await reconcileMigrationJournalTimestamps(
+			connection.client,
+		);
+		expect(reconciled).toEqual(inflatedTags);
+
+		const afterReconcile = await analyzeMigrations(connection.client);
+		expect(afterReconcile.journalGapTags).toEqual([]);
+		expect(afterReconcile.drizzlePendingTags).toContain(
+			"0014_lowly_war_machine",
+		);
+
 		connection.client.close();
 	});
 });

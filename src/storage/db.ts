@@ -196,6 +196,36 @@ export async function reconcileMigration0013Record(
 	return true;
 }
 
+/** Align __drizzle_migrations.created_at with journal when values after timestamp repairs. */
+export async function reconcileMigrationJournalTimestamps(
+	client: Client,
+): Promise<string[]> {
+	const entries = loadMigrationJournalEntries();
+	const reconciled: string[] = [];
+
+	try {
+		for (const entry of entries) {
+			const result = await client.execute({
+				sql: "UPDATE __drizzle_migrations SET created_at = ? WHERE hash = ? AND created_at != ?",
+				args: [entry.when, entry.hash, entry.when],
+			});
+			if (result.rowsAffected > 0) {
+				reconciled.push(entry.tag);
+			}
+		}
+	} catch {
+		return [];
+	}
+
+	if (reconciled.length > 0) {
+		console.info(
+			`Reconciled migration journal timestamps: ${reconciled.join(", ")}`,
+		);
+	}
+
+	return reconciled;
+}
+
 function logMigrationStatus(
 	resolvedPath: string,
 	analysis: MigrationAnalysis,
@@ -268,6 +298,7 @@ export async function logAndMigrateDatabase(
 	logMigrationStatus(resolvedPath, before);
 
 	await reconcileMigration0013Record(client);
+	await reconcileMigrationJournalTimestamps(client);
 	before = await analyzeMigrations(client);
 
 	await migrateDatabase(db);
