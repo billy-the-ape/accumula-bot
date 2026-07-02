@@ -382,7 +382,10 @@ export async function processTelegramUpdate(
 			activePortfolio &&
 			needsPortfolioSummary(event.incoming, activePortfolio, onboardingState)
 		) {
-			summary = await buildPortfolioSummaryInput(config, activePortfolio, deps);
+			summary = await buildPortfolioSummaryInput(config, activePortfolio, {
+				...deps,
+				db,
+			});
 		}
 
 		output = handleBotMessage(

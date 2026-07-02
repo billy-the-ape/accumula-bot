@@ -43,6 +43,7 @@ export {
 } from "@/storage/repositories/telegramUserRepository.js";
 export {
 	findTradeById,
+	listAllTradesForPortfolio,
 	listTradesForDecisionAndPortfolio,
 	listTradesForPortfolio,
 	type RecordTradeInput,

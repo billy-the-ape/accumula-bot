@@ -1,4 +1,5 @@
 import { isUsdStablecoinSymbol } from "@/config/assets.js";
+import { computeReturnFraction } from "@/domain/accumulateBenchmark.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import {
 	bold,
@@ -9,6 +10,12 @@ import {
 import type { PortfolioRiskSetting } from "@/risk/riskTolerance.js";
 import { formatPortfolioRiskLabel } from "@/risk/riskTolerance.js";
 
+export type AssetPerformance = {
+	symbol: string;
+	usdValue: number;
+	returnPct: number;
+};
+
 export type PortfolioSummaryInput = {
 	accumulateSymbol: string;
 	holdings: PortfolioHoldings;
@@ -17,6 +24,7 @@ export type PortfolioSummaryInput = {
 	accumulateValue: number;
 	startingAccumulateValue: number;
 	allTimeReturnPct: number;
+	assetPerformances: readonly AssetPerformance[];
 	riskTolerance: PortfolioRiskSetting;
 	minConfidence: number;
 };
@@ -48,6 +56,15 @@ function formatRiskToleranceLabel(tolerance: PortfolioRiskSetting): string {
 	return formatPortfolioRiskLabel(tolerance);
 }
 
+function formatAssetPerformanceLines(
+	performances: readonly AssetPerformance[],
+): string[] {
+	return performances.map(
+		({ symbol, usdValue, returnPct }) =>
+			`${escapeMarkdownV2(symbol)}: ${bold(`$${formatUsd(usdValue)}`)} \\(${bold(formatReturnPct(returnPct))}\\)`,
+	);
+}
+
 export type FormatPortfolioSummaryOptions = {
 	includeResetHint?: boolean;
 	includeLiquidateHint?: boolean;
@@ -57,14 +74,20 @@ export function formatPortfolioSummary(
 	input: PortfolioSummaryInput,
 	options: FormatPortfolioSummaryOptions = {},
 ): string {
-	const performanceLines = isUsdStablecoinSymbol(input.accumulateSymbol)
-		? [
-				`USD: ${bold(formatUsd(input.currentUsdValue))} \\(started ${bold(formatUsd(input.startingUsdValue))}\\)`,
-			]
-		: [
-				`USD: ${bold(formatUsd(input.currentUsdValue))} \\(started ${bold(formatUsd(input.startingUsdValue))}\\)`,
-				`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.accumulateValue.toFixed(8))} \\(started ${bold(input.startingAccumulateValue.toFixed(8))}\\)`,
-			];
+	const usdAllTimeReturnPct =
+		computeReturnFraction(input.currentUsdValue, input.startingUsdValue) * 100;
+
+	const accumulatePerformanceLine = isUsdStablecoinSymbol(
+		input.accumulateSymbol,
+	)
+		? undefined
+		: `${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.accumulateValue.toFixed(8))} \\(started ${bold(input.startingAccumulateValue.toFixed(8))}\\)`;
+
+	const performanceLines = [
+		...formatAssetPerformanceLines(input.assetPerformances),
+		`USD \\(total\\): ${bold(formatUsd(input.currentUsdValue))} \\(${bold(formatReturnPct(usdAllTimeReturnPct))}\\)`,
+		...(accumulatePerformanceLine ? [accumulatePerformanceLine] : []),
+	];
 
 	const lines = [
 		boldUnderline("Portfolio summary"),
@@ -73,7 +96,6 @@ export function formatPortfolioSummary(
 		formatHoldings(input.holdings),
 		"",
 		underline("Performance:"),
-		`All\\-time: ${bold(formatReturnPct(input.allTimeReturnPct))}`,
 		...performanceLines,
 		"",
 		underline("Settings:"),

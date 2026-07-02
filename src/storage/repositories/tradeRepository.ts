@@ -1,4 +1,4 @@
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, asc, desc, eq, gte } from "drizzle-orm";
 import {
 	type StoredTrade,
 	StoredTradeSchema,
@@ -160,6 +160,19 @@ export async function findTradeById(
 ): Promise<StoredTrade | undefined> {
 	const row = await db.select().from(trades).where(eq(trades.id, id)).get();
 	return row ? mapTradeRow(row) : undefined;
+}
+
+export async function listAllTradesForPortfolio(
+	db: AppDatabase,
+	portfolioId: number,
+): Promise<StoredTrade[]> {
+	const rows = await db
+		.select()
+		.from(trades)
+		.where(eq(trades.portfolioId, portfolioId))
+		.orderBy(asc(trades.createdAt), asc(trades.id));
+
+	return rows.map(mapTradeRow);
 }
 
 export async function listTradesForPortfolio(

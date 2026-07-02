@@ -31,6 +31,7 @@ const sampleSummary = {
 	accumulateValue: 0.1,
 	startingAccumulateValue: 0.095,
 	allTimeReturnPct: 5.26,
+	assetPerformances: [],
 	riskTolerance: "medium" as const,
 	minConfidence: MIN_CONFIDENCE_BY_RISK_TOLERANCE.medium,
 };
@@ -129,7 +130,25 @@ describe("formatPortfolioSummary", () => {
 		expect(withHint).not.toContain("/reset");
 	});
 
-	it("shows only USD performance when accumulating a USD stablecoin", () => {
+	it("shows combined USD total and per-asset performance lines", () => {
+		const text = formatPortfolioSummary({
+			...sampleSummary,
+			holdings: { USDC: 85.18, LINK: 0.73, SOL: 0.12 },
+			startingUsdValue: 100,
+			currentUsdValue: 100.08,
+			assetPerformances: [
+				{ symbol: "LINK", usdValue: 21, returnPct: 0.1 },
+				{ symbol: "SOL", usdValue: 18.5, returnPct: -0.25 },
+			],
+		});
+
+		expect(text).toContain("LINK: *$21\\.00* \\(*\\+0\\.10%*\\)");
+		expect(text).toContain("SOL: *$18\\.50* \\(*\\-0\\.25%*\\)");
+		expect(text).toContain("USD \\(total\\): *100\\.08* \\(*\\+0\\.08%*\\)");
+		expect(text).not.toContain("All\\-time:");
+	});
+
+	it("shows only USD total when accumulating a USD stablecoin", () => {
 		const text = formatPortfolioSummary({
 			...sampleSummary,
 			accumulateSymbol: "USDC",
@@ -137,8 +156,8 @@ describe("formatPortfolioSummary", () => {
 			startingAccumulateValue: 10_000,
 		});
 
-		expect(text).toContain("USD: *10,500\\.00*");
-		expect(text).not.toMatch(/__Performance:__[\s\S]*USDC:/);
+		expect(text).toContain("USD \\(total\\): *10,500\\.00*");
+		expect(text).not.toMatch(/__Performance:__[\s\S]*USDC: \*/);
 	});
 });
 
