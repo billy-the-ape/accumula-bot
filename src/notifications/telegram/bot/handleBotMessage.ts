@@ -210,6 +210,7 @@ function formatSummaryReply(
 		text: formatPortfolioSummary(summary, {
 			includeResetHint: includeHint && !isLive,
 			includeLiquidateHint: includeHint && isLive,
+			userDateTimeSettings: context.settings,
 		}),
 		...(!includeHint
 			? {

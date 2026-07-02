@@ -25,6 +25,7 @@ import { DEFAULT_TELEGRAM_USER_SETTINGS } from "@/storage/telegramUserSettings.j
 
 const sampleSummary = {
 	accumulateSymbol: "BTC",
+	startedAt: new Date("2026-01-01T00:00:00.000Z"),
 	holdings: { USDC: 10_000 },
 	startingUsdValue: 10_000,
 	currentUsdValue: 10_500,
@@ -106,6 +107,7 @@ describe("formatPortfolioSummary", () => {
 	it("includes holdings and settings", () => {
 		const text = formatPortfolioSummary(sampleSummary);
 		expect(text).toContain("Portfolio summary");
+		expect(text).toContain("Started 2026\\-01\\-01T00:00:00\\.000Z");
 		expect(text).toContain("USDC");
 		expect(text).toContain("Medium");
 		expect(text).toContain("Min confidence to trade");
@@ -144,7 +146,7 @@ describe("formatPortfolioSummary", () => {
 
 		expect(text).toContain("LINK: *$21\\.00* \\(*\\+0\\.10%*\\)");
 		expect(text).toContain("SOL: *$18\\.50* \\(*\\-0\\.25%*\\)");
-		expect(text).toContain("USD \\(total\\): *100\\.08* \\(*\\+0\\.08%*\\)");
+		expect(text).toContain("Total USD Value: *$100\\.08* \\(*\\+0\\.08%*\\)");
 		expect(text).not.toContain("All\\-time:");
 	});
 
@@ -156,7 +158,7 @@ describe("formatPortfolioSummary", () => {
 			startingAccumulateValue: 10_000,
 		});
 
-		expect(text).toContain("USD \\(total\\): *10,500\\.00*");
+		expect(text).toContain("Total USD Value: *$10,500\\.00*");
 		expect(text).not.toMatch(/__Performance:__[\s\S]*USDC: \*/);
 	});
 });

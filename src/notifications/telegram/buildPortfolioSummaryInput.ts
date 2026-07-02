@@ -117,6 +117,7 @@ export async function buildPortfolioSummaryInput(
 
 	return {
 		accumulateSymbol,
+		startedAt: portfolio.createdAt,
 		holdings: portfolio.holdings,
 		startingUsdValue: portfolio.initialQuoteBaseline,
 		currentUsdValue: usdValue,

@@ -5,10 +5,16 @@ import {
 	bold,
 	boldUnderline,
 	escapeMarkdownV2,
+	italic,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
+import {
+	DEFAULT_TELEGRAM_USER_SETTINGS,
+	formatUserDateTime,
+} from "@/notifications/telegram/formatUserDateTime.js";
 import type { PortfolioRiskSetting } from "@/risk/riskTolerance.js";
 import { formatPortfolioRiskLabel } from "@/risk/riskTolerance.js";
+import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
 
 export type AssetPerformance = {
 	symbol: string;
@@ -18,6 +24,7 @@ export type AssetPerformance = {
 
 export type PortfolioSummaryInput = {
 	accumulateSymbol: string;
+	startedAt: Date;
 	holdings: PortfolioHoldings;
 	startingUsdValue: number;
 	currentUsdValue: number;
@@ -68,6 +75,7 @@ function formatAssetPerformanceLines(
 export type FormatPortfolioSummaryOptions = {
 	includeResetHint?: boolean;
 	includeLiquidateHint?: boolean;
+	userDateTimeSettings?: Pick<TelegramUserSettings, "locale" | "timezone">;
 };
 
 export function formatPortfolioSummary(
@@ -85,12 +93,18 @@ export function formatPortfolioSummary(
 
 	const performanceLines = [
 		...formatAssetPerformanceLines(input.assetPerformances),
-		`USD \\(total\\): ${bold(formatUsd(input.currentUsdValue))} \\(${bold(formatReturnPct(usdAllTimeReturnPct))}\\)`,
+		`Total USD Value: ${bold(`$${formatUsd(input.currentUsdValue)}`)} \\(${bold(formatReturnPct(usdAllTimeReturnPct))}\\)`,
 		...(accumulatePerformanceLine ? [accumulatePerformanceLine] : []),
 	];
 
+	const userDateTimeSettings =
+		options.userDateTimeSettings ?? DEFAULT_TELEGRAM_USER_SETTINGS;
+
 	const lines = [
 		boldUnderline("Portfolio summary"),
+		italic(
+			`Started ${formatUserDateTime(input.startedAt, userDateTimeSettings)}`,
+		),
 		"",
 		underline("Holdings:"),
 		formatHoldings(input.holdings),
