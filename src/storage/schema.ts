@@ -20,6 +20,15 @@ export const telegramUsers = sqliteTable(
 			.default("medium"),
 		locale: text("locale"),
 		timezone: text("timezone"),
+		telegramFromUserId: text("telegram_from_user_id"),
+		firstName: text("first_name"),
+		lastName: text("last_name"),
+		telegramUsername: text("telegram_username"),
+		languageCode: text("language_code"),
+		isBot: integer("is_bot", { mode: "boolean" }).notNull().default(false),
+		isPremium: integer("is_premium", { mode: "boolean" })
+			.notNull()
+			.default(false),
 		createdAt: integer("created_at", { mode: "timestamp_ms" }).notNull(),
 		updatedAt: integer("updated_at", { mode: "timestamp_ms" }).notNull(),
 	},

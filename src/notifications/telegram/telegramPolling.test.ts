@@ -152,11 +152,30 @@ describe("parseTelegramUpdate", () => {
 		expect(
 			parseTelegramUpdate({
 				update_id: 1,
-				message: { text: "/start", chat: { id: 555 } },
+				message: {
+					text: "/start",
+					chat: { id: 555 },
+					from: {
+						id: 42,
+						is_bot: false,
+						first_name: "Ada",
+						username: "ada",
+						language_code: "en",
+					},
+				},
 			}),
 		).toEqual({
 			updateId: 1,
 			chatId: "555",
+			from: {
+				id: "42",
+				isBot: false,
+				firstName: "Ada",
+				lastName: null,
+				username: "ada",
+				languageCode: "en",
+				isPremium: false,
+			},
 			incoming: { kind: "command", command: "start" },
 		});
 	});
@@ -168,6 +187,11 @@ describe("parseTelegramUpdate", () => {
 				callback_query: {
 					id: "cb-9",
 					data: "risk:high",
+					from: {
+						id: 99,
+						is_bot: false,
+						first_name: "Bob",
+					},
 					message: { chat: { id: 777 } },
 				},
 			}),
@@ -175,6 +199,15 @@ describe("parseTelegramUpdate", () => {
 			updateId: 2,
 			chatId: "777",
 			callbackQueryId: "cb-9",
+			from: {
+				id: "99",
+				isBot: false,
+				firstName: "Bob",
+				lastName: null,
+				username: null,
+				languageCode: null,
+				isPremium: false,
+			},
 			incoming: { kind: "callback", data: "risk:high" },
 		});
 	});

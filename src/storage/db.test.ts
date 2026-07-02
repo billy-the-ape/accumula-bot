@@ -81,7 +81,7 @@ describe("reconcileMigration0013Record", () => {
 		const after = await analyzeMigrations(connection.client);
 
 		expect(reconciled).toBe(true);
-		expect(after.appliedCount).toBe(14);
+		expect(after.appliedCount).toBe(15);
 		expect(after.journalGapTags).toEqual([]);
 		connection.client.close();
 	});
@@ -124,7 +124,7 @@ describe("logAndMigrateDatabase", () => {
 			expect.stringMatching(/^Opening database: /),
 		);
 		expect(infoSpy).toHaveBeenCalledWith(
-			"Database schema up to date (14/14 migrations applied)",
+			"Database schema up to date (15/15 migrations applied)",
 		);
 	});
 });

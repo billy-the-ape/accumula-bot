@@ -317,7 +317,7 @@ export async function processTelegramUpdate(
 	const acknowledgeCallback =
 		deps.acknowledgeCallback ?? acknowledgeCallbackQuery;
 
-	const user = await getOrCreateTelegramUser(db, event.chatId);
+	const user = await getOrCreateTelegramUser(db, event.chatId, event.from);
 	let activePortfolio = await getActivePortfolioForUser(db, user.id);
 	let onChainUsdc: number | undefined;
 	let depositStatus: "none" | "under_minimum" | "funded" | undefined;

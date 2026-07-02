@@ -3,11 +3,16 @@ import {
 	parseBotCommandArgs,
 } from "@/notifications/telegram/bot/parseBotCommand.js";
 import type { BotIncomingMessage } from "@/notifications/telegram/bot/types.js";
-import type { TelegramUpdate } from "@/notifications/telegram/telegramClient.js";
+import {
+	parseTelegramFromUser,
+	type TelegramFromUser,
+	type TelegramUpdate,
+} from "@/notifications/telegram/telegramClient.js";
 
 export type ParsedTelegramEvent = {
 	updateId: number;
 	chatId: string;
+	from?: TelegramFromUser;
 	callbackQueryId?: string;
 	incoming: BotIncomingMessage;
 };
@@ -33,9 +38,11 @@ export function parseTelegramUpdate(
 	}
 
 	if (update.callback_query?.data) {
+		const from = parseTelegramFromUser(update.callback_query.from);
 		return {
 			updateId: update.update_id,
 			chatId,
+			...(from ? { from } : {}),
 			callbackQueryId: update.callback_query.id,
 			incoming: {
 				kind: "callback",
@@ -49,12 +56,14 @@ export function parseTelegramUpdate(
 		return undefined;
 	}
 
+	const from = parseTelegramFromUser(update.message?.from);
 	const command = parseBotCommand(text);
 	if (command) {
 		const args = parseBotCommandArgs(text);
 		return {
 			updateId: update.update_id,
 			chatId,
+			...(from ? { from } : {}),
 			incoming: {
 				kind: "command",
 				command,
@@ -66,6 +75,7 @@ export function parseTelegramUpdate(
 	return {
 		updateId: update.update_id,
 		chatId,
+		...(from ? { from } : {}),
 		incoming: { kind: "text", text },
 	};
 }

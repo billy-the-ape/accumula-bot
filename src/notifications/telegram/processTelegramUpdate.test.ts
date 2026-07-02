@@ -75,6 +75,15 @@ describe("processTelegramUpdate", () => {
 
 	it("completes paper onboarding and creates a user portfolio", async () => {
 		const database = await setupDb();
+		const from = {
+			id: "9001",
+			isBot: false,
+			firstName: "Test",
+			lastName: "User",
+			username: "test_user",
+			languageCode: "en",
+			isPremium: false,
+		};
 
 		await processTelegramUpdate(
 			database,
@@ -82,6 +91,7 @@ describe("processTelegramUpdate", () => {
 			{
 				updateId: 1,
 				chatId,
+				from,
 				incoming: { kind: "command", command: "start" },
 			},
 			deps,
@@ -93,6 +103,10 @@ describe("processTelegramUpdate", () => {
 			{
 				updateId: 2,
 				chatId,
+				from: {
+					...from,
+					username: "test_user_updated",
+				},
 				callbackQueryId: "cb-mode",
 				incoming: {
 					kind: "callback",
@@ -130,6 +144,10 @@ describe("processTelegramUpdate", () => {
 
 		const user = await findTelegramUserByChatId(database, chatId);
 		expect(user?.onboardingState).toBeNull();
+		expect(user?.from).toEqual({
+			...from,
+			username: "test_user_updated",
+		});
 
 		const portfolio = user
 			? await getActivePortfolioForUser(database, user.id)

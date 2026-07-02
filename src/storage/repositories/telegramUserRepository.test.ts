@@ -35,10 +35,44 @@ describe("telegramUserRepository", () => {
 		expect(user.telegramChatId).toBe("12345");
 		expect(user.onboardingState).toBe("awaiting_mode_selection");
 		expect(user.onboardingDraftJson).toBeNull();
+		expect(user.from).toBeNull();
 		expect(user.settings.verbose).toBe(false);
 		expect(user.settings.defaultRiskTolerance).toBe("medium");
 		expect(user.settings.locale).toBeNull();
 		expect(user.settings.timezone).toBeNull();
+	});
+
+	it("stores telegram from data on create and update", async () => {
+		const connection = await createDatabase(":memory:");
+		client = connection.client;
+		db = connection.db;
+
+		const initialFrom = {
+			id: "42",
+			isBot: false,
+			firstName: "Ada",
+			lastName: "Lovelace",
+			username: "ada",
+			languageCode: "en",
+			isPremium: true,
+		};
+
+		const created = await getOrCreateTelegramUser(db, "12345", initialFrom);
+		expect(created.from).toEqual(initialFrom);
+
+		const updatedFrom = {
+			id: "42",
+			isBot: false,
+			firstName: "Ada",
+			lastName: null,
+			username: "ada_l",
+			languageCode: "en-GB",
+			isPremium: false,
+		};
+
+		const updated = await getOrCreateTelegramUser(db, "12345", updatedFrom);
+		expect(updated.id).toBe(created.id);
+		expect(updated.from).toEqual(updatedFrom);
 	});
 
 	it("returns the same user on subsequent getOrCreate", async () => {

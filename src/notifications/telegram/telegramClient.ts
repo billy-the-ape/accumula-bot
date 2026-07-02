@@ -26,15 +26,55 @@ type TelegramApiResponse<T> = {
 	result?: T;
 };
 
+export type TelegramApiUser = {
+	id: number;
+	is_bot: boolean;
+	first_name: string;
+	last_name?: string;
+	username?: string;
+	language_code?: string;
+	is_premium?: boolean;
+};
+
+export type TelegramFromUser = {
+	id: string;
+	isBot: boolean;
+	firstName: string;
+	lastName: string | null;
+	username: string | null;
+	languageCode: string | null;
+	isPremium: boolean;
+};
+
+export function parseTelegramFromUser(
+	from: TelegramApiUser | undefined,
+): TelegramFromUser | undefined {
+	if (!from) {
+		return undefined;
+	}
+
+	return {
+		id: String(from.id),
+		isBot: from.is_bot,
+		firstName: from.first_name,
+		lastName: from.last_name ?? null,
+		username: from.username ?? null,
+		languageCode: from.language_code ?? null,
+		isPremium: from.is_premium ?? false,
+	};
+}
+
 export type TelegramUpdate = {
 	update_id: number;
 	message?: {
 		text?: string;
 		chat: { id: number };
+		from?: TelegramApiUser;
 	};
 	callback_query?: {
 		id: string;
 		data?: string;
+		from?: TelegramApiUser;
 		message?: {
 			chat: { id: number };
 		};
