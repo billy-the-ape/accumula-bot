@@ -108,7 +108,7 @@ describe("formatPortfolioSummary", () => {
 	it("includes holdings and settings", () => {
 		const text = formatPortfolioSummary(sampleSummary);
 		expect(text).toContain("Portfolio summary");
-		expect(text).toContain("Started 2026\\-01\\-01T00:00:00\\.000Z");
+		expect(text).toContain("Started 12/31/2025, 5:00:00 PM");
 		expect(text).toContain("USDC");
 		expect(text).toContain("Medium");
 		expect(text).toContain("Min confidence to trade");

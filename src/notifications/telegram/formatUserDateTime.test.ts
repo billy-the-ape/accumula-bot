@@ -26,7 +26,9 @@ describe("formatUserDateTime", () => {
 			formatUserDateTime(date, settings),
 		);
 		expect(formatUserDateTime(date, settings)).toContain("2026");
-		expect(formatUserDateTime(date, settings)).toContain("11:30:00");
+		expect(formatUserDateTime(date, settings)).toContain(
+			"06/16/2026, 11:30 AM EDT",
+		);
 	});
 
 	it("uses locale only when timezone is unset", () => {

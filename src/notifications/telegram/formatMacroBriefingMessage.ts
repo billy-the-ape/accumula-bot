@@ -2,7 +2,6 @@ import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingCont
 import {
 	boldUnderline,
 	italic,
-	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 import { formatUserDateTime } from "@/notifications/telegram/formatUserDateTime.js";
 import type { TelegramUserSettings } from "@/storage/telegramUserSettings.js";
@@ -16,16 +15,17 @@ export function formatMacroBriefingMessage(
 	briefing: MacroBriefingMessageInput,
 	userDateTimeSettings?: Pick<TelegramUserSettings, "locale" | "timezone">,
 ): string {
-	const generatedAt = formatUserDateTime(
-		briefing.generatedAt,
-		userDateTimeSettings ?? { locale: null, timezone: null },
-	);
+	const generatedAt = formatUserDateTime(briefing.generatedAt, {
+		locale: null,
+		timezone: null,
+		...userDateTimeSettings,
+		formatOptions: {
+			dateStyle: "long",
+		},
+	});
 
 	return [
-		boldUnderline("Macro briefing"),
-		"",
-		underline("Generated:"),
-		italic(generatedAt),
+		boldUnderline(`WhalePilot Macro Briefing for ${generatedAt}`),
 		"",
 		formatMacroBriefingContentForTelegram(briefing.content),
 		"",

@@ -4,27 +4,32 @@ export { DEFAULT_TELEGRAM_USER_SETTINGS } from "@/storage/telegramUserSettings.j
 
 export function formatUserDateTime(
 	date: Date,
-	settings: Pick<TelegramUserSettings, "locale" | "timezone">,
+	{
+		locale,
+		timezone,
+		formatOptions,
+	}: Pick<TelegramUserSettings, "locale" | "timezone"> & {
+		formatOptions?: Intl.DateTimeFormatOptions;
+	},
 ): string {
-	if (settings.locale === null && settings.timezone === null) {
+	if (locale === null && timezone === null && !formatOptions) {
 		return date.toISOString();
 	}
 
-	const options: Intl.DateTimeFormatOptions = {
-		year: "numeric",
-		month: "short",
-		day: "numeric",
+	const options: Intl.DateTimeFormatOptions = formatOptions ?? {
 		hour: "2-digit",
 		minute: "2-digit",
-		second: "2-digit",
 		timeZoneName: "short",
+		year: "numeric",
+		month: "2-digit",
+		day: "2-digit",
 	};
 
-	if (settings.timezone !== null) {
-		options.timeZone = settings.timezone;
+	if (timezone !== null) {
+		options.timeZone = timezone;
 	}
 
-	return date.toLocaleString(settings.locale ?? undefined, options);
+	return date.toLocaleString(locale ?? undefined, options);
 }
 
 export function escapeUserDateTimeForMarkdown(
