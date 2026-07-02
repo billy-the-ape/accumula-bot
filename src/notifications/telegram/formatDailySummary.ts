@@ -1,3 +1,4 @@
+import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import { computeReturnFraction } from "@/domain/accumulateBenchmark.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingContent.js";
@@ -76,6 +77,26 @@ export function formatDailySummary(input: DailySummaryInput): string {
 		? `📅${underlineBold("AccumulaBot — Daily Briefing")}📅`
 		: `📅${underlineBold("AccumulaBot — Daily Summary")}📅`;
 
+	const usdStableAccumulate = isUsdStablecoinSymbol(input.accumulateSymbol);
+	const usdAllTimeReturnPct =
+		computeReturnFraction(input.usdValue, input.startingUsdValue) * 100;
+
+	const startingValueLines = usdStableAccumulate
+		? [`USD: ${bold(formatUsd(input.startingUsdValue))}`]
+		: [
+				`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.startingBtcValue.toFixed(8))}`,
+				`USD: ${bold(formatUsd(input.startingUsdValue))}`,
+			];
+
+	const currentValueLines = usdStableAccumulate
+		? [
+				`USD: ${bold(` ${formatUsd(input.usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
+			]
+		: [
+				`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.btcValue.toFixed(8))} · ${bold(formatReturnPct(input.allTimeReturnPct))} all\\-time`,
+				`USD: ${bold(` ${formatUsd(input.usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
+			];
+
 	const lines = [
 		title,
 		"",
@@ -94,12 +115,10 @@ export function formatDailySummary(input: DailySummaryInput): string {
 		formatHoldings(input.holdings),
 		"",
 		underline("Starting value:"),
-		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.startingBtcValue.toFixed(8))}`,
-		`USD: ${bold(formatUsd(input.startingUsdValue))}`,
+		...startingValueLines,
 		"",
 		underline("Current value:"),
-		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.btcValue.toFixed(8))} · ${bold(formatReturnPct(input.allTimeReturnPct))} all\\-time`,
-		`USD: ${bold(` ${formatUsd(input.usdValue)}`)} · ${bold(formatReturnPct(computeReturnFraction(input.usdValue, input.startingUsdValue) * 100))} all\\-time`,
+		...currentValueLines,
 	];
 
 	return lines.join("\n");

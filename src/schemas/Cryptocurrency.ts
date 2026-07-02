@@ -13,6 +13,8 @@ export const CryptocurrencySchema = z.object({
 	macroRiskCategory: MacroRiskCategorySchema,
 	assetClass: AssetClassSchema,
 	isStable: z.boolean().optional(),
+	/** Fiat peg for stablecoins (e.g. USD for USDC). */
+	pegCurrency: z.enum(["USD", "EUR"]).optional(),
 	/** Base (or future chain) contract metadata for live on-chain trading. */
 	evm: EvmChainMetadataSchema.optional(),
 });

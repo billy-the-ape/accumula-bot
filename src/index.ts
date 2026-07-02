@@ -4,7 +4,7 @@ import {
 	getPredictionSignalsFromContext,
 	getSocialMediaSectionFromContext,
 } from "@/analysis/index.js";
-
+import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import { loadConfig } from "@/config/index.js";
 
 import { executeActivePortfolios } from "@/execution/executeActivePortfolios.js";
@@ -223,17 +223,23 @@ async function main() {
 
 				console.info("Portfolio holdings:", portfolio.holdings);
 
-				console.info(
-					`Portfolio ${portfolio.assetToAccumulate} value: ${portfolioReport.btcValue.toFixed(8)} ${portfolio.assetToAccumulate}`,
-				);
+				if (isUsdStablecoinSymbol(portfolio.assetToAccumulate)) {
+					console.info(
+						`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+					);
+				} else {
+					console.info(
+						`Portfolio ${portfolio.assetToAccumulate} value: ${portfolioReport.btcValue.toFixed(8)} ${portfolio.assetToAccumulate}`,
+					);
 
-				console.info(
-					`Return vs initial baseline: ${portfolioReport.returnPct.toFixed(2)}%`,
-				);
+					console.info(
+						`Return vs initial baseline: ${portfolioReport.returnPct.toFixed(2)}%`,
+					);
 
-				console.info(
-					`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
-				);
+					console.info(
+						`Portfolio USD value: ${portfolioReport.usdValue.toFixed(2)} (${portfolioReport.usdAllTimeReturnPct.toFixed(2)}% all-time)`,
+					);
+				}
 
 				if (!config.telegram?.botToken) {
 					continue;

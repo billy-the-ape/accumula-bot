@@ -43,6 +43,28 @@ describe("formatDailySummary", () => {
 		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
 	});
 
+	it("shows only USD value when accumulating a USD stablecoin", () => {
+		const message = formatDailySummary({
+			tradesLast24h: [],
+			btcValue: 9_975,
+			usdValue: 9_975,
+			startingBtcValue: 10_000,
+			startingUsdValue: 10_000,
+			accumulateSymbol: "USDC",
+			dailyReturnPct: 0,
+			weeklyReturnPct: 0,
+			allTimeReturnPct: -0.25,
+			holdings: { USDC: 9_975 },
+		});
+
+		expect(message).toContain("__Starting value:__");
+		expect(message).toContain("USD: *10,000\\.00*");
+		expect(message).not.toMatch(/__Starting value:__[\s\S]*USDC:/);
+		expect(message).toContain("__Current value:__");
+		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
+		expect(message).not.toMatch(/__Current value:__[\s\S]*USDC:/);
+	});
+
 	it("includes the full macro briefing text when provided", () => {
 		const generatedAt = new Date("2026-06-16T07:00:00.000Z");
 		const message = formatDailySummary({

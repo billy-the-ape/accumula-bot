@@ -1,3 +1,4 @@
+import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import type { OutlookThresholds } from "@/execution/outlookActions";
 import {
 	bold,
@@ -297,12 +298,15 @@ export function formatRunReport(input: RunReportInput): string {
 	if (input.portfolioReport) {
 		const { btcValue, usdValue, returnPct, usdAllTimeReturnPct } =
 			input.portfolioReport;
-		lines.push(
-			"",
-			boldUnderline("Current value:"),
-			`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(btcValue.toFixed(8))} · ${bold(formatReturnPct(returnPct))} all\\-time`,
-			`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
-		);
+		const valueLines = isUsdStablecoinSymbol(input.accumulateSymbol)
+			? [
+					`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
+				]
+			: [
+					`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(btcValue.toFixed(8))} · ${bold(formatReturnPct(returnPct))} all\\-time`,
+					`USD: ${bold(` ${formatUsdPlain(usdValue)}`)} · ${bold(formatReturnPct(usdAllTimeReturnPct))} all\\-time`,
+				];
+		lines.push("", boldUnderline("Current value:"), ...valueLines);
 	}
 
 	return lines.join("\n");

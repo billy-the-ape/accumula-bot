@@ -128,6 +128,18 @@ describe("formatPortfolioSummary", () => {
 		expect(withHint).toContain("/liquidate");
 		expect(withHint).not.toContain("/reset");
 	});
+
+	it("shows only USD performance when accumulating a USD stablecoin", () => {
+		const text = formatPortfolioSummary({
+			...sampleSummary,
+			accumulateSymbol: "USDC",
+			accumulateValue: 10_500,
+			startingAccumulateValue: 10_000,
+		});
+
+		expect(text).toContain("USD: *10,500\\.00*");
+		expect(text).not.toMatch(/__Performance:__[\s\S]*USDC:/);
+	});
 });
 
 describe("parsePortfolioModeCallback", () => {

@@ -159,6 +159,24 @@ describe("formatRunReport", () => {
 		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
 	});
 
+	it("shows only USD value when accumulating a USD stablecoin", () => {
+		const message = formatRunReport(
+			baseInput({
+				accumulateSymbol: "USDC",
+				portfolioReport: {
+					btcValue: 9_975,
+					usdValue: 9_975,
+					returnPct: -0.25,
+					usdAllTimeReturnPct: -0.25,
+				},
+			}),
+		);
+
+		expect(message).toContain("__*Current value:*__");
+		expect(message).toContain("USD: * 9,975\\.00* · *\\-0\\.25%* all\\-time");
+		expect(message).not.toContain("USDC: *");
+	});
+
 	it("renders a hold run with no trades section", () => {
 		const message = formatRunReport(
 			baseInput({

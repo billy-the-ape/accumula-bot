@@ -39,6 +39,7 @@ export const CRYPTOCURRENCY_REGISTRY = {
 		macroRiskCategory: "risk_off",
 		assetClass: "stablecoin",
 		isStable: true,
+		pegCurrency: "USD",
 	},
 	EURC: {
 		name: "Euro Coin",
@@ -48,6 +49,7 @@ export const CRYPTOCURRENCY_REGISTRY = {
 		macroRiskCategory: "risk_off",
 		assetClass: "stablecoin",
 		isStable: true,
+		pegCurrency: "EUR",
 	},
 	cbETH: {
 		name: "Coinbase Wrapped Staked ETH",
@@ -128,6 +130,19 @@ export function getCryptocurrency(
 	chainId: SupportedDepositChainId = BASE_CHAIN_ID,
 ): Cryptocurrency {
 	return resolveCryptocurrencyForChain(symbol, chainId);
+}
+
+export function isUsdStablecoin(asset: Cryptocurrency): boolean {
+	return asset.pegCurrency === "USD";
+}
+
+/** Whether the symbol is a USD-pegged stablecoin (e.g. USDC). */
+export function isUsdStablecoinSymbol(symbol: string): boolean {
+	const key = normalizeRegistrySymbol(symbol);
+	if (!key) {
+		return false;
+	}
+	return isUsdStablecoin(CRYPTOCURRENCY_REGISTRY[key]);
 }
 
 export function listRegistryAssets(

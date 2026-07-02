@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
 	getCryptocurrency,
+	isUsdStablecoin,
+	isUsdStablecoinSymbol,
 	listRegistryAssets,
 	normalizeRegistrySymbol,
 	resolveCryptocurrencyForChain,
@@ -49,9 +51,22 @@ describe("CRYPTOCURRENCY_REGISTRY", () => {
 			macroRiskCategory: "risk_off",
 			assetClass: "stablecoin",
 			isStable: true,
+			pegCurrency: "USD",
 			evm: BASE_USDC,
 		});
-		expect(getCryptocurrency("EURC").macroRiskCategory).toBe("risk_off");
+		expect(getCryptocurrency("EURC")).toMatchObject({
+			macroRiskCategory: "risk_off",
+			pegCurrency: "EUR",
+		});
+	});
+
+	it("identifies USD stablecoins by symbol", () => {
+		expect(isUsdStablecoin(getCryptocurrency("USDC"))).toBe(true);
+		expect(isUsdStablecoin(getCryptocurrency("EURC"))).toBe(false);
+		expect(isUsdStablecoinSymbol("USDC")).toBe(true);
+		expect(isUsdStablecoinSymbol("usdc")).toBe(true);
+		expect(isUsdStablecoinSymbol("EURC")).toBe(false);
+		expect(isUsdStablecoinSymbol("BTC")).toBe(false);
 	});
 
 	it("maps logical BTC/ETH to Base cbBTC/WETH contracts", () => {

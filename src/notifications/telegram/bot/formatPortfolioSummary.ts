@@ -1,3 +1,4 @@
+import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import {
 	bold,
@@ -55,6 +56,15 @@ export function formatPortfolioSummary(
 	input: PortfolioSummaryInput,
 	options: FormatPortfolioSummaryOptions = {},
 ): string {
+	const performanceLines = isUsdStablecoinSymbol(input.accumulateSymbol)
+		? [
+				`USD: ${bold(formatUsd(input.currentUsdValue))} \\(started ${bold(formatUsd(input.startingUsdValue))}\\)`,
+			]
+		: [
+				`USD: ${bold(formatUsd(input.currentUsdValue))} \\(started ${bold(formatUsd(input.startingUsdValue))}\\)`,
+				`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.accumulateValue.toFixed(8))} \\(started ${bold(input.startingAccumulateValue.toFixed(8))}\\)`,
+			];
+
 	const lines = [
 		underline("Portfolio summary"),
 		"",
@@ -63,8 +73,7 @@ export function formatPortfolioSummary(
 		"",
 		underline("Performance:"),
 		`All\\-time: ${bold(formatReturnPct(input.allTimeReturnPct))}`,
-		`USD: ${bold(formatUsd(input.currentUsdValue))} \\(started ${bold(formatUsd(input.startingUsdValue))}\\)`,
-		`${escapeMarkdownV2(input.accumulateSymbol)}: ${bold(input.accumulateValue.toFixed(8))} \\(started ${bold(input.startingAccumulateValue.toFixed(8))}\\)`,
+		...performanceLines,
 		"",
 		underline("Settings:"),
 		`Risk tolerance: ${bold(formatRiskToleranceLabel(input.riskTolerance))}`,
