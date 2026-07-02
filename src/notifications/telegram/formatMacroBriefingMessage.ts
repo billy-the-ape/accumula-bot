@@ -20,7 +20,7 @@ export function formatMacroBriefingMessage(
 		timezone: null,
 		...userDateTimeSettings,
 		formatOptions: {
-			dateStyle: "long",
+			dateStyle: "full",
 		},
 	});
 
