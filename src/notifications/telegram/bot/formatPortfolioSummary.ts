@@ -2,6 +2,7 @@ import { isUsdStablecoinSymbol } from "@/config/assets.js";
 import type { PortfolioHoldings } from "@/domain/types.js";
 import {
 	bold,
+	boldUnderline,
 	escapeMarkdownV2,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
@@ -66,7 +67,7 @@ export function formatPortfolioSummary(
 			];
 
 	const lines = [
-		underline("Portfolio summary"),
+		boldUnderline("Portfolio summary"),
 		"",
 		underline("Holdings:"),
 		formatHoldings(input.holdings),

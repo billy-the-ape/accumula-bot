@@ -4,10 +4,10 @@ import type { PortfolioHoldings } from "@/domain/types.js";
 import { formatMacroBriefingContentForTelegram } from "@/macro/macroBriefingContent.js";
 import {
 	bold,
+	boldUnderline,
 	escapeMarkdownV2,
 	italic,
 	underline,
-	underlineBold,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
 import { formatUserDateTime } from "@/notifications/telegram/formatUserDateTime.js";
 import type { StoredTrade } from "@/schemas/Trade.js";
@@ -74,8 +74,8 @@ function formatHoldings(holdings: PortfolioHoldings): string {
 
 export function formatDailySummary(input: DailySummaryInput): string {
 	const title = input.macroBriefing
-		? `📅${underlineBold("AccumulaBot — Daily Briefing")}📅`
-		: `📅${underlineBold("AccumulaBot — Daily Summary")}📅`;
+		? `📅${boldUnderline("AccumulaBot — Daily Briefing")}📅`
+		: `📅${boldUnderline("AccumulaBot — Daily Summary")}📅`;
 
 	const usdStableAccumulate = isUsdStablecoinSymbol(input.accumulateSymbol);
 	const usdAllTimeReturnPct =

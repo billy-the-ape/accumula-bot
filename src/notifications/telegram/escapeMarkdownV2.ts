@@ -28,11 +28,6 @@ export function boldUnderline(value: string): string {
 	return `__*${escapeMarkdownV2(value)}*__`;
 }
 
-/** Bold wrapping underline — matches former `<b><u>…</u></b>`. */
-export function underlineBold(value: string): string {
-	return `*__${escapeMarkdownV2(value)}__*`;
-}
-
 export function markdownLink(text: string, url: string): string {
 	return `[${escapeMarkdownV2(text)}](${escapeMarkdownV2Url(url)})`;
 }

@@ -1,6 +1,8 @@
 import { DEFAULT_PAPER_STARTING_CASH_USD } from "@/execution/paperExecution.js";
 import {
 	bold,
+	boldUnderline,
+	code,
 	escapeMarkdownV2,
 	underline,
 } from "@/notifications/telegram/escapeMarkdownV2.js";
@@ -19,7 +21,7 @@ export function formatStartingValuePrompt(): string {
 
 export function formatPortfolioModePrompt(): string {
 	return (
-		`🤖 ${underline("Welcome to Accumula Bot")} 🤖\n` +
+		`🤖 ${boldUnderline("Welcome to Accumula Bot")} 🤖\n` +
 		botPlainText([
 			"",
 			"Choose how you want to trade:",
@@ -34,14 +36,18 @@ export function formatLiveDepositInstructions(
 	minDepositUsd: number,
 ): string {
 	return [
-		underline("Live portfolio — deposit USDC on Base"),
+		boldUnderline("Live portfolio — deposit USDC on Base"),
 		"",
-		`Wallet: ${bold(walletAddress)}`,
+		escapeMarkdownV2("Your Portfolio Deposit Wallet:"),
 		"",
-		botPlainText([
-			"Only deposit USDC on Base.",
-			`Only send in a single transaction greater than $${minDepositUsd.toLocaleString("en-US")} USDC. This is only active for the next 30 minutes. If no deposits are made, portfolio will revert and you'll have to do /start over again`,
-		]),
+		code(walletAddress),
+		"",
+		`${escapeMarkdownV2("• Send a ")}${bold("single transaction")}${escapeMarkdownV2(" with a minimum of ")}${bold(`$${minDepositUsd.toLocaleString("en-US")} USDC`)}\\.`,
+		`${escapeMarkdownV2("• Only deposit ")}${bold("USDC on Base")}${escapeMarkdownV2(". Sending any other token or to another blockchain will be ")}${bold("lost forever")}\\.`,
+		`${escapeMarkdownV2("• This deposit is only active for the next ")}${bold("30 minutes")}${escapeMarkdownV2(". If no deposits are made, portfolio will revert and you'll have to /start over again.")}`,
+		escapeMarkdownV2(
+			"• Upon withdrawal, WhalePilot will take a 12% carry fee of the total profit. If you liquidate your portfolio at a loss, you will not be charged a fee.",
+		),
 	].join("\n");
 }
 
